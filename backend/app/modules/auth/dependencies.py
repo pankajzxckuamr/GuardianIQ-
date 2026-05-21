@@ -45,3 +45,16 @@ def get_current_user(
         raise credentials_exception
 
     return user
+
+
+def require_permission(permission_code: str):
+    def permission_dependency(current_user: User = Depends(get_current_user)):
+        for role in current_user.roles:
+            for permission in role.permissions:
+                if permission.permission_code == permission_code:
+                    return current_user
+        raise HTTPException(
+            status_code=403,
+            detail=f"Not enough permissions. Requires: {permission_code}"
+        )
+    return permission_dependency
