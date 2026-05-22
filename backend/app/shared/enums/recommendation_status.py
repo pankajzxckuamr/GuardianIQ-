@@ -1,0 +1,11 @@
+from enum import Enum
+
+class RecommendationStatus(str, Enum):
+    NEW = "NEW"
+    UNDER_EVALUATION = "UNDER_EVALUATION"
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    ESCALATED = "ESCALATED"
+    EXECUTED = "EXECUTED"
+    CLOSED = "CLOSED"
