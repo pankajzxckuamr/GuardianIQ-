@@ -1,0 +1,38 @@
+from sqlalchemy import Column, Integer, String, DateTime, JSON
+
+
+from datetime import datetime
+
+from app.db.session import Base
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    event_type = Column(
+        String,
+        nullable=False
+    )
+
+    entity_type = Column(
+        String,
+        nullable=False
+    )
+
+    entity_id = Column(Integer)
+
+    actor_user_id = Column(Integer)
+
+    action = Column(
+        String,
+        nullable=False
+    )
+
+    event_metadata = Column(JSON)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
