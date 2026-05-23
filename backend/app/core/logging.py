@@ -1,19 +1,44 @@
-import uuid
-import contextvars
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+"""
+Logging configuration for GuardianIQ.
+Request ID middleware is in core.middleware module.
+"""
 
-request_id_context = contextvars.ContextVar("request_id", default="unknown")
+import logging
+import os
+import sys
+from logging.handlers import RotatingFileHandler
 
-class RequestIDMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())
-        
-        token = request_id_context.set(request_id)
-        
-        try:
-            response = await call_next(request)
-            response.headers["X-Request-ID"] = request_id
-            return response
-        finally:
-            request_id_context.reset(token)
+# Ensure logs directory exists before handler creation
+os.makedirs("logs", exist_ok=True)
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+
+# File handler with rotation
+file_handler = RotatingFileHandler(
+    "logs/app.log",
+    maxBytes=10485760,  # 10MB
+    backupCount=5
+)
+file_handler.setLevel(logging.INFO)
+
+# Formatter
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger instance."""
+    return logging.getLogger(name)
+

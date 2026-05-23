@@ -9,7 +9,8 @@ Usage:
 """
 
 from app.db.session import SessionLocal
-from app.modules.auth.models import Role, Permission, role_permissions
+from app.modules.auth.models import Role, Permission, User, user_roles, role_permissions
+from app.core.security import hash_password
 
 
 # ──────────────────────────────────────────────
@@ -152,6 +153,36 @@ def seed():
                     print(f"   ✅ Mapped {role_code} → {perm_code}")
                 else:
                     print(f"   ❌ Permission not found: {perm_code}")
+
+        db.commit()
+
+        # --- Seed Default Admin User ---
+        print("\n👤 Seeding Default Admin User...")
+        admin_email = "admin@guardianiq.com"
+        existing_admin = db.query(User).filter(User.email == admin_email).first()
+
+        if not existing_admin:
+            admin_user = User(
+                name="Super Admin",
+                email=admin_email,
+                hashed_password=hash_password("Admin@1234!")
+            )
+            db.add(admin_user)
+            db.flush()  # Get admin_user.id before assigning roles
+
+            super_admin_role = db.query(Role).filter(
+                Role.role_code == "SUPER_ADMIN"
+            ).first()
+
+            if super_admin_role:
+                admin_user.roles.append(super_admin_role)
+                print(f"   ✅ Created admin user: {admin_email}")
+                print(f"   ✅ Assigned role: SUPER_ADMIN")
+                print(f"   ⚠️  Default password is 'Admin@1234!' — change after first login!")
+            else:
+                print("   ❌ SUPER_ADMIN role not found — skipping role assignment")
+        else:
+            print(f"   ⏭️  Already exists: {admin_email}")
 
         db.commit()
         print("\n🎉 Seeding complete!\n")

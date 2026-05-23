@@ -8,3 +8,4 @@ from app.modules.ai_model.models import AIModel
 from app.modules.approval.models import Approval
 from app.modules.agent.models import Agent
 from app.modules.policy.models import Policy
+from app.modules.settings.models import ApplicationSettings

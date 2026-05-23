@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.modules.datasource.schemas import DataSourceCreate, DataSourceResponse
 from app.modules.datasource.service import create_data_source, get_data_sources
+from app.shared.response_utils import ResponseHelper
+from app.shared.responses import StandardResponse
 
 router = APIRouter(
     prefix="/api/data-sources",
@@ -12,20 +14,28 @@ router = APIRouter(
 
 @router.post(
     "",
-    response_model=DataSourceResponse
+    response_model=StandardResponse[DataSourceResponse]
 )
 def create_data_source_api(
     payload: DataSourceCreate,
     db: Session = Depends(get_db)
 ):
-    return create_data_source(db, payload)
+    result = create_data_source(db, payload)
+    return ResponseHelper.created(
+        data=result,
+        message="Data source created successfully"
+    )
 
 
 @router.get(
     "",
-    response_model=list[DataSourceResponse]
+    response_model=StandardResponse[list[DataSourceResponse]]
 )
 def get_data_sources_api(
     db: Session = Depends(get_db)
 ):
-    return get_data_sources(db)
+    result = get_data_sources(db)
+    return ResponseHelper.list_response(
+        items=result,
+        message="Data sources retrieved successfully"
+    )

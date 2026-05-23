@@ -3,14 +3,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.shared.responses import StandardResponse
-from app.core.logging import request_id_context
+from app.core.middleware import get_request_id
 import traceback
-
-def get_request_id():
-    try:
-        return request_id_context.get()
-    except LookupError:
-        return "unknown"
 
 def add_exception_handlers(app: FastAPI):
     @app.exception_handler(RequestValidationError)

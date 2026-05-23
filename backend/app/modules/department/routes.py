@@ -14,6 +14,9 @@ from app.modules.department.service import (
     get_departments
 )
 
+from app.shared.response_utils import ResponseHelper
+from app.shared.responses import StandardResponse
+
 router = APIRouter(
     prefix="/api/departments",
     tags=["Departments"]
@@ -22,20 +25,28 @@ router = APIRouter(
 
 @router.post(
     "",
-    response_model=DepartmentResponse
+    response_model=StandardResponse[DepartmentResponse]
 )
 def create_department_api(
     payload: DepartmentCreate,
     db: Session = Depends(get_db)
 ):
-    return create_department(db, payload)
+    result = create_department(db, payload)
+    return ResponseHelper.created(
+        data=result,
+        message="Department created successfully"
+    )
 
 
 @router.get(
     "",
-    response_model=list[DepartmentResponse]
+    response_model=StandardResponse[list[DepartmentResponse]]
 )
 def get_departments_api(
     db: Session = Depends(get_db)
 ):
-    return get_departments(db)
+    result = get_departments(db)
+    return ResponseHelper.list_response(
+        items=result,
+        message="Departments retrieved successfully"
+    )

@@ -14,7 +14,8 @@ from jose import jwt, JWTError
 from app.modules.auth.dependencies import get_current_user, require_permission
 from app.modules.auth.schemas import TokenResponse, RefreshTokenRequest, RoleResponse, PermissionResponse
 from app.shared.responses import StandardResponse
-from app.core.exceptions import get_request_id
+from app.shared.response_utils import ResponseHelper
+from app.core.middleware import get_request_id, set_user_context
 from typing import List, Any
 
 router = APIRouter(
@@ -23,7 +24,7 @@ router = APIRouter(
 )
 
 
-@router.post("/login")
+@router.post("/login", response_model=TokenResponse)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
@@ -61,6 +62,9 @@ def login(
         }
     )
 
+    # Set user context for logging
+    set_user_context(str(user.id), user.email)
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -72,9 +76,9 @@ def login(
 def me(
         current_user: User = Depends(get_current_user)
 ):
-    return StandardResponse(
-        status="success",
-        request_id=get_request_id(),
+    set_user_context(str(current_user.id), current_user.email)
+    
+    return ResponseHelper.success(
         data={
             "id": current_user.id,
             "name": current_user.name,
@@ -87,7 +91,8 @@ def me(
                 for role in current_user.roles 
                 for perm in role.permissions
             ]))
-        }
+        },
+        message="Current user information retrieved"
     )
 
 
@@ -130,14 +135,17 @@ def refresh_token(
         }
     )
 
-    return StandardResponse(
-        status="success",
-        request_id=get_request_id(),
-        data=TokenResponse(
-            access_token=access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer"
-        )
+    set_user_context(str(user.id), user.email)
+
+    token_response = TokenResponse(
+        access_token=access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer"
+    )
+    
+    return ResponseHelper.success(
+        data=token_response,
+        message="Token refreshed successfully"
     )
 
 
@@ -145,9 +153,7 @@ def refresh_token(
 def logout():
     # Since we are using stateless JWTs, we tell the client to remove the token.
     # A true server-side logout would require a token blocklist in DB/Redis.
-    return StandardResponse(
-        status="success",
-        request_id=get_request_id(),
+    return ResponseHelper.success(
         message="Logged out successfully",
         data=None
     )
@@ -158,11 +164,12 @@ def get_roles(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("policy.read"))
 ):
+    set_user_context(str(current_user.id), current_user.email)
+    
     roles = db.query(Role).all()
-    return StandardResponse(
-        status="success",
-        request_id=get_request_id(),
-        data=roles
+    return ResponseHelper.list_response(
+        items=roles,
+        message="Roles retrieved successfully"
     )
 
 
@@ -171,9 +178,10 @@ def get_permissions(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("policy.read"))
 ):
+    set_user_context(str(current_user.id), current_user.email)
+    
     permissions = db.query(Permission).all()
-    return StandardResponse(
-        status="success",
-        request_id=get_request_id(),
-        data=permissions
+    return ResponseHelper.list_response(
+        items=permissions,
+        message="Permissions retrieved successfully"
     )
