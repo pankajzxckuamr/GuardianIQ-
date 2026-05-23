@@ -10,6 +10,10 @@ from app.modules.department.routes import router as department_router
 from app.modules.audit.routes import router as audit_router
 from app.modules.policy.routes import router as policy_router
 from app.modules.datasource.routes import router as datasource_router
+from app.modules.ai_model.routes import router as ai_model_router
+from app.modules.agent.routes import router as agent_router
+from app.modules.recommendation.routes import router as recommendation_router
+from app.modules.approval.routes import router as approval_router
 
 APP_VERSION = "0.1.0"
 
@@ -31,6 +35,10 @@ app.include_router(department_router)
 app.include_router(audit_router)
 app.include_router(policy_router)
 app.include_router(datasource_router)
+app.include_router(ai_model_router)
+app.include_router(agent_router)
+app.include_router(recommendation_router)
+app.include_router(approval_router)
 
 
 @app.get("/api/health", response_model=StandardResponse[dict])
