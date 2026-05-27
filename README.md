@@ -152,7 +152,7 @@ Use these seeded credentials on the Login Page (`http://localhost:5173/login`):
 | Field | Value |
 |-------|-------|
 | **Email** | `admin@guardianiq.com` |
-| **Password** | `admin123` |
+| **Password** | `Admin@1234!` |
 
 > This is the default admin account seeded into the PostgreSQL database.
 
