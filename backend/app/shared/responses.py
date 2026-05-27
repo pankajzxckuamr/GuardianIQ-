@@ -8,3 +8,4 @@ class StandardResponse(BaseModel, Generic[T]):
     request_id: str
     message: Optional[str] = None
     data: Optional[T] = None
+    error_code: Optional[str] = None

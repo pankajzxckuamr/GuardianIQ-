@@ -47,8 +47,10 @@ class ResponseStandardizationMiddleware(BaseHTTPMiddleware):
     """
     
     async def dispatch(self, request: Request, call_next):
-        # Skip OpenAPI, docs, and authentication paths that require exact schemas
-        if request.url.path in ["/openapi.json", "/docs", "/redoc", "/api/auth/login"]:
+        # Skip OpenAPI, docs paths, and the login endpoint (OAuth2 spec requires
+        # access_token at root level - middleware must not re-wrap it)
+        SKIP_PATHS = ["/openapi.json", "/docs", "/redoc", "/api/auth/login"]
+        if request.url.path in SKIP_PATHS:
             return await call_next(request)
             
         # Get the original response

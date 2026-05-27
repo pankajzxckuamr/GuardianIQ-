@@ -44,6 +44,14 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    from app.modules.auth.models import TokenBlocklist
+    is_blocked = db.query(TokenBlocklist).filter(TokenBlocklist.token == token).first()
+    if is_blocked:
+        raise HTTPException(
+            status_code=401,
+            detail="Token has been revoked"
+        )
+
     return user
 
 

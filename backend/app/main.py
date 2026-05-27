@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.db.session import engine
 from app.modules.auth.routes import router as auth_router
@@ -22,6 +23,22 @@ app = FastAPI(
     version=APP_VERSION
 )
 
+# ── CORS ── Allow frontend dev server + any localhost port ────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Request-Time"],
+)
+
 # Add middleware (order matters - innermost will execute first)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(ResponseStandardizationMiddleware)
@@ -29,8 +46,10 @@ app.add_middleware(RequestIDMiddleware)
 
 add_exception_handlers(app)
 
-app.include_router(auth_router)
 
+from app.modules.foundation.routes import router as foundation_router
+
+app.include_router(auth_router)
 app.include_router(department_router)
 app.include_router(audit_router)
 app.include_router(policy_router)
@@ -39,6 +58,7 @@ app.include_router(ai_model_router)
 app.include_router(agent_router)
 app.include_router(recommendation_router)
 app.include_router(approval_router)
+app.include_router(foundation_router)
 
 
 @app.get("/api/health", response_model=StandardResponse[dict])
@@ -63,9 +83,14 @@ def db_health_check():
         )
 
     except Exception as e:
-        return ResponseHelper.error(
+        from fastapi.responses import JSONResponse
+        error_response = ResponseHelper.error(
             message=f"Database connection failed: {str(e)}",
             data=None
+        )
+        return JSONResponse(
+            status_code=503,
+            content=error_response.model_dump()
         )
 
 

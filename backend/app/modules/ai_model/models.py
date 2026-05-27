@@ -11,7 +11,7 @@ class AIModel(Base):
     model_type = Column(String, nullable=False)
     version = Column(String, nullable=False)
     risk_level = Column(SQLEnum(RiskLevel), nullable=False, default=RiskLevel.LOW)
-    status = Column(String, nullable=False, default="ACTIVE")
+    status = Column(String, nullable=False, default="ACTIVE", index=True)
     
     owner_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     data_source_id = Column(Integer, ForeignKey("data_sources.id"), nullable=True)

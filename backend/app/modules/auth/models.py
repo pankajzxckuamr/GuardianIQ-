@@ -86,3 +86,10 @@ class Permission(Base):
         secondary=role_permissions,
         back_populates="permissions"
     )
+
+class TokenBlocklist(Base):
+    __tablename__ = "token_blocklist"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(Integer, nullable=False)

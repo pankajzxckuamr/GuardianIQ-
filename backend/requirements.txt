@@ -10,3 +10,4 @@ pydantic-settings
 python-dotenv
 email-validator
 python-multipart
+httpx

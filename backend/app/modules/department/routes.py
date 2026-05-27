@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User
 
 from app.modules.department.schemas import (
     DepartmentCreate,
@@ -29,7 +31,8 @@ router = APIRouter(
 )
 def create_department_api(
     payload: DepartmentCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     result = create_department(db, payload)
     return ResponseHelper.created(
@@ -43,7 +46,8 @@ def create_department_api(
     response_model=StandardResponse[list[DepartmentResponse]]
 )
 def get_departments_api(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     result = get_departments(db)
     return ResponseHelper.list_response(

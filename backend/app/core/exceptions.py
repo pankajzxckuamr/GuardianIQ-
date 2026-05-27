@@ -23,7 +23,8 @@ def add_exception_handlers(app: FastAPI):
                 status="error",
                 request_id=get_request_id(),
                 message=message,
-                data=None
+                data=None,
+                error_code="VALIDATION_ERROR"
             ).model_dump()
         )
 

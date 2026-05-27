@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -13,6 +14,8 @@ from app.core.config import settings
 from jose import jwt, JWTError
 from app.modules.auth.dependencies import get_current_user, require_permission
 from app.modules.auth.schemas import TokenResponse, RefreshTokenRequest, RoleResponse, PermissionResponse
+from app.modules.auth.models import TokenBlocklist
+from app.modules.auth.dependencies import oauth2_scheme
 from app.shared.responses import StandardResponse
 from app.shared.response_utils import ResponseHelper
 from app.core.middleware import get_request_id, set_user_context
@@ -24,11 +27,16 @@ router = APIRouter(
 )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
+    """
+    Authenticate user and return JWT tokens.
+    Returns access_token at root level (OAuth2 spec) for Swagger compatibility,
+    plus full StandardResponse fields for the frontend.
+    """
     user = db.query(User).filter(
         User.email == form_data.username
     ).first()
@@ -65,11 +73,32 @@ def login(
     # Set user context for logging
     set_user_context(str(user.id), user.email)
 
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer"
-    )
+    # ── OAuth2 spec: access_token MUST be at root level so Swagger UI ──
+    # ── (and any OAuth2 client) can extract it from the response.     ──
+    # We also include StandardResponse fields so the frontend client   ──
+    # can consume the same response without special-casing.            ──
+    return JSONResponse(content={
+        # OAuth2 / RFC 6749 required fields at root
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        # StandardResponse envelope fields
+        "status": "success",
+        "message": "Login successful",
+        "request_id": get_request_id(),
+        "data": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "roles": [role.role_code for role in user.roles]
+            }
+        }
+    })
+
 
 
 @router.get("/me", response_model=StandardResponse[dict])
@@ -150,9 +179,25 @@ def refresh_token(
 
 
 @router.post("/logout", response_model=StandardResponse[dict])
-def logout():
-    # Since we are using stateless JWTs, we tell the client to remove the token.
-    # A true server-side logout would require a token blocklist in DB/Redis.
+def logout(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        exp = payload.get("exp")
+        
+        # Add to blocklist
+        blocklist_entry = TokenBlocklist(token=token, expires_at=exp)
+        db.add(blocklist_entry)
+        db.commit()
+    except JWTError:
+        pass
+        
     return ResponseHelper.success(
         message="Logged out successfully",
         data=None

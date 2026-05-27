@@ -14,7 +14,7 @@ class Recommendation(Base):
     title = Column(String, nullable=False)
     risk_score = Column(Integer, nullable=True)
     risk_level = Column(SQLEnum(RiskLevel), nullable=False, default=RiskLevel.LOW)
-    status = Column(SQLEnum(RecommendationStatus), nullable=False, default=RecommendationStatus.NEW)
+    status = Column(SQLEnum(RecommendationStatus), nullable=False, default=RecommendationStatus.NEW, index=True)
     recommended_action = Column(String, nullable=True)
     
     agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)

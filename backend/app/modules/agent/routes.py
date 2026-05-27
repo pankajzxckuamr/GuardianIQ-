@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User
 from app.modules.agent.models import Agent
 from app.modules.agent.schemas import AgentCreate, AgentUpdate, AgentResponse
 from app.shared.responses import StandardResponse
@@ -11,7 +13,7 @@ from app.shared.response_utils import ResponseHelper
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 
 @router.post("/", response_model=StandardResponse[AgentResponse], status_code=status.HTTP_201_CREATED)
-def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)):
+def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = Agent(**agent_in.model_dump())
     db.add(db_obj)
     db.commit()
@@ -22,7 +24,7 @@ def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)):
     )
 
 @router.get("/", response_model=StandardResponse[List[AgentResponse]])
-def get_agents(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def get_agents(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     agents = db.query(Agent).offset(skip).limit(limit).all()
     return ResponseHelper.success(
         message="Agents retrieved successfully",
@@ -30,7 +32,7 @@ def get_agents(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     )
 
 @router.get("/{agent_id}", response_model=StandardResponse[AgentResponse])
-def get_agent(agent_id: int, db: Session = Depends(get_db)):
+def get_agent(agent_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = db.query(Agent).filter(Agent.id == agent_id).first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -40,7 +42,7 @@ def get_agent(agent_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/{agent_id}", response_model=StandardResponse[AgentResponse])
-def update_agent(agent_id: int, agent_in: AgentUpdate, db: Session = Depends(get_db)):
+def update_agent(agent_id: int, agent_in: AgentUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = db.query(Agent).filter(Agent.id == agent_id).first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -57,7 +59,7 @@ def update_agent(agent_id: int, agent_in: AgentUpdate, db: Session = Depends(get
     )
 
 @router.delete("/{agent_id}", response_model=StandardResponse[None])
-def delete_agent(agent_id: int, db: Session = Depends(get_db)):
+def delete_agent(agent_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = db.query(Agent).filter(Agent.id == agent_id).first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Agent not found")

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User
 from app.modules.policy.schemas import PolicyCreate, PolicyResponse
 from app.modules.policy.service import create_policy, get_policies
 from app.shared.response_utils import ResponseHelper
@@ -19,7 +21,8 @@ router = APIRouter(
 )
 def create_policy_api(
     payload: PolicyCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     result = create_policy(db, payload)
     return ResponseHelper.created(
@@ -33,7 +36,8 @@ def create_policy_api(
     response_model=StandardResponse[list[PolicyResponse]]
 )
 def get_policies_api(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     result = get_policies(db)
     return ResponseHelper.list_response(

@@ -11,10 +11,6 @@ from logging.handlers import RotatingFileHandler
 # Ensure logs directory exists before handler creation
 os.makedirs("logs", exist_ok=True)
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 # Console handler
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
@@ -34,8 +30,14 @@ formatter = logging.Formatter(
 console_handler.setFormatter(formatter)
 file_handler.setFormatter(formatter)
 
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[console_handler, file_handler],
+    force=True
+)
+
+logger = logging.getLogger()
 
 
 def get_logger(name: str) -> logging.Logger:

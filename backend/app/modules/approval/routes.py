@@ -4,6 +4,8 @@ from typing import List
 from datetime import datetime, timezone
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User
 from app.modules.approval.models import Approval
 from app.modules.approval.schemas import ApprovalCreate, ApprovalUpdate, ApprovalResponse
 from app.shared.responses import StandardResponse
@@ -12,7 +14,7 @@ from app.shared.response_utils import ResponseHelper
 router = APIRouter(prefix="/api/approvals", tags=["Approvals"])
 
 @router.post("/", response_model=StandardResponse[ApprovalResponse], status_code=status.HTTP_201_CREATED)
-def create_approval(approval_in: ApprovalCreate, db: Session = Depends(get_db)):
+def create_approval(approval_in: ApprovalCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = Approval(**approval_in.model_dump())
     db.add(db_obj)
     db.commit()
@@ -23,7 +25,7 @@ def create_approval(approval_in: ApprovalCreate, db: Session = Depends(get_db)):
     )
 
 @router.get("/", response_model=StandardResponse[List[ApprovalResponse]])
-def get_approvals(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def get_approvals(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     approvals = db.query(Approval).offset(skip).limit(limit).all()
     return ResponseHelper.success(
         message="Approvals retrieved successfully",
@@ -31,7 +33,7 @@ def get_approvals(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
     )
 
 @router.get("/{approval_id}", response_model=StandardResponse[ApprovalResponse])
-def get_approval(approval_id: int, db: Session = Depends(get_db)):
+def get_approval(approval_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = db.query(Approval).filter(Approval.id == approval_id).first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Approval not found")
@@ -41,7 +43,7 @@ def get_approval(approval_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/{approval_id}", response_model=StandardResponse[ApprovalResponse])
-def update_approval(approval_id: int, approval_in: ApprovalUpdate, db: Session = Depends(get_db)):
+def update_approval(approval_id: int, approval_in: ApprovalUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = db.query(Approval).filter(Approval.id == approval_id).first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Approval not found")
@@ -61,7 +63,7 @@ def update_approval(approval_id: int, approval_in: ApprovalUpdate, db: Session =
     )
 
 @router.delete("/{approval_id}", response_model=StandardResponse[None])
-def delete_approval(approval_id: int, db: Session = Depends(get_db)):
+def delete_approval(approval_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_obj = db.query(Approval).filter(Approval.id == approval_id).first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Approval not found")

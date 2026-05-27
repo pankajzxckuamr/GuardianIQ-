@@ -24,7 +24,14 @@ class Policy(Base):
 
     status = Column(
         String,
-        nullable=False
+        nullable=False,
+        index=True
+    )
+
+    reference_id = Column(
+        String,
+        nullable=True,
+        index=True
     )
 
     conditions = Column(JSON)

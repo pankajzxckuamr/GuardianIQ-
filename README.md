@@ -2,7 +2,7 @@
 
 GuardianIQ is a FastAPI-based backend application providing insights, governance, and RBAC (Role-Based Access Control) for personal data and AI activities.
 
-## 🚀 Local Environment Setup
+##  Local Environment Setup
 
 To run this project locally, you need to set up your PostgreSQL database and your Python environment.
 
@@ -53,7 +53,7 @@ uvicorn app.main:app --reload
 ```
 The API will be available at `http://127.0.0.1:8000`.
 
-## 🧪 Testing Locally
+## Testing Locally
 
 Once the server is running, you can test the APIs using the interactive Swagger UI:
 1. Open **http://127.0.0.1:8000/docs** in your browser.
