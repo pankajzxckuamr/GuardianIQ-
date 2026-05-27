@@ -3,7 +3,7 @@
 GuardianIQ is a FastAPI-based backend paired with a React + Vite frontend, providing insights, governance, and RBAC (Role-Based Access Control) for personal data and AI activities.
 
 ---
-
+ 
 ## 📋 Table of Contents
 
 1. [Prerequisites](#prerequisites)
