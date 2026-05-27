@@ -1,150 +1,175 @@
-# GuardianIQ Backend
+# GuardianIQ — Enterprise Shield Platform
 
-GuardianIQ is a FastAPI-based backend application providing insights, governance, and RBAC (Role-Based Access Control) for personal data and AI activities.
+GuardianIQ is a FastAPI-based backend paired with a React + Vite frontend, providing insights, governance, and RBAC (Role-Based Access Control) for personal data and AI activities.
 
-##  Local Environment Setup
+---
 
-To run this project locally, you need to set up your PostgreSQL database and your Python environment.
+## 📋 Table of Contents
 
-### 1. Database Setup
-You must have PostgreSQL installed locally (or running via Docker). Based on the `.env` configuration, you need to provision the database with the following credentials:
+1. [Prerequisites](#prerequisites)
+2. [Database Setup](#database-setup)
+3. [Backend Setup](#backend-setup)
+4. [Frontend Setup](#frontend-setup)
+5. [Running the Application](#running-the-application)
+6. [Credentials & Access](#credentials--access)
+7. [Testing & API Reference](#testing--api-reference)
 
-Open your PostgreSQL terminal (`psql` or pgAdmin) and run:
+---
+
+## Prerequisites
+
+- **Python 3.10+**
+- **Node.js** (for the React/Vite frontend)
+- **PostgreSQL** (installed locally or via Docker)
+
+---
+
+## Database Setup
+
+You must have PostgreSQL installed locally or running via Docker. Open your PostgreSQL terminal (`psql` or pgAdmin) and run:
+
 ```sql
 CREATE DATABASE guardianiq;
 CREATE USER guardianiq_user WITH PASSWORD 'guardianiq123';
 GRANT ALL PRIVILEGES ON DATABASE guardianiq TO guardianiq_user;
 ```
 
-### 2. Python Environment
-Ensure you have Python 3.10+ installed. Open your terminal in the root directory:
+---
+
+## Backend Setup
+
+### 1. Navigate to the Backend Directory
 
 ```powershell
-# Navigate to the backend folder
 cd backend
+```
 
-# Create a virtual environment
+### 2. Create & Activate the Python Virtual Environment
+
+```powershell
+# Create the virtual environment
 python -m venv venv
+```
 
-# Activate the virtual environment (Windows)
-.\venv\Scripts\activate
-# (On Mac/Linux: source venv/bin/activate)
+**Activate it:**
 
-# Install dependencies
+- **Windows (Command Prompt / PowerShell)**:
+  ```powershell
+  .\venv\Scripts\activate
+  ```
+- **Mac / Linux**:
+  ```bash
+  source venv/bin/activate
+  ```
+
+### 3. Install Dependencies
+
+```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Database Migrations & Seeding
-Once your database is running and your `.env` file is ready, you need to create the tables and seed the initial roles/permissions.
+### 4. Run Database Migrations & Seed Data
+
+Make sure your PostgreSQL database is running, then execute:
 
 ```powershell
-# 1. Run migrations to create all tables
+# Create all database tables
 alembic upgrade head
 
-# 2. Run the seed script to populate Roles and Permissions
+# Populate initial roles and security permissions
 python -m app.db.seed
 ```
 
-### 4. Running the Server
-Start the local FastAPI development server:
+---
+
+## Frontend Setup
+
+### 1. Navigate to the Frontend Directory
+
+Open a **separate terminal window** and run:
+
+```powershell
+cd frontend
+```
+
+> The frontend dependencies are assumed to already be installed via `npm install`. Run it if needed before starting.
+
+---
+
+## Running the Application
+
+### 🛠️ Start the Backend
+
+From the `backend/` directory (with the virtual environment activated):
 
 ```powershell
 uvicorn app.main:app --reload
 ```
-The API will be available at `http://127.0.0.1:8000`.
 
-## Testing Locally
-
-
-# FRONTEND + BACKEND RUN
-
-# GuardianIQ - Quick Start & Execution Guide
-
-This guide provides clean, step-by-step instructions on how to start and run both the **FastAPI Backend** and **React-Vite Frontend** of the GuardianIQ Enterprise Shield Platform.
+| Endpoint | URL |
+|----------|-----|
+| API Swagger Docs | `http://127.0.0.1:8000/docs` |
+| Database Health Check | `http://127.0.0.1:8000/api/health/db` |
 
 ---
 
-## 🛠️ Step 1: Start the Backend (FastAPI)
+### 💻 Start the Frontend
 
-The backend provides the database connections, authentication services, auditing, and RBAC APIs.
+From the `frontend/` directory, choose one of the following modes:
 
-1. **Open a new terminal/command prompt** and navigate to the project's backend directory:
-   ```powershell
-   cd backend
-   ```
+#### Development Mode *(Recommended)*
 
-2. **Activate the Python virtual environment**:
-   * **Windows (Command Prompt / Powershell)**:
-     ```powershell
-     .\venv\Scripts\activate
-     ```
-   * **Mac / Linux**:
-     ```bash
-     source venv/bin/activate
-     ```
+Starts Vite with hot-module reloading and API proxying to the backend:
 
-3. **Verify Database Setup & Migrations (Only if you haven't yet)**:
-   * Make sure your PostgreSQL database is running.
-   * Run the Alembic database migrations to ensure the latest database schema is created:
-     ```powershell
-     alembic upgrade head
-     ```
-   * Populate initial roles and security permissions by running the database seed script:
-     ```powershell
-     python -m app.db.seed
-     ```
+```powershell
+npm run dev
+```
 
-4. **Start the Uvicorn Dev Server**:
-   ```powershell
-   uvicorn app.main:app --reload
-   ```
-   * **API Swagger Documentation**: Open `http://127.0.0.1:8000/docs` in your browser to inspect or test endpoints.
-   * **Telemetry Health Endpoint**: Visit `http://127.0.0.1:8000/api/health/db` to verify the PostgreSQL connection.
+> **Access URL:** `http://localhost:5173`
+>
+> Vite is pre-configured to proxy all `/api` requests to the backend running on port `8000`.
+
+#### Production Mode *(Alternative)*
+
+Tests how the app behaves under strict Content Security Policies (CSP):
+
+```powershell
+# Step 1: Build and package assets
+npm run build
+
+# Step 2: Serve the production bundle
+npm run serve
+```
+
+> **Access URL:** `http://localhost:5173`
 
 ---
 
-## 💻 Step 2: Start the Frontend (React + Vite)
+## Credentials & Access
 
-The frontend is a modern web interface equipped with the Security Cockpit, active RBAC checking, and the Foundation Health Monitor.
+Use these seeded credentials on the Login Page (`http://localhost:5173/login`):
 
-1. **Open a SECOND terminal window** and navigate to the project's frontend directory:
-   ```powershell
-   cd frontend
-   ```
+| Field | Value |
+|-------|-------|
+| **Email** | `admin@guardianiq.com` |
+| **Password** | `admin123` |
 
-2. **Run in Development Mode (Recommended)**:
-   Starts Vite with automatic hot-module reloading and API request proxying:
-   ```powershell
-   npm run dev
-   ```
-   * **Access URL**: Open **`http://localhost:5173`** in your browser.
-   * *Note: Vite is pre-configured to proxy `/api` requests to the running backend server on port 8000.*
-
-3. **Run in Production Mode (Alternative)**:
-   To test exactly how it builds and behaves under strict Content Security Policies (CSP):
-   * Build the project and package assets:
-     ```powershell
-     npm run build
-     ```
-   * Serve the production bundle using the production client server:
-     ```powershell
-     npm run serve
-     ```
-   * **Access URL**: Open **`http://localhost:5173`**.
+> This is the default admin account seeded into the PostgreSQL database.
 
 ---
 
-## 🔐 Credentials & Access
+## Testing & API Reference
 
-Use these seeded credentials on the frontend Login Page (`http://localhost:5173/login`) to access the dashboard:
+Once the backend server is running, test the APIs using the interactive **Swagger UI** at `http://127.0.0.1:8000/docs`.
 
-* **Username/Email**: `admin@guardianiq.com`
-* **Password**: `admin123` *(this is the default admin account seeded into the PostgreSQL database)*
+| Step | Endpoint | Description |
+|------|----------|-------------|
+| 1 | `GET /api/health` | Verify the server is running |
+| 2 | `GET /api/health/db` | Verify the database connection |
+| 3 | `POST /api/auth/login` | Obtain a JWT access token |
+| 4 | `GET /api/auth/roles` | Test a protected route (requires token) |
 
-
-
-Once the server is running, you can test the APIs using the interactive Swagger UI:
-1. Open **http://127.0.0.1:8000/docs** in your browser.
-2. Check **`GET /api/health`** to verify the server is running.
-3. Check **`GET /api/health/db`** to verify the database connection is successful.
-4. **Testing Auth:** Use `POST /api/auth/login` to get a JWT token, click the "Authorize" padlock at the top of the screen to inject the token, and then you can test protected routes like `GET /api/auth/roles`.
+**To authenticate in Swagger UI:**
+1. Call `POST /api/auth/login` to get your JWT token.
+2. Click the **"Authorize"** padlock icon at the top of the Swagger page.
+3. Paste the token and confirm — all protected routes will now be accessible.
