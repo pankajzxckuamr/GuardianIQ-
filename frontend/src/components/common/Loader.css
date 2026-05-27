@@ -1,0 +1,47 @@
+/* src/components/common/Loader.css */
+.loader-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl);
+}
+
+.loader-wrap--full {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 23, 0.85);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+}
+
+.loader-ring {
+  position: relative;
+  width: 48px;
+  height: 48px;
+}
+
+.loader-ring div {
+  box-sizing: border-box;
+  display: block;
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  margin: 4px;
+  border: 3px solid transparent;
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.loader-ring div:nth-child(1) { animation-delay: -0.45s; border-top-color: var(--accent-primary); }
+.loader-ring div:nth-child(2) { animation-delay: -0.3s;  border-top-color: var(--accent-secondary); }
+.loader-ring div:nth-child(3) { animation-delay: -0.15s; border-top-color: var(--color-success); }
+.loader-ring div:nth-child(4) { animation-delay: 0s;     border-top-color: var(--accent-primary); }
+
+.loader-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}

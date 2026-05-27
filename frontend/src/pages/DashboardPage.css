@@ -1,0 +1,115 @@
+/* src/pages/DashboardPage.css */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.metric-card {
+  border-width: 1px;
+}
+
+.metric-card-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.metric-card-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-card-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.35rem;
+}
+
+.metric-card-value {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 0.35rem;
+}
+
+.metric-card-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.metric-card-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--card-border);
+}
+
+.metric-icon.success { color: var(--color-success); }
+.metric-icon.info { color: var(--accent-secondary); }
+.metric-icon.warning { color: var(--color-warning); }
+
+.dashboard-sections {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--spacing-lg);
+  align-items: start;
+}
+
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--card-border);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.control-item:hover {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: var(--accent-primary-glow);
+}
+
+.control-icon {
+  color: var(--accent-secondary);
+}
+
+.control-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.control-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.control-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+@media (max-width: 1024px) {
+  .dashboard-sections {
+    grid-template-columns: 1fr;
+  }
+}

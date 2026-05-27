@@ -1,0 +1,51 @@
+/* src/components/common/Card.css */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: var(--glass-blur);
+  transition: border-color var(--transition-speed) var(--transition-smooth),
+              box-shadow var(--transition-speed) var(--transition-smooth);
+}
+
+.card:hover {
+  border-color: var(--card-border-hover);
+}
+
+.card--glow {
+  box-shadow: var(--shadow-neon);
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--spacing-lg) var(--spacing-lg) 0;
+  gap: var(--spacing-md);
+}
+
+.card-header-text { flex: 1; }
+
+.card-title {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.card-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.card-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.card-body {
+  padding: var(--spacing-lg);
+}

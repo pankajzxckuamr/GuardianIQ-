@@ -1,0 +1,49 @@
+/* src/components/common/FormField.css */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.form-field-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-field-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.form-field-input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+}
+
+.form-field--error .form-field-input {
+  border-color: var(--color-danger);
+}
+
+.form-field--error .form-field-input:focus {
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+}
+
+.form-field-error-msg {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+}
+
+.form-field-helper-msg {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

@@ -1,0 +1,167 @@
+/* src/styles/pages/health.css */
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+@media (max-width: 768px) {
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.health-card {
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  position: relative;
+  transition: all var(--transition-speed);
+}
+
+.health-card:hover {
+  border-color: var(--card-border-hover);
+  box-shadow: var(--shadow-neon);
+}
+
+.health-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.health-icon-container {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xl);
+}
+
+.health-icon-container.healthy {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--color-success);
+  box-shadow: var(--shadow-neon-success);
+}
+
+.health-icon-container.unhealthy {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--color-danger);
+  box-shadow: var(--shadow-neon-danger);
+}
+
+.health-indicator-pulse {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  position: relative;
+}
+
+.health-indicator-pulse.healthy {
+  background-color: var(--color-success);
+}
+
+.health-indicator-pulse.unhealthy {
+  background-color: var(--color-danger);
+}
+
+.health-indicator-pulse::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: var(--radius-full);
+  border: 2px solid inherit;
+  animation: spin 1.5s linear infinite;
+  opacity: 0.4;
+}
+
+.health-indicator-pulse.healthy::after {
+  border-color: var(--color-success);
+}
+
+.health-indicator-pulse.unhealthy::after {
+  border-color: var(--color-danger);
+}
+
+.health-label {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-display);
+}
+
+.health-value {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Latency gauge indicator */
+.latency-bar-container {
+  width: 100%;
+  height: 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: var(--spacing-sm);
+}
+
+.latency-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.5s ease;
+}
+
+.latency-bar-fill.excellent {
+  background-color: var(--color-success);
+}
+
+.latency-bar-fill.normal {
+  background-color: var(--color-warning);
+}
+
+.latency-bar-fill.slow {
+  background-color: var(--color-danger);
+}
+
+/* Code Inspector styling (Raw response logs) */
+.health-inspector {
+  grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+  .health-inspector {
+    grid-column: span 1;
+  }
+}
+
+.raw-json-card {
+  background-color: rgba(10, 14, 23, 0.9);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  overflow-x: auto;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: var(--font-size-xs);
+  color: #38bdf8;
+  max-height: 350px;
+}
+
+.raw-json-card pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}

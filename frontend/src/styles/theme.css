@@ -1,0 +1,85 @@
+/* src/styles/theme.css */
+
+:root {
+  /* Color Palette (Deep Space Dark & Neon Accents) */
+  --bg-primary: #0a0e17;
+  --bg-secondary: #121824;
+  --bg-tertiary: #1b2336;
+  
+  --card-bg: rgba(22, 30, 49, 0.7);
+  --card-border: rgba(99, 102, 241, 0.15);
+  --card-border-hover: rgba(99, 102, 241, 0.35);
+
+  --accent-primary: #6366f1;       /* Indigo Glow */
+  --accent-primary-hover: #4f46e5;
+  --accent-primary-glow: rgba(99, 102, 241, 0.4);
+
+  --accent-secondary: #06b6d4;     /* Cyan Neon */
+  --accent-secondary-hover: #0891b2;
+  
+  /* Semantic Status Colors */
+  --color-success: #10b981;        /* Emerald Uptime */
+  --color-success-glow: rgba(16, 185, 129, 0.2);
+  --color-warning: #f59e0b;        /* Amber Warning */
+  --color-warning-glow: rgba(245, 158, 11, 0.2);
+  --color-danger: #ef4444;         /* Rose Failure */
+  --color-danger-glow: rgba(239, 68, 68, 0.2);
+  --color-info: #3b82f6;           /* Blue Info */
+
+  /* Text Colors */
+  --text-primary: #f8fafc;         /* High Contrast White */
+  --text-secondary: #94a3b8;       /* Slate Secondary */
+  --text-muted: #64748b;           /* Muted Tertiary */
+  --text-glow: rgba(248, 250, 252, 0.08);
+
+  /* Typography */
+  --font-family-primary: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-family-display: 'Outfit', sans-serif;
+  
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Layout & Sizing */
+  --sidebar-width: 260px;
+  --header-height: 70px;
+  --max-content-width: 1280px;
+
+  /* Shadows & Glassmorphic Filters */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+  --shadow-neon: 0 0 15px rgba(99, 102, 241, 0.15);
+  --shadow-neon-success: 0 0 15px rgba(16, 185, 129, 0.15);
+  --shadow-neon-danger: 0 0 15px rgba(239, 68, 68, 0.15);
+  
+  --glass-blur: blur(12px);
+  --transition-speed: 0.25s;
+  --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}

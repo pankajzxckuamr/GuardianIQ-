@@ -73,20 +73,30 @@ def health_check():
 @app.get("/api/health/db", response_model=StandardResponse[dict])
 def db_health_check():
     from app.shared.response_utils import ResponseHelper
+    import time
     try:
+        start_time = time.time()
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
+        latency = (time.time() - start_time) * 1000
 
         return ResponseHelper.success(
             message="Database connection successful",
-            data={"database": "healthy"}
+            data={
+                "status": "healthy",
+                "database": "healthy",
+                "latency_ms": latency
+            }
         )
 
     except Exception as e:
         from fastapi.responses import JSONResponse
         error_response = ResponseHelper.error(
             message=f"Database connection failed: {str(e)}",
-            data=None
+            data={
+                "status": "unhealthy",
+                "database": "unhealthy"
+            }
         )
         return JSONResponse(
             status_code=503,
