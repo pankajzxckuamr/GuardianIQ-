@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.modules.auth.models import User, Role, Permission
+from app.modules.audit.service import create_audit_event
+from app.modules.audit.schemas import AuditEventCreate
 from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import (
     verify_password,
@@ -29,6 +31,7 @@ router = APIRouter(
 
 @router.post("/login")
 def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -42,6 +45,20 @@ def login(
     ).first()
 
     if not user:
+        create_audit_event(
+            db,
+            AuditEventCreate(
+                event_type="auth.login_failure",
+                entity_type="user",
+                action="login",
+                event_metadata={
+                    "ip_address": request.client.host if request.client else "127.0.0.1",
+                    "user_agent": request.headers.get("user-agent") or "Unknown",
+                    "status": "failure",
+                    "detail": f"Login failed: User not found for email '{form_data.username}'"
+                }
+            )
+        )
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials"
@@ -51,6 +68,22 @@ def login(
         form_data.password,
         user.hashed_password
     ):
+        create_audit_event(
+            db,
+            AuditEventCreate(
+                event_type="auth.login_failure",
+                entity_type="user",
+                entity_id=user.id,
+                actor_user_id=user.id,
+                action="login",
+                event_metadata={
+                    "ip_address": request.client.host if request.client else "127.0.0.1",
+                    "user_agent": request.headers.get("user-agent") or "Unknown",
+                    "status": "failure",
+                    "detail": "Login failed: Invalid password supplied"
+                }
+            )
+        )
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials"
@@ -72,6 +105,23 @@ def login(
 
     # Set user context for logging
     set_user_context(str(user.id), user.email)
+
+    create_audit_event(
+        db,
+        AuditEventCreate(
+            event_type="auth.login_success",
+            entity_type="user",
+            entity_id=user.id,
+            actor_user_id=user.id,
+            action="login",
+            event_metadata={
+                "ip_address": request.client.host if request.client else "127.0.0.1",
+                "user_agent": request.headers.get("user-agent") or "Unknown",
+                "status": "success",
+                "detail": "Login successful"
+            }
+        )
+    )
 
     # ── OAuth2 spec: access_token MUST be at root level so Swagger UI ──
     # ── (and any OAuth2 client) can extract it from the response.     ──

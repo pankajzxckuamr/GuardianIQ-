@@ -14,6 +14,7 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
 const ACCESS_TOKEN_KEY = "guardianiq_access_token";
 const REFRESH_TOKEN_KEY = "guardianiq_refresh_token";
+const USER_CACHE_KEY = "guardianiq_user";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<AuthState>({
@@ -35,11 +36,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loadUser = async (accessToken: string) => {
     try {
       const user = await apiFetchMe(accessToken);
+      storage.set(USER_CACHE_KEY, user);
       setState({ currentUser: user, isAuthenticated: true, loading: false });
     } catch (e) {
       console.error("Failed to fetch current user:", e);
-      clearTokens();
-      setState({ currentUser: null, isAuthenticated: false, loading: false });
+      
+      // Determine if it's an explicit 401/403 authentication error
+      const isAuthError = e && typeof e === "object" && "status" in e && ((e as any).status === 401 || (e as any).status === 403);
+      
+      if (isAuthError) {
+        clearTokens();
+        storage.remove(USER_CACHE_KEY);
+        setState({ currentUser: null, isAuthenticated: false, loading: false });
+      } else {
+        // Server is offline or network error. Try to restore last known cached session
+        const cachedUser = storage.get<any>(USER_CACHE_KEY);
+        if (cachedUser) {
+          setState({ currentUser: cachedUser, isAuthenticated: true, loading: false });
+        } else {
+          // No cache exists, fall back to logging out
+          clearTokens();
+          setState({ currentUser: null, isAuthenticated: false, loading: false });
+        }
+      }
     }
   };
 
@@ -63,6 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const msg = getErrorMessage(e);
       console.error("Login error:", msg);
       clearTokens();
+      storage.remove(USER_CACHE_KEY);
       setState({ currentUser: null, isAuthenticated: false, loading: false });
       throw new Error(msg);
     }
@@ -74,6 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await apiLogout(token).catch(() => {}); // ignore errors
     }
     clearTokens();
+    storage.remove(USER_CACHE_KEY);
     setState({ currentUser: null, isAuthenticated: false, loading: false });
   };
 

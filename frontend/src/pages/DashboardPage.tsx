@@ -5,6 +5,7 @@ import { Card } from "../components/common/Card";
 import { Badge } from "../components/common/Badge";
 import { Table } from "../components/common/Table";
 import { useAuth } from "../hooks/useAuth";
+import { fetchDbHealth } from "../services/health/healthService";
 import { 
   ShieldCheck, 
   Users, 
@@ -43,18 +44,61 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, description
 export const DashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [dbLatency, setDbLatency] = useState<number | null>(null);
+  const [dbStatus, setDbStatus] = useState<string>("DOWN");
 
   useEffect(() => {
-    // Simulate loading local UI elements
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
+    let active = true;
+    const loadDbHealth = async () => {
+      try {
+        const health = await fetchDbHealth();
+        if (active) {
+          setDbLatency(health.latency_ms);
+          setDbStatus(health.status === "healthy" ? "UP" : "DOWN");
+        }
+      } catch (e) {
+        if (active) {
+          setDbLatency(null);
+          setDbStatus("DOWN");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+    loadDbHealth();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const recentSessions = [
-    { id: "1", user: "administrator", ip: "192.168.1.50", device: "macOS - Chrome", status: "Active", time: "Just now" },
-    { id: "2", user: currentUser?.name || currentUser?.username || currentUser?.email || "current_user", ip: "10.0.0.12", device: "Windows - Edge", status: "Active", time: "2 mins ago" },
-    { id: "3", user: "security_auditor", ip: "172.16.25.4", device: "Linux - Firefox", status: "Terminated", time: "1 hour ago" },
-  ];
+  const getDeviceSignature = () => {
+    const ua = navigator.userAgent;
+    let os = "Windows";
+    if (ua.indexOf("Mac") !== -1) os = "macOS";
+    else if (ua.indexOf("Linux") !== -1) os = "Linux";
+    else if (ua.indexOf("Android") !== -1) os = "Android";
+    else if (ua.indexOf("like Mac") !== -1) os = "iOS";
+
+    let browser = "Chrome";
+    if (ua.indexOf("Edg") !== -1) browser = "Edge";
+    else if (ua.indexOf("Firefox") !== -1) browser = "Firefox";
+    else if (ua.indexOf("Safari") !== -1 && ua.indexOf("Chrome") === -1) browser = "Safari";
+
+    return `${os} - ${browser}`;
+  };
+
+  const recentSessions = currentUser ? [
+    { 
+      id: "1", 
+      user: currentUser.full_name || currentUser.name || currentUser.username || currentUser.email || "current_user", 
+      ip: "127.0.0.1", 
+      device: getDeviceSignature(), 
+      status: "Active", 
+      time: "Just now" 
+    }
+  ] : [];
 
   const columns = [
     { key: "user", header: "Identity" },
@@ -99,9 +143,9 @@ export const DashboardPage: React.FC = () => {
 
         <MetricCard 
           title="System Health"
-          value="99.9%"
-          icon={<Activity size={24} className="metric-icon success" />}
-          description="Database latency: 2.1 ms"
+          value={dbStatus === "UP" ? "99.9%" : "OFFLINE"}
+          icon={<Activity size={24} className={`metric-icon ${dbStatus === "UP" ? "success" : "danger"}`} />}
+          description={dbStatus === "UP" && dbLatency !== null ? `Database latency: ${dbLatency.toFixed(1)} ms` : "Database is unreachable"}
         />
 
         <MetricCard 
@@ -147,3 +191,4 @@ export const DashboardPage: React.FC = () => {
     </div>
   );
 };
+

@@ -12,7 +12,7 @@ class RBACRouteProtectionTests(unittest.TestCase):
     def test_module_routes_require_authentication(self):
         protected_routes = [
             ("get", "/api/policies"),
-            ("get", "/api/audit"),
+            ("get", "/api/audit/events"),
             ("get", "/api/data-sources"),
             ("get", "/api/departments"),
             ("get", "/api/approvals"),

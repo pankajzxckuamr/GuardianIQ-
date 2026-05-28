@@ -20,20 +20,25 @@ class AuditEventCreate(BaseModel):
 
 class AuditEventResponse(BaseModel):
     id: int
-
     event_type: str
-
     entity_type: str
-
-    entity_id: Optional[int]
-
-    actor_user_id: Optional[int]
-
-    action: str
-
-    event_metadata: Optional[dict]
-
+    entity_id: Optional[int] = None
+    actor_user_id: Optional[int] = None
+    actor_username: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    status: str = "success"
+    detail: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class AuditEventPaginated(BaseModel):
+    items: list[AuditEventResponse]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
