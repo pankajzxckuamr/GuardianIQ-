@@ -51,7 +51,7 @@ export const AuditPage: React.FC = () => {
     setLoading(true);
     try {
       // Get the stored token
-      const token = JSON.parse(localStorage.getItem("guardianiq_access_token") || "null");
+      const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
       if (token) {
         const response = await fetchAuditEvents(token, { page: 1, per_page: 20 });
         setEvents(response.items || []);

@@ -1,0 +1,184 @@
+/* src/components/registry/ModelFormModal.module.css */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+}
+
+/* Tabs */
+.tabsHeader {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--card-border, #334155);
+  margin-bottom: var(--spacing-md, 1rem);
+}
+
+.tabBtn {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: var(--font-weight-semibold, 600);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary, #f8fafc);
+}
+
+.activeTab {
+  color: var(--accent-primary, #6366f1);
+  border-bottom-color: var(--accent-primary, #6366f1);
+}
+
+/* General Alert */
+.generalAlert {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.75rem 1rem;
+  font-size: var(--font-size-sm, 0.875rem);
+  margin-bottom: var(--spacing-md, 1rem);
+}
+
+/* Form Styles */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--spacing-md, 1rem);
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.formGroupFull {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.label {
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--text-secondary, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.required {
+  color: var(--color-danger, #ef4444);
+  margin-left: 0.15rem;
+}
+
+.input, .select, .textarea {
+  background: var(--bg-tertiary, #151d30);
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.5rem var(--spacing-md, 0.75rem);
+  font-family: inherit;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-primary, #f8fafc);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--accent-primary, #6366f1);
+}
+
+.input:disabled, .select:disabled, .textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inputError {
+  border-color: var(--color-danger, #ef4444) !important;
+}
+
+.fieldErrorText {
+  color: var(--color-danger, #ef4444);
+  font-size: var(--font-size-xs, 0.75rem);
+  margin-top: 0.15rem;
+}
+
+/* Invalid JSON validation */
+.jsonTextarea {
+  font-family: monospace;
+}
+
+.invalidJson {
+  border-color: var(--color-danger, #ef4444) !important;
+  background: rgba(239, 68, 68, 0.02);
+}
+
+/* Form Actions */
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md, 1rem);
+  margin-top: var(--spacing-lg, 1.5rem);
+  border-top: 1px solid var(--card-border, #334155);
+  padding-top: var(--spacing-md, 1rem);
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid var(--card-border, #334155);
+  color: var(--text-secondary, #94a3b8);
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--font-size-sm, 0.875rem);
+  transition: all 0.15s ease;
+}
+
+.cancelBtn:hover {
+  border-color: var(--text-secondary, #94a3b8);
+  color: var(--text-primary, #f8fafc);
+}
+
+.submitBtn {
+  background: var(--accent-primary, #6366f1);
+  border: 1px solid var(--accent-primary, #6366f1);
+  color: #ffffff;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--font-size-sm, 0.875rem);
+  transition: all 0.15s ease;
+}
+
+.submitBtn:hover:not(:disabled) {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.submitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.placeholderTab {
+  padding: var(--spacing-xl, 2rem) 0;
+  text-align: center;
+  color: var(--text-secondary, #94a3b8);
+  font-style: italic;
+  font-size: var(--font-size-sm, 0.875rem);
+}

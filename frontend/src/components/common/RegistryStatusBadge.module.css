@@ -1,0 +1,50 @@
+/* src/components/common/RegistryStatusBadge.module.css */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-bold, 700);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+  width: fit-content;
+}
+
+.draft {
+  background: var(--bg-tertiary, #1e293b);
+  color: var(--text-secondary, #94a3b8);
+  border-color: var(--card-border, #334155);
+}
+
+.active {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--color-success, #10b981);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.inactive {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--color-warning, #f59e0b);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.retired {
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+  border-color: rgba(249, 115, 22, 0.25);
+}
+
+.archived {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.25);
+}
+
+.suspended {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-danger, #ef4444);
+  border-color: rgba(239, 68, 68, 0.25);
+}

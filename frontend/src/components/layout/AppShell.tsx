@@ -11,7 +11,17 @@ import {
   LogOut, 
   Menu, 
   X,
-  User as UserIcon
+  User as UserIcon,
+  Library,
+  Brain,
+  Cpu,
+  Plug,
+  GitBranch,
+  Database,
+  Building2,
+  Link2,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import "./AppShell.css";
 
@@ -24,6 +34,18 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [registryOpen, setRegistryOpen] = useState(location.pathname.startsWith("/registry"));
+
+  const registrySubItems = [
+    { label: "AI Models", path: "/registry/models", icon: Brain },
+    { label: "AI Agents", path: "/registry/agents", icon: Cpu },
+    { label: "Tools", path: "/registry/tools", icon: Plug },
+    { label: "Workflows", path: "/registry/workflows", icon: GitBranch },
+    { label: "Data Sources", path: "/registry/data-sources", icon: Database },
+    { label: "Departments", path: "/registry/departments", icon: Building2 },
+    { label: "Users & Roles", path: "/registry/users-roles", icon: Users },
+    { label: "Relationships", path: "/registry/relationships", icon: Link2 },
+  ];
 
   const handleLogout = async () => {
     try {
@@ -76,6 +98,57 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </Link>
             );
           })}
+
+          {/* Registry Collapsible Section */}
+          <div className="sidebar-registry-section" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.5rem" }}>
+            <button
+              type="button"
+              className={`sidebar-link sidebar-section-toggle ${location.pathname.startsWith("/registry") ? "active" : ""}`}
+              onClick={() => setRegistryOpen(!registryOpen)}
+              style={{
+                width: "100%",
+                background: "transparent",
+                border: "none",
+                textAlign: "left",
+                justifyContent: "flex-start",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: "inherit",
+                fontWeight: "inherit"
+              }}
+            >
+              <Library size={18} />
+              <span>Registry</span>
+              <span style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+                {registryOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+
+            {registryOpen && (
+              <div className="sidebar-sub-nav" style={{ paddingLeft: "1rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                {registrySubItems.map((subItem) => {
+                  const SubIcon = subItem.icon;
+                  const isSubActive = location.pathname === subItem.path;
+                  return (
+                    <Link
+                      key={subItem.path}
+                      to={subItem.path}
+                      className={`sidebar-link sidebar-sub-link ${isSubActive ? "active" : ""}`}
+                      onClick={() => setSidebarOpen(false)}
+                      style={{
+                        fontSize: "0.8rem",
+                        padding: "0.4rem 0.75rem",
+                        gap: "var(--spacing-md)"
+                      }}
+                    >
+                      <SubIcon size={14} />
+                      <span>{subItem.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
 
         <div className="sidebar-footer">

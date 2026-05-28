@@ -53,7 +53,7 @@ export const DashboardPage: React.FC = () => {
       try {
         const health = await fetchDbHealth();
         if (active) {
-          setDbLatency(health.latency_ms);
+          setDbLatency(health.latency_ms ?? null);
           setDbStatus(health.status === "healthy" ? "UP" : "DOWN");
         }
       } catch (e) {

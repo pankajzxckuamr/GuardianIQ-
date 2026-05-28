@@ -10,6 +10,11 @@ import { UnauthorizedPage } from "../pages/UnauthorizedPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { AppShell } from "../components/layout/AppShell";
+import RegistryDashboardPage from "../pages/RegistryDashboardPage";
+import { RegistryModelsPage } from "../pages/RegistryModelsPage";
+import { RegistryAgentsPage } from "../pages/RegistryAgentsPage";
+import { RegistryToolsPage } from "../pages/RegistryToolsPage";
+import { RegistryWorkflowsPage } from "../pages/RegistryWorkflowsPage";
 
 export const AppRouter: React.FC = () => {
   return (
@@ -59,6 +64,110 @@ export const AppRouter: React.FC = () => {
             <ProtectedRoute>
               <AppShell>
                 <TenantsPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Governance Registry Routes */}
+        <Route
+          path="/registry"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RegistryDashboardPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/models"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RegistryModelsPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/agents"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RegistryAgentsPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/tools"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RegistryToolsPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/workflows"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <RegistryWorkflowsPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/data-sources"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <div style={{ padding: "2rem" }}>
+                  <h2>Data Sources</h2>
+                  <p>Data sources coming soon</p>
+                </div>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/departments"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <div style={{ padding: "2rem" }}>
+                  <h2>Departments</h2>
+                  <p>Departments coming soon</p>
+                </div>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/users-roles"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <div style={{ padding: "2rem" }}>
+                  <h2>Users &amp; Roles</h2>
+                  <p>Users and roles coming soon</p>
+                </div>
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/registry/relationships"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <div style={{ padding: "2rem" }}>
+                  <h2>Registry Relationships</h2>
+                  <p>Relationships coming soon</p>
+                </div>
               </AppShell>
             </ProtectedRoute>
           }

@@ -7,7 +7,15 @@ interface RequestConfig extends RequestInit {
 
 class ApiClient {
   private async request<T = any>(url: string, config: RequestConfig = {}): Promise<T> {
-    const token = localStorage.getItem("guardianiq_token");
+    let token: string | null = null;
+    try {
+      const raw = sessionStorage.getItem("guardianiq_access_token");
+      if (raw) {
+        token = JSON.parse(raw);
+      }
+    } catch {
+      token = sessionStorage.getItem("guardianiq_access_token");
+    }
     const headers = new Headers(config.headers || {});
     
     if (!headers.has("Content-Type") && !(config.body instanceof FormData)) {
@@ -49,7 +57,9 @@ class ApiClient {
 
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem("guardianiq_token");
+        sessionStorage.removeItem("guardianiq_access_token");
+        sessionStorage.removeItem("guardianiq_refresh_token");
+        sessionStorage.removeItem("guardianiq_user");
         window.location.href = "/login";
         throw new Error("Unauthorized");
       }
@@ -98,6 +108,14 @@ class ApiClient {
     return this.request<T>(url, {
       ...config,
       method: "PUT",
+      body: data instanceof URLSearchParams || data instanceof FormData ? data : JSON.stringify(data),
+    });
+  }
+
+  patch<T = any>(url: string, data?: any, config?: RequestConfig): Promise<T> {
+    return this.request<T>(url, {
+      ...config,
+      method: "PATCH",
       body: data instanceof URLSearchParams || data instanceof FormData ? data : JSON.stringify(data),
     });
   }

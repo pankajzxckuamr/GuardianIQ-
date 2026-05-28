@@ -1,0 +1,100 @@
+/* src/pages/RegistryWorkflowsPage.module.css */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl, 2rem);
+  width: 100%;
+}
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md, 1rem);
+  background: var(--card-bg, rgba(30, 41, 59, 0.3));
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+}
+
+.searchGroup {
+  flex: 1;
+  min-width: 250px;
+}
+
+.searchInput {
+  width: 100%;
+  background: var(--bg-tertiary, #151d30);
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.5rem var(--spacing-md, 0.75rem);
+  font-family: inherit;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-primary, #f8fafc);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--accent-primary, #6366f1);
+}
+
+.filtersGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm, 0.75rem);
+}
+
+.filterSelect {
+  background: var(--bg-tertiary, #151d30);
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.5rem var(--spacing-md, 0.75rem);
+  font-family: inherit;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-primary, #f8fafc);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.filterSelect:focus {
+  border-color: var(--accent-primary, #6366f1);
+}
+
+.tableContainer {
+  width: 100%;
+}
+
+/* Workflow Type Badge */
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: var(--accent-primary, #6366f1);
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+/* Approval Required status indicators */
+.approvalRequiredYes {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: var(--color-warning, #f59e0b);
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.approvalRequiredNo {
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--font-size-sm, 0.875rem);
+}

@@ -1,14 +1,14 @@
 /* src/utils/storage.ts */
 
 /**
- * Safe localStorage wrapper.
+ * Safe sessionStorage wrapper.
  * Never use this for sensitive tokens in production – prefer httpOnly cookies.
  * This is kept for session metadata only.
  */
 export const storage = {
   get<T>(key: string): T | null {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = sessionStorage.getItem(key);
       if (raw === null) return null;
       return JSON.parse(raw) as T;
     } catch {
@@ -18,7 +18,7 @@ export const storage = {
 
   set<T>(key: string, value: T): void {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      sessionStorage.setItem(key, JSON.stringify(value));
     } catch {
       /* ignore */
     }
@@ -26,7 +26,7 @@ export const storage = {
 
   remove(key: string): void {
     try {
-      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
     } catch {
       /* ignore */
     }
@@ -34,9 +34,10 @@ export const storage = {
 
   clear(): void {
     try {
-      localStorage.clear();
+      sessionStorage.clear();
     } catch {
       /* ignore */
     }
   },
 };
+

@@ -35,7 +35,7 @@ export const TenantsPage: React.FC = () => {
   const loadTenants = async () => {
     setLoading(true);
     try {
-      const token = JSON.parse(localStorage.getItem("guardianiq_access_token") || "null");
+      const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
       if (token) {
         const response = await fetchTenants(token, 1, 20);
         setTenants(response.items || []);
@@ -63,7 +63,7 @@ export const TenantsPage: React.FC = () => {
     setError(null);
     setSubmitting(true);
     try {
-      const token = JSON.parse(localStorage.getItem("guardianiq_access_token") || "null");
+      const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
       if (token) {
         const newRecord = await createTenant(token, { name, slug });
         setTenants((prev) => [...prev, newRecord]);

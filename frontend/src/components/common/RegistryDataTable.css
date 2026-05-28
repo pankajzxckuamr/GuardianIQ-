@@ -1,0 +1,94 @@
+/* src/components/common/RegistryDataTable.css */
+
+.registry-datatable-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+  width: 100%;
+}
+
+/* Sortable column header button */
+.registry-th-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: color var(--transition-speed, 0.2s) ease;
+}
+
+.registry-th-sort-btn:hover {
+  color: var(--accent-primary, #6366f1);
+}
+
+.registry-th-sort-btn.active {
+  color: var(--accent-primary, #6366f1);
+}
+
+.registry-sort-arrow {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+/* Skeleton loader for cells */
+.registry-skeleton-cell {
+  height: 1.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm, 4px);
+  animation: registry-pulse 1.5s ease-in-out infinite;
+  min-width: 4rem;
+  max-width: 12rem;
+}
+
+@keyframes registry-pulse {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+/* Pagination Bar */
+.registry-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+  background: rgba(30, 41, 59, 0.2);
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.registry-pagination-info .highlight {
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--text-primary, #f8fafc);
+}
+
+.registry-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md, 1rem);
+}
+
+.registry-page-num {
+  font-size: var(--font-size-xs, 0.75rem);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: var(--font-weight-bold, 700);
+}

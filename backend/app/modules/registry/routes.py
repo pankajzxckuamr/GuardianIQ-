@@ -7,6 +7,7 @@ import math
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
 from app.shared.response_utils import ResponseHelper
+from app.shared.responses import StandardResponse
 from app.modules.registry import schemas, services
 from app.modules.registry import repositories as repo
 
@@ -83,7 +84,7 @@ def list_models(
         request_id=request_id
     )
 
-@models_router.post("/models", summary="Create AI Model", description="Register a new AI Model. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=schemas.StandardResponse)
+@models_router.post("/models", summary="Create AI Model", description="Register a new AI Model. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=StandardResponse)
 def create_model(
     request: Request,
     payload: schemas.AIModelCreate,
@@ -122,7 +123,7 @@ def get_model(
         request_id=request_id
     )
 
-@models_router.put("/models/{id}", summary="Update AI Model", description="Update an existing AI Model. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=schemas.StandardResponse)
+@models_router.put("/models/{id}", summary="Update AI Model", description="Update an existing AI Model. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=StandardResponse)
 def update_model(
     request: Request,
     id: UUID,
@@ -210,7 +211,7 @@ def list_agents(
         request_id=request_id
     )
 
-@agents_router.post("/agents", summary="Create AI Agent", description="Register a new AI Agent. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=schemas.StandardResponse)
+@agents_router.post("/agents", summary="Create AI Agent", description="Register a new AI Agent. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=StandardResponse)
 def create_agent(
     request: Request,
     payload: schemas.AIAgentCreate,
@@ -249,7 +250,7 @@ def get_agent(
         request_id=request_id
     )
 
-@agents_router.put("/agents/{id}", summary="Update AI Agent", description="Update an existing AI Agent. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=schemas.StandardResponse)
+@agents_router.put("/agents/{id}", summary="Update AI Agent", description="Update an existing AI Agent. Allowed roles: ADMIN, GOVERNANCE_MANAGER", response_model=StandardResponse)
 def update_agent(
     request: Request,
     id: UUID,
@@ -902,3 +903,20 @@ def global_search(request: Request, q: str = Query(..., min_length=2), db: Sessi
         data=schemas.GlobalSearchResponse.model_validate(results).model_dump(),
         message="Search completed", request_id=request_id
     )
+
+# ---------------------------------------------------------
+# Unified Registry Router
+# ---------------------------------------------------------
+router = APIRouter(prefix="/api/registry")
+router.include_router(models_router, tags=["Registry - Models"])
+router.include_router(agents_router, tags=["Registry - Agents"])
+router.include_router(tools_router, tags=["Registry - Tools"])
+router.include_router(workflows_router, tags=["Registry - Workflows"])
+router.include_router(summary_router, tags=["Registry - Summary"])
+router.include_router(departments_router, tags=["Registry - Departments"])
+router.include_router(roles_router, tags=["Registry - Roles"])
+router.include_router(users_router, tags=["Registry - Users"])
+router.include_router(data_sources_router, tags=["Registry - Data Sources"])
+router.include_router(relationships_router, tags=["Registry - Relationships"])
+router.include_router(audit_router, tags=["Registry - Audit"])
+router.include_router(search_router, tags=["Registry - Search"])
