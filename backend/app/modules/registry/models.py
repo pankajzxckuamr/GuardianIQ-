@@ -1,0 +1,171 @@
+from uuid import uuid4
+from sqlalchemy import Column, String, Boolean, Text, TIMESTAMP, Numeric, ForeignKey, func
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from app.db.session import Base
+
+class GuardianUser(Base):
+    __tablename__ = "guardian_users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    email = Column(String(255), unique=True, nullable=False)
+    full_name = Column(String(200), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=True)
+    role_id = Column(UUID(as_uuid=True), ForeignKey("registry_roles.id"), nullable=True)
+    approval_limit_level = Column(String(50), nullable=True)
+    status = Column(String(30), default='ACTIVE')
+    last_login_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+
+class RegistryRole(Base):
+    __tablename__ = "registry_roles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    role_code = Column(String(50), unique=True, nullable=False)
+    role_name = Column(String(150), nullable=False)
+    role_type = Column(String(50), nullable=False)
+    permissions_json = Column(JSONB, nullable=False, default={})
+    status = Column(String(30), default='ACTIVE')
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+
+class RegistryDepartment(Base):
+    __tablename__ = "registry_departments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    department_code = Column(String(50), unique=True, nullable=False)
+    department_name = Column(String(150), nullable=False)
+    parent_department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=True)
+    business_owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
+    escalation_owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
+    status = Column(String(30), default='ACTIVE')
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    updated_by = Column(UUID(as_uuid=True), nullable=True)
+
+class RegistryDataSource(Base):
+    __tablename__ = "registry_data_sources"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    source_code = Column(String(80), unique=True, nullable=False)
+    source_name = Column(String(200), nullable=False)
+    source_type = Column(String(80), nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"))
+    classification = Column(String(80), nullable=False)
+    sensitivity_level = Column(String(50), nullable=False)
+    region = Column(String(80), nullable=True)
+    contains_pii = Column(Boolean, default=False)
+    retention_policy = Column(String(200), nullable=True)
+    connection_reference = Column(String(500), nullable=True)
+    status = Column(String(30), default='ACTIVE')
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    updated_by = Column(UUID(as_uuid=True), nullable=True)
+
+class RegistryAIModel(Base):
+    __tablename__ = "registry_ai_models"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    model_code = Column(String(80), unique=True, nullable=False)
+    model_name = Column(String(200), nullable=False)
+    model_type = Column(String(80), nullable=False)
+    provider = Column(String(120), nullable=True)
+    version = Column(String(80), nullable=True)
+    purpose = Column(Text, nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"))
+    risk_level = Column(String(50), nullable=False)
+    deployment_environment = Column(String(50), nullable=True)
+    status = Column(String(30), default='DRAFT')
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    updated_by = Column(UUID(as_uuid=True), nullable=True)
+
+class RegistryAIAgent(Base):
+    __tablename__ = "registry_ai_agents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    agent_code = Column(String(80), unique=True, nullable=False)
+    agent_name = Column(String(200), nullable=False)
+    agent_type = Column(String(80), nullable=False)
+    description = Column(Text, nullable=True)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"))
+    execution_mode = Column(String(80), nullable=False)
+    risk_level = Column(String(50), nullable=False)
+    confidence_threshold = Column(Numeric(5, 2), nullable=True)
+    status = Column(String(30), default='DRAFT')
+    capabilities_json = Column(JSONB, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    updated_by = Column(UUID(as_uuid=True), nullable=True)
+
+class RegistryTool(Base):
+    __tablename__ = "registry_tools"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    tool_code = Column(String(80), unique=True, nullable=False)
+    tool_name = Column(String(200), nullable=False)
+    tool_category = Column(String(80), nullable=False)
+    access_mode = Column(String(80), nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
+    sensitivity_level = Column(String(50), nullable=False)
+    allowed_operations_json = Column(JSONB, nullable=False, default=[])
+    endpoint_reference = Column(String(500), nullable=True)
+    status = Column(String(30), default='ACTIVE')
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+
+class RegistryWorkflow(Base):
+    __tablename__ = "registry_workflows"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    workflow_code = Column(String(80), unique=True, nullable=False)
+    workflow_name = Column(String(200), nullable=False)
+    workflow_type = Column(String(80), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"))
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
+    description = Column(Text, nullable=True)
+    approval_required = Column(Boolean, default=False)
+    business_criticality = Column(String(50), nullable=False)
+    status = Column(String(30), default='DRAFT')
+    steps_json = Column(JSONB, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+
+class RegistryRelationship(Base):
+    __tablename__ = "registry_relationships"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    source_entity_type = Column(String(80), nullable=False)
+    source_entity_id = Column(UUID(as_uuid=True), nullable=False)
+    relationship_type = Column(String(80), nullable=False)
+    target_entity_type = Column(String(80), nullable=False)
+    target_entity_id = Column(UUID(as_uuid=True), nullable=False)
+    status = Column(String(30), default='ACTIVE')
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+
+class RegistryAuditEvent(Base):
+    __tablename__ = "registry_audit_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    entity_type = Column(String(80), nullable=False)
+    entity_id = Column(UUID(as_uuid=True), nullable=False)
+    event_type = Column(String(80), nullable=False)
+    changed_by = Column(UUID(as_uuid=True), nullable=True)
+    change_summary = Column(Text, nullable=True)
+    before_json = Column(JSONB, nullable=True)
+    after_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
