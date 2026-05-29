@@ -130,7 +130,7 @@ class ToolBase(BaseModel):
     tool_name: str
     tool_category: ToolCategory
     access_mode: AccessMode
-    owner_user_id: UUID
+    owner_user_id: Optional[UUID] = None
     sensitivity_level: str
     allowed_operations_json: list = Field(default_factory=list)
     endpoint_reference: Optional[str] = None
@@ -176,8 +176,8 @@ class ToolListResponse(BaseModel):
 class WorkflowBase(BaseModel):
     workflow_name: str
     workflow_type: WorkflowType
-    department_id: UUID
-    owner_user_id: UUID
+    department_id: Optional[UUID] = None
+    owner_user_id: Optional[UUID] = None
     description: Optional[str] = None
     approval_required: bool = False
     business_criticality: str
@@ -354,7 +354,7 @@ class GuardianUserLookup(BaseModel):
 class DataSourceBase(BaseModel):
     source_name: str
     source_type: SourceType
-    owner_user_id: UUID
+    owner_user_id: Optional[UUID] = None
     department_id: Optional[UUID] = None
     classification: DataClassification
     sensitivity_level: SensitivityLevel

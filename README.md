@@ -68,7 +68,19 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 4. Run Database Migrations & Seed Data
+### 4. Configure Environment Variables
+
+Copy the example environment file:
+```powershell
+cp .env.example .env
+```
+
+Open `.env` and verify the `DATABASE_URL` matches the credentials from the database setup step:
+```ini
+DATABASE_URL=postgresql://guardianiq_user:guardianiq123@localhost:5432/guardianiq
+```
+
+### 5. Run Database Migrations & Seed Data
 
 Make sure your PostgreSQL database is running, then execute:
 
@@ -92,7 +104,17 @@ Open a **separate terminal window** and run:
 cd frontend
 ```
 
-> The frontend dependencies are assumed to already be installed via `npm install`. Run it if needed before starting.
+### 2. Configure Environment Variables
+
+```powershell
+cp .env.example .env
+```
+
+### 3. Install Dependencies
+
+```powershell
+npm install
+```
 
 ---
 

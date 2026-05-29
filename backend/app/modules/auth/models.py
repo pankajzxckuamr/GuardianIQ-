@@ -32,6 +32,14 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     name = Column(String, nullable=False)
+    
+    full_name = Column(String(200), nullable=True)
+    
+    status = Column(String(30), nullable=False, default='ACTIVE')
+    
+    from sqlalchemy import TIMESTAMP, text
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
 
     email = Column(String, unique=True, nullable=False)
 
