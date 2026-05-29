@@ -16,12 +16,13 @@ class ResponseHelper:
     def success(
         data: Any = None,
         message: str = None,
-        status_code: int = 200
+        status_code: int = 200,
+        request_id: Optional[str] = None
     ) -> StandardResponse:
         """Create a success response."""
         return StandardResponse(
             status="success",
-            request_id=get_request_id(),
+            request_id=request_id or get_request_id(),
             message=message,
             data=data
         )
@@ -30,12 +31,13 @@ class ResponseHelper:
     def error(
         message: str,
         data: Any = None,
-        status_code: int = 400
+        status_code: int = 400,
+        request_id: Optional[str] = None
     ) -> StandardResponse:
         """Create an error response."""
         return StandardResponse(
             status="error",
-            request_id=get_request_id(),
+            request_id=request_id or get_request_id(),
             message=message,
             data=data
         )

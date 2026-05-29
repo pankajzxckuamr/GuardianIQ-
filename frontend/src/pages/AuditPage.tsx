@@ -9,10 +9,15 @@ import type { AuditEvent } from "../services/audit/auditTypes";
 import { formatDate } from "../utils/dates";
 import { ShieldCheck, RefreshCw } from "lucide-react";
 import { Button } from "../components/common/Button";
+import "../components/common/RegistryDataTable.css";
 
 export const AuditPage: React.FC = () => {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   const mockEvents: AuditEvent[] = [
     {
@@ -53,22 +58,40 @@ export const AuditPage: React.FC = () => {
       // Get the stored token
       const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
       if (token) {
-        const response = await fetchAuditEvents(token, { page: 1, per_page: 20 });
+        const response = await fetchAuditEvents(token, { page, per_page: pageSize });
         setEvents(response.items || []);
+        setTotalCount(response.total || 0);
+        setTotalPages(response.pages || 1);
       } else {
-        setEvents(mockEvents);
+        const mockTotal = mockEvents.length;
+        setTotalCount(mockTotal);
+        setTotalPages(Math.ceil(mockTotal / pageSize) || 1);
+        const startIndex = (page - 1) * pageSize;
+        setEvents(mockEvents.slice(startIndex, startIndex + pageSize));
       }
     } catch (e) {
       console.warn("Using local fallback audit events:", e);
-      setEvents(mockEvents);
+      const mockTotal = mockEvents.length;
+      setTotalCount(mockTotal);
+      setTotalPages(Math.ceil(mockTotal / pageSize) || 1);
+      const startIndex = (page - 1) * pageSize;
+      setEvents(mockEvents.slice(startIndex, startIndex + pageSize));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSync = () => {
+    if (page === 1) {
+      loadAudit();
+    } else {
+      setPage(1);
+    }
+  };
+
   useEffect(() => {
     loadAudit();
-  }, []);
+  }, [page]);
 
   const columns = [
     { key: "created_at", header: "Timestamp", render: (row: AuditEvent) => formatDate(row.created_at) },
@@ -95,6 +118,9 @@ export const AuditPage: React.FC = () => {
     { key: "detail", header: "Event Context" },
   ];
 
+  const startRecord = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRecord = Math.min(page * pageSize, totalCount);
+
   return (
     <div className="audit-page">
       <PageHeader 
@@ -105,7 +131,7 @@ export const AuditPage: React.FC = () => {
             variant="secondary" 
             size="md" 
             icon={<RefreshCw size={14} className={loading ? "spin-icon" : ""} />} 
-            onClick={loadAudit}
+            onClick={handleSync}
             disabled={loading}
           >
             Sync Trail
@@ -128,6 +154,37 @@ export const AuditPage: React.FC = () => {
           data={events} 
           loading={loading} 
         />
+
+        {/* Pagination Controls */}
+        {!loading && (
+          <div className="registry-pagination-bar" style={{ marginTop: "1.5rem" }}>
+            <div className="registry-pagination-info">
+              Showing <span className="highlight">{startRecord}–{endRecord}</span> of{" "}
+              <span className="highlight">{totalCount}</span> records
+            </div>
+            <div className="registry-pagination-actions">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                Previous
+              </Button>
+              <span className="registry-page-num">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

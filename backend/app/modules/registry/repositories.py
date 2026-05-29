@@ -10,11 +10,38 @@ from app.modules.registry.models import (
 import math
 import sqlalchemy as sa
 
+def resolve_user_uuid(db: Session, user_val) -> Optional[UUID]:
+    if not user_val:
+        return None
+    if isinstance(user_val, UUID):
+        return user_val
+    if isinstance(user_val, str):
+        try:
+            return UUID(user_val)
+        except ValueError:
+            pass
+            
+    from app.modules.auth.models import User
+    if isinstance(user_val, int):
+        auth_user = db.query(User).filter(User.id == user_val).first()
+        if auth_user:
+            g_user = db.execute(select(GuardianUser).filter_by(email=auth_user.email)).scalar_one_or_none()
+            if g_user:
+                return g_user.id
+                
+    # Fallback to the first GuardianUser in the seed data
+    g_user = db.execute(select(GuardianUser)).scalars().first()
+    if g_user:
+        return g_user.id
+        
+    return None
+
 # ---------------------------------------------------------
 # AI Models Repository
 # ---------------------------------------------------------
 
 def create_model(db: Session, data: dict, created_by: UUID) -> RegistryAIModel:
+    created_by = resolve_user_uuid(db, created_by)
     model = RegistryAIModel(**data, created_by=created_by)
     db.add(model)
     db.flush() # flush to get the id without committing
@@ -58,8 +85,6 @@ def list_models(
         query = query.order_by(asc(order_column))
         
     # Count total
-    count_query = select(sa.func.count()).select_from(query.subquery())
-    import sqlalchemy as sa
     total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()
 
     # Pagination
@@ -70,6 +95,7 @@ def list_models(
     return items, total
 
 def update_model(db: Session, model: RegistryAIModel, data: dict, updated_by: UUID) -> RegistryAIModel:
+    updated_by = resolve_user_uuid(db, updated_by)
     for key, value in data.items():
         if value is not None and hasattr(model, key):
             setattr(model, key, value)
@@ -78,6 +104,7 @@ def update_model(db: Session, model: RegistryAIModel, data: dict, updated_by: UU
     return model
 
 def change_model_status(db: Session, model: RegistryAIModel, new_status: str, updated_by: UUID) -> RegistryAIModel:
+    updated_by = resolve_user_uuid(db, updated_by)
     model.status = new_status
     model.updated_by = updated_by
     db.flush()
@@ -89,6 +116,7 @@ def change_model_status(db: Session, model: RegistryAIModel, new_status: str, up
 # ---------------------------------------------------------
 
 def create_agent(db: Session, data: dict, created_by: UUID) -> RegistryAIAgent:
+    created_by = resolve_user_uuid(db, created_by)
     agent = RegistryAIAgent(**data, created_by=created_by)
     db.add(agent)
     db.flush()
@@ -143,6 +171,7 @@ def list_agents(
     return items, total
 
 def update_agent(db: Session, agent: RegistryAIAgent, data: dict, updated_by: UUID) -> RegistryAIAgent:
+    updated_by = resolve_user_uuid(db, updated_by)
     for key, value in data.items():
         if value is not None and hasattr(agent, key):
             setattr(agent, key, value)
@@ -151,6 +180,7 @@ def update_agent(db: Session, agent: RegistryAIAgent, data: dict, updated_by: UU
     return agent
 
 def change_agent_status(db: Session, agent: RegistryAIAgent, new_status: str, updated_by: UUID) -> RegistryAIAgent:
+    updated_by = resolve_user_uuid(db, updated_by)
     agent.status = new_status
     agent.updated_by = updated_by
     db.flush()

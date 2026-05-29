@@ -26,6 +26,9 @@ def write_registry_audit(
                 sanitized[key] = '***'
         return sanitized
 
+    from app.modules.registry.repositories import resolve_user_uuid
+    changed_by = resolve_user_uuid(db, changed_by)
+
     audit_event = RegistryAuditEvent(
         entity_type=entity_type,
         entity_id=entity_id,

@@ -43,6 +43,19 @@ class User(Base):
         back_populates="users"
     )
 
+    @property
+    def role_code(self) -> str:
+        if not self.roles:
+            return ""
+        codes = [r.role_code for r in self.roles]
+        if "SUPER_ADMIN" in codes:
+            return "ADMIN"
+        if "GOVERNANCE_ADMIN" in codes:
+            return "GOVERNANCE_MANAGER"
+        if "AUDITOR" in codes:
+            return "AUDITOR"
+        return codes[0]
+
 
 class Role(Base):
     __tablename__ = "roles"
