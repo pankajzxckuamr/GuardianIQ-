@@ -149,7 +149,8 @@
 /* Form Actions */
 .formActions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: var(--spacing-md, 1rem);
   margin-top: var(--spacing-lg, 1.5rem);
   border-top: 1px solid var(--card-border, #334155);
@@ -191,6 +192,42 @@
 }
 
 .submitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rightActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md, 1rem);
+  margin-left: auto;
+}
+
+.deleteBtn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--color-danger, #ef4444);
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--font-size-sm, 0.875rem);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.deleteBtn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+  transform: translateY(-1px);
+}
+
+.deleteBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.deleteBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

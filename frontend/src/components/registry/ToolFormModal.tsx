@@ -5,6 +5,9 @@ import { Modal } from "../common/Modal";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
+import { RelationshipViewer } from "./RelationshipViewer";
+import { AuditTrailViewer } from "./AuditTrailViewer";
+import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./ToolFormModal.module.css";
 
 interface ToolFormModalProps {
@@ -44,17 +47,44 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
   const [isMetadataJsonValid, setIsMetadataJsonValid] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [loadingLookups, setLoadingLookups] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isEditMode = !!toolId;
+
+  // Reset form when modal opens or closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        tool_code: "",
+        tool_name: "",
+        tool_category: "",
+        access_mode: "",
+        sensitivity_level: "",
+        allowed_operations_json: "",
+        endpoint_reference: "",
+        owner_user_id: "",
+        status: EntityStatus.DRAFT,
+        metadata_json: ""
+      });
+      setFieldErrors({});
+      setGeneralError(null);
+      setActiveTab("details");
+    }
+  }, [isOpen]);
 
   // Load users lookup
   useEffect(() => {
     async function loadLookups() {
+      setLoadingLookups(true);
       try {
         const usersRes = await registryService.getUsersLookup();
         if (usersRes.data) setUsers(usersRes.data);
       } catch (err) {
         console.error("Failed to load lookups:", err);
+      } finally {
+        setLoadingLookups(false);
       }
     }
     if (isOpen) {
@@ -166,7 +196,10 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
         if (colonIndex !== -1) {
           const fullField = part.substring(0, colonIndex).trim(); // "body.tool_code"
           const msg = part.substring(colonIndex + 1).trim(); // "field required"
-          const fieldName = fullField.replace("body.", "").trim();
+          let fieldName = fullField.replace("body.", "").trim();
+          
+          if (fieldName === "code") fieldName = "tool_code";
+          
           newFieldErrors[fieldName] = msg;
         }
       });
@@ -175,9 +208,13 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
     // Parse structured details array
     if (err.details && Array.isArray(err.details)) {
       err.details.forEach((d: any) => {
-        const fieldName = d.field || (d.loc && d.loc[d.loc.length - 1]);
+        let fieldName = d.field || (d.loc && d.loc[d.loc.length - 1]);
         if (fieldName) {
-          newFieldErrors[String(fieldName)] = d.message || d.msg || "Invalid value";
+          fieldName = String(fieldName);
+          
+          if (fieldName === "code") fieldName = "tool_code";
+          
+          newFieldErrors[fieldName] = d.message || d.msg || "Invalid value";
         }
       });
     }
@@ -222,6 +259,22 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
       showToast("Failed to save tool", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!toolId) return;
+    setIsDeleting(true);
+    try {
+      await registryService.deleteTool(toolId);
+      showToast("Tool deleted successfully", "success");
+      setIsDeleteModalOpen(false);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete tool", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -405,15 +458,21 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
                     name="owner_user_id"
                     value={formData.owner_user_id}
                     onChange={handleChange}
-                    disabled={loading}
+                    disabled={loading || loadingLookups}
                     className={styles.select}
                   >
-                    <option value="">-- Select Owner --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.email})
-                      </option>
-                    ))}
+                    {loadingLookups ? (
+                      <option value="">Loading owners...</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Owner --</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.full_name} ({u.email})
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -497,38 +556,57 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
 
               {/* Form Actions */}
               <div className={styles.formActions}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={loading}
-                  className={styles.cancelBtn}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || !isMetadataJsonValid}
-                  className={styles.submitBtn}
-                >
-                  {loading ? "Saving..." : "Save Tool"}
-                </button>
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    disabled={loading}
+                    className={styles.deleteBtn}
+                  >
+                    Delete
+                  </button>
+                )}
+                <div className={styles.rightActions}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={loading}
+                    className={styles.cancelBtn}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !isMetadataJsonValid}
+                    className={styles.submitBtn}
+                  >
+                    {loading ? "Saving..." : "Save Tool"}
+                  </button>
+                </div>
               </div>
             </form>
           )}
 
           {activeTab === "relationships" && (
-            <div className={styles.placeholderTab}>
-              Relationships viewer coming in Day 9
-            </div>
+            <RelationshipViewer entityType="TOOL" entityId={toolId!} />
           )}
 
           {activeTab === "audit" && (
-            <div className={styles.placeholderTab}>
-              Audit trail coming in Day 9
-            </div>
+            <AuditTrailViewer entityType="TOOL" entityId={toolId!} />
           )}
         </div>
       </div>
+      
+      {isEditMode && (
+        <ConfirmDeleteModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleDelete}
+          entityName={formData.tool_name || formData.tool_code || 'Tool'}
+          entityType="Tool"
+          isDeleting={isDeleting}
+        />
+      )}
     </Modal>
   );
 };

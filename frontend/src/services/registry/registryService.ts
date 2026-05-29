@@ -74,6 +74,12 @@ export function changeModelStatus(id: string, status: string, reason?: string): 
   );
 }
 
+export function deleteModel(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/models/${id}`)
+  );
+}
+
 // AI Agents
 export function listAgents(params?: any): Promise<ApiResponse<ListResponse<AIAgent>>> {
   return wrapResponse<ListResponse<AIAgent>>(
@@ -102,6 +108,12 @@ export function updateAgent(id: string, payload: any): Promise<ApiResponse<AIAge
 export function changeAgentStatus(id: string, status: string, reason?: string): Promise<ApiResponse<AIAgent>> {
   return wrapResponse<AIAgent>(
     serverClient.patch(`${BASE_PATH}/agents/${id}/status`, { status, reason })
+  );
+}
+
+export function deleteAgent(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/agents/${id}`)
   );
 }
 
@@ -136,6 +148,12 @@ export function changeToolStatus(id: string, status: string, reason?: string): P
   );
 }
 
+export function deleteTool(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/tools/${id}`)
+  );
+}
+
 // Workflows
 export function listWorkflows(params?: any): Promise<ApiResponse<ListResponse<Workflow>>> {
   return wrapResponse<ListResponse<Workflow>>(
@@ -164,6 +182,12 @@ export function updateWorkflow(id: string, payload: any): Promise<ApiResponse<Wo
 export function changeWorkflowStatus(id: string, status: string, reason?: string): Promise<ApiResponse<Workflow>> {
   return wrapResponse<Workflow>(
     serverClient.patch(`${BASE_PATH}/workflows/${id}/status`, { status, reason })
+  );
+}
+
+export function deleteWorkflow(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/workflows/${id}`)
   );
 }
 
@@ -198,6 +222,12 @@ export function changeDataSourceStatus(id: string, status: string, reason?: stri
   );
 }
 
+export function deleteDataSource(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/data-sources/${id}`)
+  );
+}
+
 // Departments
 export function listDepartments(params?: any): Promise<ApiResponse<ListResponse<RegistryDepartment>>> {
   return wrapResponse<ListResponse<RegistryDepartment>>(
@@ -226,6 +256,12 @@ export function updateDepartment(id: string, payload: any): Promise<ApiResponse<
 export function changeDepartmentStatus(id: string, status: string, reason?: string): Promise<ApiResponse<RegistryDepartment>> {
   return wrapResponse<RegistryDepartment>(
     serverClient.patch(`${BASE_PATH}/departments/${id}/status`, { status, reason })
+  );
+}
+
+export function deleteDepartment(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/departments/${id}`)
   );
 }
 
@@ -260,6 +296,12 @@ export function changeUserStatus(id: string, status: string, reason?: string): P
   );
 }
 
+export function deleteUser(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/users/${id}`)
+  );
+}
+
 // Roles
 export function listRoles(params?: any): Promise<ApiResponse<ListResponse<RegistryRole>>> {
   return wrapResponse<ListResponse<RegistryRole>>(
@@ -291,6 +333,12 @@ export function changeRoleStatus(id: string, status: string, reason?: string): P
   );
 }
 
+export function deleteRole(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/roles/${id}`)
+  );
+}
+
 // Relationships
 export function createRelationship(payload: any): Promise<ApiResponse<RegistryRelationship>> {
   return wrapResponse<RegistryRelationship>(
@@ -313,7 +361,7 @@ export function deleteRelationship(id: string): Promise<ApiResponse<void>> {
 // Audit Trail
 export function getAuditTrail(entityType: string, entityId: string, params?: any): Promise<ApiResponse<ListResponse<RegistryAuditEvent>>> {
   return wrapResponse<ListResponse<RegistryAuditEvent>>(
-    serverClient.get(`${BASE_PATH}/audit-trail/${entityType}/${entityId}`, { params })
+    serverClient.get(`${BASE_PATH}/audit/${entityType}/${entityId}`, { params })
   );
 }
 

@@ -69,7 +69,7 @@
   /* Layout & Sizing */
   --sidebar-width: 260px;
   --header-height: 70px;
-  --max-content-width: 1280px;
+  --max-content-width: 1600px;
 
   /* Shadows & Glassmorphic Filters */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);

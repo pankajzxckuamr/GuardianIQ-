@@ -17,6 +17,11 @@ export const RegistryWorkflowsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("workflow_name");
 
+  // Set document title
+  useEffect(() => {
+    document.title = "Workflows — GuardianIQ Registry";
+  }, []);
+
   // Debounced search
   const [searchTerm, setSearchTerm] = useState(filters.search);
   const [departmentsMap, setDepartmentsMap] = useState<Record<string, string>>({});
@@ -143,6 +148,7 @@ export const RegistryWorkflowsPage: React.FC = () => {
 
   return (
     <div className={styles.page}>
+      <div className={styles.breadcrumb}>Registry &gt; Workflows</div>
       <PageHeader
         title="Workflows &amp; Pipelines Registry"
         description="Govern corporate decision tracks, data processing, and validation procedures"

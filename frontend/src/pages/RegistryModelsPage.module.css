@@ -80,3 +80,12 @@
   font-size: 0.75rem;
   font-weight: var(--font-weight-semibold, 600);
 }
+
+.breadcrumb {
+  font-size: 0.775rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: -1rem;
+}

@@ -1,4 +1,4 @@
-/* src/pages/RegistryToolsPage.module.css */
+/* src/pages/RegistryUsersRolesPage.module.css */
 
 .page {
   display: flex;
@@ -7,6 +7,43 @@
   width: 100%;
 }
 
+/* Tabs */
+.tabsContainer {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--card-border, #334155);
+  margin-bottom: -0.5rem;
+}
+
+.tabBtn {
+  background: transparent;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--font-size-md, 1rem);
+  font-weight: var(--font-weight-semibold, 600);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary, #f8fafc);
+}
+
+.activeTab {
+  color: var(--accent-primary, #6366f1);
+  border-bottom-color: var(--accent-primary, #6366f1);
+}
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+}
+
+/* Filters */
 .filterBar {
   display: flex;
   flex-wrap: wrap;
@@ -68,8 +105,20 @@
   width: 100%;
 }
 
-/* Category Badge */
-.categoryBadge {
+/* Badges */
+.limitBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.typeBadge {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.5rem;
@@ -81,40 +130,22 @@
   font-weight: var(--font-weight-semibold, 600);
 }
 
-/* Access Mode Badges */
-.accessModeBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 0.75rem;
-  font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: 0.02em;
-  border: 1px solid transparent;
+.typeBadge.system {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
 }
 
-.accessModeAdmin {
-  background: rgba(239, 68, 68, 0.12);
-  color: var(--color-danger, #ef4444);
-  border-color: rgba(239, 68, 68, 0.25);
+.typeBadge.business {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #10b981;
 }
 
-.accessModeExecute {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--color-warning, #f59e0b);
-  border-color: rgba(245, 158, 11, 0.25);
-}
-
-.accessModeWrite {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--color-info, #3b82f6);
-  border-color: rgba(59, 130, 246, 0.25);
-}
-
-.accessModeRead {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--color-success, #10b981);
-  border-color: rgba(16, 185, 129, 0.25);
+.typeBadge.governance {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.2);
+  color: #8b5cf6;
 }
 
 .breadcrumb {

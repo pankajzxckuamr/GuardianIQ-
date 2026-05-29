@@ -5,6 +5,9 @@ import { Modal } from "../common/Modal";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
+import { RelationshipViewer } from "./RelationshipViewer";
+import { AuditTrailViewer } from "./AuditTrailViewer";
+import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./ModelFormModal.module.css";
 
 interface ModelFormModalProps {
@@ -26,6 +29,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
   // Lookups data
   const [users, setUsers] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [departments, setDepartments] = useState<{ id: string; department_name: string; department_code: string }[]>([]);
+  const [loadingLookups, setLoadingLookups] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -47,12 +51,38 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
   const [isMetadataJsonValid, setIsMetadataJsonValid] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isEditMode = !!modelId;
+
+  // Reset form when modal opens or closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        model_code: "",
+        model_name: "",
+        model_type: "",
+        provider: "",
+        version: "",
+        purpose: "",
+        owner_user_id: "",
+        department_id: "",
+        risk_level: "",
+        deployment_environment: "",
+        status: EntityStatus.DRAFT,
+        metadata_json: ""
+      });
+      setFieldErrors({});
+      setGeneralError(null);
+      setActiveTab("details");
+    }
+  }, [isOpen]);
 
   // Load Lookups on mount
   useEffect(() => {
     async function loadLookups() {
+      setLoadingLookups(true);
       try {
         const [usersRes, deptsRes] = await Promise.all([
           registryService.getUsersLookup(),
@@ -62,6 +92,8 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
         if (deptsRes.data) setDepartments(deptsRes.data);
       } catch (err) {
         console.error("Failed to load form lookups:", err);
+      } finally {
+        setLoadingLookups(false);
       }
     }
     if (isOpen) {
@@ -175,7 +207,13 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
         if (colonIndex !== -1) {
           const fullField = part.substring(0, colonIndex).trim(); // "body.model_code"
           const msg = part.substring(colonIndex + 1).trim(); // "field required"
-          const fieldName = fullField.replace("body.", "").trim(); // "model_code"
+          let fieldName = fullField.replace("body.", "").trim(); // "model_code"
+          
+          // Map API validation errors to form fields
+          if (fieldName === "description") fieldName = "purpose";
+          if (fieldName === "model_version") fieldName = "version";
+          if (fieldName === "code") fieldName = "model_code";
+          
           newFieldErrors[fieldName] = msg;
         }
       });
@@ -184,9 +222,16 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
     // 2. Try parsing standard structured details array
     if (err.details && Array.isArray(err.details)) {
       err.details.forEach((d: any) => {
-        const fieldName = d.field || (d.loc && d.loc[d.loc.length - 1]);
+        let fieldName = d.field || (d.loc && d.loc[d.loc.length - 1]);
         if (fieldName) {
-          newFieldErrors[String(fieldName)] = d.message || d.msg || "Invalid value";
+          fieldName = String(fieldName);
+          
+          // Map API validation errors to form fields
+          if (fieldName === "description") fieldName = "purpose";
+          if (fieldName === "model_version") fieldName = "version";
+          if (fieldName === "code") fieldName = "model_code";
+          
+          newFieldErrors[fieldName] = d.message || d.msg || "Invalid value";
         }
       });
     }
@@ -225,6 +270,22 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
       showToast("Failed to save model", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!modelId) return;
+    setIsDeleting(true);
+    try {
+      await registryService.deleteModel(modelId);
+      showToast("Model deleted successfully", "success");
+      setIsDeleteModalOpen(false);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete model", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -377,15 +438,21 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
                     name="owner_user_id"
                     value={formData.owner_user_id}
                     onChange={handleChange}
-                    disabled={loading}
+                    disabled={loading || loadingLookups}
                     className={styles.select}
                   >
-                    <option value="">-- Select Owner --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.email})
-                      </option>
-                    ))}
+                    {loadingLookups ? (
+                      <option value="">Loading owners...</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Owner --</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.full_name} ({u.email})
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -397,15 +464,21 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
                     name="department_id"
                     value={formData.department_id}
                     onChange={handleChange}
-                    disabled={loading}
+                    disabled={loading || loadingLookups}
                     className={styles.select}
                   >
-                    <option value="">-- Select Department --</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.department_name} ({d.department_code})
-                      </option>
-                    ))}
+                    {loadingLookups ? (
+                      <option value="">Loading departments...</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Department --</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.department_name} ({d.department_code})
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -517,38 +590,57 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
 
               {/* Form Actions */}
               <div className={styles.formActions}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={loading}
-                  className={styles.cancelBtn}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || !isMetadataJsonValid}
-                  className={styles.submitBtn}
-                >
-                  {loading ? "Saving..." : "Save Model"}
-                </button>
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    disabled={loading}
+                    className={styles.deleteBtn}
+                  >
+                    Delete
+                  </button>
+                )}
+                <div className={styles.rightActions}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={loading}
+                    className={styles.cancelBtn}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !isMetadataJsonValid}
+                    className={styles.submitBtn}
+                  >
+                    {loading ? "Saving..." : "Save Model"}
+                  </button>
+                </div>
               </div>
             </form>
           )}
 
           {activeTab === "relationships" && (
-            <div className={styles.placeholderTab}>
-              Relationships viewer coming in Day 9
-            </div>
+            <RelationshipViewer entityType="MODEL" entityId={modelId!} />
           )}
 
           {activeTab === "audit" && (
-            <div className={styles.placeholderTab}>
-              Audit trail coming in Day 9
-            </div>
+            <AuditTrailViewer entityType="MODEL" entityId={modelId!} />
           )}
         </div>
       </div>
+      
+      {isEditMode && (
+        <ConfirmDeleteModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleDelete}
+          entityName={formData.model_name || formData.model_code || 'Model'}
+          entityType="Model"
+          isDeleting={isDeleting}
+        />
+      )}
     </Modal>
   );
 };

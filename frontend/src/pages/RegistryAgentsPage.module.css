@@ -97,3 +97,12 @@
   color: var(--color-info, #3b82f6);
   border-color: rgba(59, 130, 246, 0.25);
 }
+
+.breadcrumb {
+  font-size: 0.775rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: -1rem;
+}

@@ -1,7 +1,8 @@
 /* src/components/layout/AppShell.tsx */
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import * as registryService from "../../services/registry/registryService";
 import { 
   Shield, 
   LayoutDashboard, 
@@ -21,7 +22,9 @@ import {
   Building2,
   Link2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Search,
+  Loader2
 } from "lucide-react";
 import "./AppShell.css";
 
@@ -35,6 +38,101 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [registryOpen, setRegistryOpen] = useState(location.pathname.startsWith("/registry"));
+
+  // Global Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on route change
+  useEffect(() => {
+    setShowSearchDropdown(false);
+    setSearchQuery("");
+  }, [location.pathname]);
+
+  // Click outside listener
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Escape key listener
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowSearchDropdown(false);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Debounced search fetch
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) {
+      setSearchResults(null);
+      setShowSearchDropdown(false);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const res = await registryService.globalSearch(searchQuery);
+        if (res.data) {
+          setSearchResults(res.data);
+          setShowSearchDropdown(true);
+        }
+      } catch (err) {
+        console.error("Global search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleResultClick = (item: any, type: string) => {
+    setShowSearchDropdown(false);
+    setSearchQuery("");
+    
+    const base = type.toLowerCase().replace("_", "-");
+    let route = "";
+    if (type === "USER") {
+      route = `/registry/users-roles?tab=users&search=${encodeURIComponent(item.code)}`;
+    } else if (type === "ROLE") {
+      route = `/registry/users-roles?tab=roles&search=${encodeURIComponent(item.code)}`;
+    } else {
+      route = `/registry/${base}s?search=${encodeURIComponent(item.code || item.name)}`;
+    }
+    navigate(route);
+  };
+
+  const getGroupTitle = (key: string) => {
+    if (key === "models") return "AI Models";
+    if (key === "agents") return "AI Agents";
+    if (key === "tools") return "Tools";
+    if (key === "workflows") return "Workflows";
+    if (key === "data_sources") return "Data Sources";
+    if (key === "users") return "Identities";
+    return key;
+  };
+
+  // Check if any results were found
+  const hasResults = searchResults && Object.keys(searchResults).some(key => {
+    const list = searchResults[key];
+    return Array.isArray(list) && list.length > 0;
+  });
 
   const registrySubItems = [
     { label: "AI Models", path: "/registry/models", icon: Brain },
@@ -180,6 +278,62 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <Menu size={24} />
             </button>
             <span className="header-platform-label">Enterprise Shield Platform</span>
+          </div>
+
+          {/* Task D: Global Search Bar Component */}
+          <div className="header-search-bar" ref={searchContainerRef}>
+            <div className="search-input-box">
+              <Search className="search-input-icon" size={16} />
+              <input
+                type="text"
+                placeholder="Search registry assets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchQuery.trim().length >= 2 && setShowSearchDropdown(true)}
+                className="search-text-input"
+              />
+              {isSearching && <Loader2 className="search-spinner-icon" size={16} />}
+            </div>
+
+            {showSearchDropdown && searchResults && (
+              <div className="search-results-dropdown animate-fade-in">
+                {hasResults ? (
+                  Object.keys(searchResults).map((groupKey) => {
+                    const items = (searchResults as any)[groupKey] || [];
+                    if (!Array.isArray(items) || items.length === 0) return null;
+                    const groupTitle = getGroupTitle(groupKey);
+
+                    return (
+                      <div key={groupKey} className="search-result-group">
+                        <div className="search-group-header">{groupTitle}</div>
+                        <div className="search-group-items">
+                          {items.slice(0, 5).map((item: any) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleResultClick(item, item.entity_type)}
+                              className="search-result-row"
+                            >
+                              <div className="search-row-main">
+                                <span className="search-row-code">{item.code || item.name}</span>
+                                <span className="search-row-name">{item.name}</span>
+                              </div>
+                              <span className={`search-row-status-badge ${String(item.status).toLowerCase()}`}>
+                                {item.status}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="search-no-results">
+                    No registry assets found for "{searchQuery}"
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="header-actions">

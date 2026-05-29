@@ -4,7 +4,7 @@ import "./Table.css";
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   render?: (row: T) => React.ReactNode;
 }
 

@@ -1,6 +1,4 @@
-/* src/hooks/useRegistryEntity.ts */
-
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { ApiResponse } from "../services/registry/registryTypes";
 
 export function useRegistryEntity<T>(
@@ -10,9 +8,15 @@ export function useRegistryEntity<T>(
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const initialFetchRef = useRef(true);
 
   const refetch = useCallback(async () => {
-    setIsLoading(true);
+    // Only trigger skeleton loading on the very first mount fetch
+    if (initialFetchRef.current) {
+      setIsLoading(true);
+      initialFetchRef.current = false;
+    }
     setError(null);
     try {
       const response = await fetchFn();

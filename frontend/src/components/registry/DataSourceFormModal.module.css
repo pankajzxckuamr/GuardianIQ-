@@ -1,4 +1,4 @@
-/* src/components/registry/AgentFormModal.module.css */
+/* src/components/registry/DataSourceFormModal.module.css */
 
 .container {
   display: flex;
@@ -6,36 +6,6 @@
   gap: var(--spacing-md, 1rem);
 }
 
-/* Tabs */
-.tabsHeader {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--card-border, #334155);
-  margin-bottom: var(--spacing-md, 1rem);
-}
-
-.tabBtn {
-  background: transparent;
-  border: none;
-  padding: 0.5rem 1rem;
-  color: var(--text-secondary, #94a3b8);
-  font-size: var(--font-size-sm, 0.875rem);
-  font-weight: var(--font-weight-semibold, 600);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.15s ease;
-}
-
-.tabBtn:hover {
-  color: var(--text-primary, #f8fafc);
-}
-
-.activeTab {
-  color: var(--accent-primary, #6366f1);
-  border-bottom-color: var(--accent-primary, #6366f1);
-}
-
-/* General Alert */
 .generalAlert {
   background: rgba(239, 68, 68, 0.1);
   color: var(--color-danger, #ef4444);
@@ -46,20 +16,6 @@
   margin-bottom: var(--spacing-md, 1rem);
 }
 
-/* Custom blocked warning banner UX style */
-.blockedWarningBanner {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--color-warning, #f59e0b);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  border-radius: var(--radius-sm, 4px);
-  padding: 0.75rem var(--spacing-md, 1rem);
-  font-size: var(--font-size-sm, 0.875rem);
-  font-weight: var(--font-weight-semibold, 600);
-  margin-bottom: var(--spacing-md, 1rem);
-  line-height: 1.4;
-}
-
-/* Form Styles */
 .form {
   display: flex;
   flex-direction: column;
@@ -129,7 +85,54 @@
   margin-top: 0.15rem;
 }
 
-/* Invalid JSON validation */
+.helperText {
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--font-size-xs, 0.75rem);
+  margin-top: 0.15rem;
+  font-style: italic;
+}
+
+/* PII Toggle styles */
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-primary, #f8fafc);
+  user-select: none;
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent-primary, #6366f1);
+  cursor: pointer;
+}
+
+.piiWarning {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.5rem 0.75rem;
+  color: var(--color-danger, #ef4444);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: var(--font-weight-semibold, 600);
+  margin-top: var(--spacing-xs, 0.5rem);
+  animation: pii-fade-in 0.2s ease-out;
+}
+
+@keyframes pii-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .jsonTextarea {
   font-family: monospace;
 }
@@ -139,7 +142,6 @@
   background: rgba(239, 68, 68, 0.02);
 }
 
-/* Form Actions */
 .formActions {
   display: flex;
   justify-content: space-between;
@@ -163,7 +165,7 @@
 }
 
 .cancelBtn:hover {
-  border-color: var(--text-secondary, #94a3b8);
+  border-color: var(--card-border, #334155);
   color: var(--text-primary, #f8fafc);
 }
 
@@ -223,12 +225,4 @@
 .deleteBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.placeholderTab {
-  padding: var(--spacing-xl, 2rem) 0;
-  text-align: center;
-  color: var(--text-secondary, #94a3b8);
-  font-style: italic;
-  font-size: var(--font-size-sm, 0.875rem);
 }

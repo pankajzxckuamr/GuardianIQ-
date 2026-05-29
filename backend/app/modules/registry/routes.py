@@ -584,11 +584,14 @@ def list_departments(
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     items, total = repo.list_departments(db, {"search": search, "status": status}, page, page_size, sort_by, sort_dir)
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
     return ResponseHelper.success(
         data=schemas.DepartmentListResponse(
             items=[schemas.DepartmentResponse.model_validate(i) for i in items],
             total=total, page=page, page_size=page_size,
-            total_pages=math.ceil(total / page_size) if total > 0 else 0
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1
         ).model_dump(),
         message="Departments retrieved", request_id=request_id
     )
@@ -650,11 +653,14 @@ def list_roles(
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     items, total = repo.list_roles(db, {"search": search, "status": status}, page, page_size, sort_by, sort_dir)
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
     return ResponseHelper.success(
         data=schemas.RoleListResponse(
             items=[schemas.RoleResponse.model_validate(i) for i in items],
             total=total, page=page, page_size=page_size,
-            total_pages=math.ceil(total / page_size) if total > 0 else 0
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1
         ).model_dump(),
         message="Roles retrieved", request_id=request_id
     )
@@ -716,11 +722,14 @@ def list_users(
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     items, total = repo.list_users(db, {"search": search, "status": status}, page, page_size, sort_by, sort_dir)
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
     return ResponseHelper.success(
         data=schemas.GuardianUserListResponse(
             items=[schemas.GuardianUserResponse.model_validate(i) for i in items],
             total=total, page=page, page_size=page_size,
-            total_pages=math.ceil(total / page_size) if total > 0 else 0
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1
         ).model_dump(),
         message="Users retrieved", request_id=request_id
     )
@@ -771,11 +780,14 @@ def list_data_sources(
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     items, total = repo.list_data_sources(db, {"search": search, "status": status}, page, page_size, sort_by, sort_dir)
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
     return ResponseHelper.success(
         data=schemas.DataSourceListResponse(
             items=[schemas.DataSourceResponse.model_validate(i) for i in items],
             total=total, page=page, page_size=page_size,
-            total_pages=math.ceil(total / page_size) if total > 0 else 0
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1
         ).model_dump(),
         message="Data Sources retrieved", request_id=request_id
     )
@@ -863,6 +875,73 @@ def delete_relationship(request: Request, id: UUID, db: Session = Depends(get_db
     return ResponseHelper.success(data=schemas.RelationshipResponse.model_validate(rel).model_dump(), message="Relationship removed", request_id=request_id)
 
 # ---------------------------------------------------------
+# Delete Endpoints
+
+@models_router.delete("/models/{id}", summary="Delete AI Model", description="Permanently delete a model. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_model(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_model(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Model deleted", request_id=request_id)
+
+@agents_router.delete("/agents/{id}", summary="Delete AI Agent", description="Permanently delete an agent. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_agent(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_agent(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Agent deleted", request_id=request_id)
+
+@tools_router.delete("/tools/{id}", summary="Delete Tool", description="Permanently delete a tool. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_tool(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_tool(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Tool deleted", request_id=request_id)
+
+@workflows_router.delete("/workflows/{id}", summary="Delete Workflow", description="Permanently delete a workflow. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_workflow(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_workflow(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Workflow deleted", request_id=request_id)
+
+@departments_router.delete("/departments/{id}", summary="Delete Department", description="Permanently delete a department. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_department(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_department(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Department deleted", request_id=request_id)
+
+@roles_router.delete("/roles/{id}", summary="Delete Role", description="Permanently delete a role. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_role(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_role(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Role deleted", request_id=request_id)
+
+@users_router.delete("/users/{id}", summary="Delete User", description="Permanently delete a user. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_user(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_user(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="User deleted", request_id=request_id)
+
+@data_sources_router.delete("/data-sources/{id}", summary="Delete Data Source", description="Permanently delete a data source. Allowed roles: ADMIN, GOVERNANCE_MANAGER")
+def delete_data_source(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    services.delete_data_source(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(message="Data Source deleted", request_id=request_id)
+
+# ---------------------------------------------------------
 # Audit Endpoints
 # ---------------------------------------------------------
 
@@ -877,11 +956,14 @@ def get_audit_events(
         raise HTTPException(403, detail=ResponseHelper.error(message="Insufficient permission", error_code="FORBIDDEN", request_id=request_id).model_dump())
         
     items, total = repo.list_audit_events(db, entity_type, entity_id, event_type, page, page_size)
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
     return ResponseHelper.success(
         data=schemas.AuditListResponse(
             items=[schemas.AuditResponse.model_validate(i) for i in items],
             total=total, page=page, page_size=page_size,
-            total_pages=math.ceil(total / page_size) if total > 0 else 0
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1
         ).model_dump(),
         message="Audit events retrieved", request_id=request_id
     )

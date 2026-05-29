@@ -1,4 +1,4 @@
-/* src/pages/RegistryToolsPage.module.css */
+/* src/pages/RegistryDepartmentsPage.module.css */
 
 .page {
   display: flex;
@@ -66,55 +66,6 @@
 
 .tableContainer {
   width: 100%;
-}
-
-/* Category Badge */
-.categoryBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm, 4px);
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  color: var(--accent-primary, #6366f1);
-  font-size: 0.75rem;
-  font-weight: var(--font-weight-semibold, 600);
-}
-
-/* Access Mode Badges */
-.accessModeBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 0.75rem;
-  font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: 0.02em;
-  border: 1px solid transparent;
-}
-
-.accessModeAdmin {
-  background: rgba(239, 68, 68, 0.12);
-  color: var(--color-danger, #ef4444);
-  border-color: rgba(239, 68, 68, 0.25);
-}
-
-.accessModeExecute {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--color-warning, #f59e0b);
-  border-color: rgba(245, 158, 11, 0.25);
-}
-
-.accessModeWrite {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--color-info, #3b82f6);
-  border-color: rgba(59, 130, 246, 0.25);
-}
-
-.accessModeRead {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--color-success, #10b981);
-  border-color: rgba(16, 185, 129, 0.25);
 }
 
 .breadcrumb {

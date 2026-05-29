@@ -5,208 +5,277 @@ import { Link } from "react-router-dom";
 import { Card } from "../components/common/Card";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeader } from "../components/common/PageHeader";
-import { getRegistrySummary } from "../services/registry/registryService";
-import type { RegistrySummary } from "../services/registry/registryTypes";
-import "./RegistryDashboardPage.css";
+import * as registryService from "../services/registry/registryService";
+import styles from "./RegistryDashboardPage.module.css";
+import { Brain, Cpu, Plug, GitBranch, Users, Building2, Database, AlertTriangle, ArrowRight, Clock } from "lucide-react";
+
+interface RecentItem {
+  id: string;
+  name: string;
+  code: string;
+  type: "MODEL" | "AGENT";
+  updated_at: string;
+}
 
 export const RegistryDashboardPage: React.FC = () => {
-  const [summary, setSummary] = useState<RegistrySummary>({
-    models_count: 0,
-    agents_count: 0,
-    tools_count: 0,
-    workflows_count: 0,
-    users_count: 0,
-    departments_count: 0,
-    data_sources_count: 0
-  });
-
+  const [summary, setSummary] = useState<any>(null);
+  const [recentUpdates, setRecentUpdates] = useState<RecentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingRecent, setLoadingRecent] = useState(true);
 
+  // Set document title
   useEffect(() => {
-    async function loadSummary() {
-      try {
-        const response = await getRegistrySummary();
-        if (response && response.data) {
-          setSummary(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to load registry summary:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadSummary();
+    document.title = "Dashboard — GuardianIQ Registry";
   }, []);
 
-  const getBreakdown = (count: number) => {
-    if (count <= 0) return { active: 0, draft: 0, inactive: 0 };
-    if (count === 1) return { active: 1, draft: 0, inactive: 0 };
-    if (count === 2) return { active: 1, draft: 1, inactive: 0 };
-    
-    const active = Math.floor(count * 0.7) || 1;
-    const draft = Math.floor(count * 0.2);
-    const inactive = count - active - draft;
-    return { active, draft, inactive };
+  const loadDashboardData = async () => {
+    try {
+      const response = await registryService.getRegistrySummary();
+      if (response && response.data) {
+        setSummary(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load registry summary:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const loadRecentUpdates = async () => {
+    try {
+      const [modelsRes, agentsRes] = await Promise.all([
+        registryService.listModels({ sort_by: "updated_at", sort_dir: "desc", per_page: 3 }),
+        registryService.listAgents({ sort_by: "updated_at", sort_dir: "desc", per_page: 3 })
+      ]);
+
+      const modelsList = modelsRes.data?.items || [];
+      const agentsList = agentsRes.data?.items || [];
+
+      const combined: RecentItem[] = [
+        ...modelsList.map((m: any) => ({
+          id: m.id,
+          name: m.model_name,
+          code: m.model_code || "",
+          type: "MODEL" as const,
+          updated_at: m.updated_at
+        })),
+        ...agentsList.map((a: any) => ({
+          id: a.id,
+          name: a.agent_name,
+          code: a.agent_code || "",
+          type: "AGENT" as const,
+          updated_at: a.updated_at
+        }))
+      ];
+
+      // Sort client-side by updated_at descending
+      combined.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      setRecentUpdates(combined.slice(0, 5));
+    } catch (error) {
+      console.error("Failed to load recently updated assets:", error);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  // On mount and 60s auto-refresh
+  useEffect(() => {
+    loadDashboardData();
+    loadRecentUpdates();
+
+    const intervalId = setInterval(() => {
+      loadDashboardData();
+      loadRecentUpdates();
+    }, 60000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const timeAgo = (dateStr: string) => {
+    if (!dateStr) return "";
+    const now = new Date();
+    const past = new Date(dateStr);
+    const ms = now.getTime() - past.getTime();
+    if (ms < 0) return "just now";
+    const secs = Math.floor(ms / 1000);
+    const mins = Math.floor(secs / 60);
+    const hours = Math.floor(mins / 60);
+    const days = Math.floor(hours / 24);
+
+    if (secs < 60) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
+  // Critical risk check
+  const modelsCritical = summary?.models?.by_risk_level?.["CRITICAL"] ?? 0;
+  const agentsCritical = summary?.agents?.by_risk_level?.["CRITICAL"] ?? 0;
+  const criticalRiskCount = modelsCritical + agentsCritical;
 
   const cardsData = [
     {
       title: "AI Models",
-      count: summary.models_count,
+      key: "models",
+      count: summary?.models?.total ?? 0,
       path: "/registry/models",
       description: "Manage deployed LLMs, machine learning models, and forecasting scripts.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1 0-3.12 3 3 0 0 1 0-3.88 2.5 2.5 0 0 1 0-3.12A2.5 2.5 0 0 1 9.5 2z" />
-          <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 0-3.12 3 3 0 0 0 0-3.88 2.5 2.5 0 0 0 0-3.12A2.5 2.5 0 0 0 14.5 2z" />
-        </svg>
-      )
+      icon: <Brain size={20} />,
+      hasBreakdown: true
     },
     {
       title: "AI Agents",
-      count: summary.agents_count,
+      key: "agents",
+      count: summary?.agents?.total ?? 0,
       path: "/registry/agents",
       description: "Govern autonomous agents, operational modes, and execution boundaries.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="11" width="18" height="10" rx="2" />
-          <circle cx="12" cy="5" r="2" />
-          <path d="M12 7v4" />
-          <line x1="8" y1="16" x2="8" y2="16" />
-          <line x1="16" y1="16" x2="16" y2="16" />
-        </svg>
-      )
+      icon: <Cpu size={20} />,
+      hasBreakdown: true
     },
     {
       title: "Tools & Connectors",
-      count: summary.tools_count,
+      key: "tools",
+      count: summary?.tools?.total ?? 0,
       path: "/registry/tools",
       description: "Audit connected CRM systems, databases, ticketing APIs, and webhooks.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-          <line x1="12" y1="2" x2="12" y2="12" />
-        </svg>
-      )
+      icon: <Plug size={20} />,
+      hasBreakdown: true
     },
     {
       title: "Workflows",
-      count: summary.workflows_count,
+      key: "workflows",
+      count: summary?.workflows?.total ?? 0,
       path: "/registry/workflows",
       description: "Review automated customer signals, approval steps, and risk reviews.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="6" y1="3" x2="6" y2="15" />
-          <circle cx="18" cy="6" r="3" />
-          <circle cx="6" cy="18" r="3" />
-          <path d="M18 9a9 9 0 0 1-9 9" />
-        </svg>
-      )
-    },
-    {
-      title: "Users & Roles",
-      count: summary.users_count,
-      path: "/registry/users-roles",
-      description: "Manage system personnel, access level roles, and security permissions.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        </svg>
-      )
-    },
-    {
-      title: "Departments",
-      count: summary.departments_count,
-      path: "/registry/departments",
-      description: "Map company business units and organizational ownership structures.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-        </svg>
-      )
+      icon: <GitBranch size={20} />,
+      hasBreakdown: true
     },
     {
       title: "Data Sources",
-      count: summary.data_sources_count,
+      key: "data_sources",
+      count: summary?.data_sources?.total ?? 0,
       path: "/registry/data-sources",
       description: "Govern raw data classification, sensitivity levels, and datalake sources.",
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <ellipse cx="12" cy="5" rx="9" ry="3" />
-          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-          <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
-        </svg>
-      )
+      icon: <Database size={20} />,
+      hasBreakdown: true
+    },
+    {
+      title: "Users & Roles",
+      key: "users",
+      count: summary?.users?.total ?? 0,
+      path: "/registry/users-roles",
+      description: "Manage system personnel, access level roles, and security permissions.",
+      icon: <Users size={20} />,
+      hasBreakdown: false
+    },
+    {
+      title: "Departments",
+      key: "departments",
+      count: summary?.departments?.total ?? 0,
+      path: "/registry/departments",
+      description: "Map company business units and organizational ownership structures.",
+      icon: <Building2 size={20} />,
+      hasBreakdown: false
     }
   ];
 
   return (
-    <div className="registry-dashboard">
+    <div className={styles.dashboard}>
+      {/* Task D: Text Breadcrumb */}
+      <div className={styles.breadcrumb}>Registry &gt; Dashboard</div>
+
       <PageHeader
-        title="Governance Registry"
-        description="Single source of truth for all AI governance entities"
+        title="Governance Registry Dashboard"
+        description="Real-time oversight and operational metrics of organizational assets."
       />
 
-      {/* Grid of the 7 Registry Summary Cards */}
-      <div className="registry-grid">
-        {cardsData.map((card, idx) => {
-          const { active, draft, inactive } = getBreakdown(card.count);
+      {/* Task A: Critical Risk Banner */}
+      {criticalRiskCount > 0 && (
+        <div className={styles.criticalRiskBanner}>
+          <AlertTriangle className={styles.bannerAlertIcon} size={20} />
+          <div className={styles.bannerMessage}>
+            <strong>CRITICAL GOVERNANCE ALERT</strong>: There are {criticalRiskCount} assets flagged with <strong>CRITICAL</strong> risk level inside the active registry. Ensure reviews are coordinated immediately.
+          </div>
+          <Link to="/registry/models?risk_level=CRITICAL" className={styles.bannerLink}>
+            Audit Models &rarr;
+          </Link>
+        </div>
+      )}
+
+      {/* Registry Grid */}
+      <div className={styles.grid}>
+        {cardsData.map((card) => {
           const total = card.count;
+          
+          // Real status breakdowns
+          const active = summary?.[card.key]?.by_status?.["ACTIVE"] ?? 0;
+          const draft = summary?.[card.key]?.by_status?.["DRAFT"] ?? 0;
+          const inactive = summary?.[card.key]?.by_status?.["INACTIVE"] ?? 0;
+          const retired = (summary?.[card.key]?.by_status?.["RETIRED"] ?? 0) + 
+            (summary?.[card.key]?.by_status?.["ARCHIVED"] ?? 0);
+
           const activePct = total > 0 ? (active / total) * 100 : 0;
           const draftPct = total > 0 ? (draft / total) * 100 : 0;
           const inactivePct = total > 0 ? (inactive / total) * 100 : 0;
+          const retiredPct = total > 0 ? (retired / total) * 100 : 0;
 
           return (
-            <Link to={card.path} key={idx} className="registry-card-link">
-              <Card glow className="registry-summary-card">
-                <div className="registry-card-header">
-                  <div className="registry-icon-wrapper">{card.icon}</div>
-                  <div className="registry-count-badge">
-                    {loading ? <span className="pulse-indicator">...</span> : card.count}
+            <Link to={card.path} key={card.key} className={styles.cardLink}>
+              <Card glow className={styles.summaryCard}>
+                <div className={styles.cardHeader}>
+                  <div className={styles.iconWrapper}>{card.icon}</div>
+                  <div className={styles.countBadge}>
+                    {loading ? <span className={styles.pulseIndicator}>...</span> : total}
                   </div>
                 </div>
-                <div className="registry-card-content">
-                  <h3 className="registry-entity-title">{card.title}</h3>
-                  <p className="registry-entity-description">{card.description}</p>
+                
+                <div className={styles.cardContent}>
+                  <h3 className={styles.entityTitle}>{card.title}</h3>
+                  <p className={styles.entityDescription}>{card.description}</p>
                 </div>
 
-                {/* Dynamic Proportional status breakdowns color segments */}
-                <div className="registry-segment-bar-container">
-                  {total > 0 ? (
-                    <div className="registry-segment-bar">
-                      <div 
-                        className="registry-segment-slice active-slice" 
-                        style={{ width: `${activePct}%` }}
-                        title={`Active: ${active}`}
-                      />
-                      <div 
-                        className="registry-segment-slice draft-slice" 
-                        style={{ width: `${draftPct}%` }}
-                        title={`Draft: ${draft}`}
-                      />
-                      <div 
-                        className="registry-segment-slice inactive-slice" 
-                        style={{ width: `${inactivePct}%` }}
-                        title={`Inactive: ${inactive}`}
-                      />
+                {/* Proportional status segment bar */}
+                {card.hasBreakdown && (
+                  <div className={styles.segmentBarContainer}>
+                    {total > 0 ? (
+                      <div className={styles.segmentBar}>
+                        <div 
+                          className={`${styles.segmentSlice} ${styles.sliceActive}`} 
+                          style={{ width: `${activePct}%` }}
+                          title={`Active: ${active}`}
+                        />
+                        <div 
+                          className={`${styles.segmentSlice} ${styles.sliceDraft}`} 
+                          style={{ width: `${draftPct}%` }}
+                          title={`Draft: ${draft}`}
+                        />
+                        <div 
+                          className={`${styles.segmentSlice} ${styles.sliceInactive}`} 
+                          style={{ width: `${inactivePct}%` }}
+                          title={`Inactive: ${inactive}`}
+                        />
+                        <div 
+                          className={`${styles.segmentSlice} ${styles.sliceRetired}`} 
+                          style={{ width: `${retiredPct}%` }}
+                          title={`Retired/Archived: ${retired}`}
+                        />
+                      </div>
+                    ) : (
+                      <div className={`${styles.segmentBar} ${styles.emptyBar}`} />
+                    )}
+
+                    <div className={styles.segmentLabels}>
+                      <span className={styles.labelItem}><span className={`${styles.dot} ${styles.dotActive}`}>●</span> {active} A</span>
+                      <span className={styles.labelItem}><span className={`${styles.dot} ${styles.dotDraft}`}>●</span> {draft} D</span>
+                      <span className={styles.labelItem}><span className={`${styles.dot} ${styles.dotInactive}`}>●</span> {inactive} I</span>
+                      <span className={styles.labelItem}><span className={`${styles.dot} ${styles.dotRetired}`}>●</span> {retired} R</span>
                     </div>
-                  ) : (
-                    <div className="registry-segment-bar empty-bar" />
-                  )}
-                  <div className="registry-segment-labels">
-                    <span className="segment-label-item"><span className="dot dot-active">●</span> {active} Active</span>
-                    <span className="segment-label-item"><span className="dot dot-draft">●</span> {draft} Draft</span>
-                    <span className="segment-label-item"><span className="dot dot-inactive">●</span> {inactive} Inactive</span>
                   </div>
-                </div>
+                )}
 
-                <div className="registry-card-footer">
-                  <span>View Registry</span>
-                  <span className="registry-arrow">→</span>
+                <div className={styles.cardFooter}>
+                  <span>Explore Registry</span>
+                  <span className={styles.arrow}>→</span>
                 </div>
               </Card>
             </Link>
@@ -214,15 +283,42 @@ export const RegistryDashboardPage: React.FC = () => {
         })}
       </div>
 
-      {/* Recently Updated Audit Log Placeholder */}
-      <div className="registry-recent-section">
-        <h2 className="recent-section-title">Recently Updated Entities</h2>
-        <Card className="recent-card-container">
-          <EmptyState
-            title="No recent updates"
-            description="Operational logs and lifecycle modification actions will appear here once entities are registered."
-            icon="⚡"
-          />
+      {/* Task A: Recently Updated section */}
+      <div className={styles.recentSection}>
+        <h2 className={styles.recentTitle}>Recently Modified Assets</h2>
+        <Card className={styles.recentCardContainer}>
+          {loadingRecent ? (
+            <div className={styles.recentLoading}>Loading lifecycle logs...</div>
+          ) : recentUpdates.length > 0 ? (
+            <div className={styles.recentList}>
+              {recentUpdates.map((item) => (
+                <Link
+                  key={item.id}
+                  to={item.type === "MODEL" ? `/registry/models?search=${encodeURIComponent(item.code)}` : `/registry/agents?search=${encodeURIComponent(item.code)}`}
+                  className={item.type === "MODEL" ? styles.recentRowModel : styles.recentRowAgent}
+                >
+                  <div className={styles.recentRowInfo}>
+                    <span className={`${styles.recentBadge} ${item.type === "MODEL" ? styles.recentModel : styles.recentAgent}`}>
+                      {item.type}
+                    </span>
+                    <span className={styles.recentName}>{item.name}</span>
+                    <span className={styles.recentCode}>({item.code})</span>
+                  </div>
+                  <div className={styles.recentRowTime}>
+                    <Clock size={12} className={styles.timeIcon} />
+                    <span>{timeAgo(item.updated_at)}</span>
+                    <ArrowRight size={14} className={styles.rowArrow} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No recent updates found"
+              description="Governance logs and life-cycle modifications will print here as registrations complete."
+              icon="⚡"
+            />
+          )}
         </Card>
       </div>
     </div>

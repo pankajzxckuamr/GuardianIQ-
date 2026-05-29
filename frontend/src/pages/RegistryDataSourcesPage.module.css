@@ -1,4 +1,4 @@
-/* src/pages/RegistryToolsPage.module.css */
+/* src/pages/RegistryDataSourcesPage.module.css */
 
 .page {
   display: flex;
@@ -68,8 +68,8 @@
   width: 100%;
 }
 
-/* Category Badge */
-.categoryBadge {
+/* Custom Type Badges */
+.typeBadge {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.5rem;
@@ -81,40 +81,48 @@
   font-weight: var(--font-weight-semibold, 600);
 }
 
-/* Access Mode Badges */
-.accessModeBadge {
+.classificationBadge {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-sm, 4px);
   font-size: 0.75rem;
   font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: 0.02em;
-  border: 1px solid transparent;
+  text-transform: uppercase;
 }
 
-.accessModeAdmin {
-  background: rgba(239, 68, 68, 0.12);
-  color: var(--color-danger, #ef4444);
-  border-color: rgba(239, 68, 68, 0.25);
+/* Colour Code Styles */
+.classificationBadge.restricted {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444; /* red */
 }
 
-.accessModeExecute {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--color-warning, #f59e0b);
-  border-color: rgba(245, 158, 11, 0.25);
+.classificationBadge.confidential {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: #f59e0b; /* amber */
 }
 
-.accessModeWrite {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--color-info, #3b82f6);
-  border-color: rgba(59, 130, 246, 0.25);
+.classificationBadge.internal {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: #3b82f6; /* blue */
 }
 
-.accessModeRead {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--color-success, #10b981);
-  border-color: rgba(16, 185, 129, 0.25);
+.classificationBadge.public {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #10b981; /* green */
+}
+
+/* PII Icon */
+.piiYes {
+  color: #10b981;
+}
+
+.piiNo {
+  color: var(--text-secondary, #94a3b8);
 }
 
 .breadcrumb {

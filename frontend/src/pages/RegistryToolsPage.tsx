@@ -17,6 +17,11 @@ export const RegistryToolsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("tool_name");
 
+  // Set document title
+  useEffect(() => {
+    document.title = "Tools & Connectors — GuardianIQ Registry";
+  }, []);
+
   // Debounced search
   const [searchTerm, setSearchTerm] = useState(filters.search);
 
@@ -114,6 +119,7 @@ export const RegistryToolsPage: React.FC = () => {
 
   return (
     <div className={styles.page}>
+      <div className={styles.breadcrumb}>Registry &gt; Tools &amp; Connectors</div>
       <PageHeader
         title="Tools &amp; Connectors Registry"
         description="Govern corporate integrations, database connectors, ERP hooks, and execution access rights"

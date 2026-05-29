@@ -628,3 +628,141 @@ def delete_relationship(db: Session, rel_id: UUID, current_user):
         changed_by=current_user.id, change_summary=f"{rel.source_entity_type} {rel.relationship_type} {rel.target_entity_type} relationship removed"
     )
     return rel
+
+
+# ---------------------------------------------------------
+# Deletion Services
+# ---------------------------------------------------------
+
+def delete_model(db: Session, model_id: UUID, current_user):
+    model = repo.get_model_by_id(db, model_id)
+    if not model:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Model not found", error_code="NOT_FOUND").model_dump())
+    
+    before_state = to_dict(model)
+    repo.delete_all_relationships_for_entity(db, "MODEL", model_id)
+    repo.delete_entity(db, model)
+    
+    write_registry_audit(
+        db=db, entity_type="MODEL", entity_id=model_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Model permanently deleted"
+    )
+    return model
+
+def delete_agent(db: Session, agent_id: UUID, current_user):
+    agent = repo.get_agent_by_id(db, agent_id)
+    if not agent:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Agent not found", error_code="NOT_FOUND").model_dump())
+    
+    before_state = to_dict(agent)
+    repo.delete_all_relationships_for_entity(db, "AGENT", agent_id)
+    repo.delete_entity(db, agent)
+    
+    write_registry_audit(
+        db=db, entity_type="AGENT", entity_id=agent_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Agent permanently deleted"
+    )
+    return agent
+
+def delete_tool(db: Session, tool_id: UUID, current_user):
+    tool = repo.get_tool_by_id(db, tool_id)
+    if not tool:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Tool not found", error_code="NOT_FOUND").model_dump())
+    
+    before_state = to_dict(tool)
+    repo.delete_all_relationships_for_entity(db, "TOOL", tool_id)
+    repo.delete_entity(db, tool)
+    
+    write_registry_audit(
+        db=db, entity_type="TOOL", entity_id=tool_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Tool permanently deleted"
+    )
+    return tool
+
+def delete_workflow(db: Session, workflow_id: UUID, current_user):
+    workflow = repo.get_workflow_by_id(db, workflow_id)
+    if not workflow:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Workflow not found", error_code="NOT_FOUND").model_dump())
+    
+    before_state = to_dict(workflow)
+    repo.delete_all_relationships_for_entity(db, "WORKFLOW", workflow_id)
+    repo.delete_entity(db, workflow)
+    
+    write_registry_audit(
+        db=db, entity_type="WORKFLOW", entity_id=workflow_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Workflow permanently deleted"
+    )
+    return workflow
+
+def delete_data_source(db: Session, source_id: UUID, current_user):
+    source = repo.get_data_source_by_id(db, source_id)
+    if not source:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Data Source not found", error_code="NOT_FOUND").model_dump())
+    
+    before_state = to_dict(source)
+    repo.delete_all_relationships_for_entity(db, "DATA_SOURCE", source_id)
+    repo.delete_entity(db, source)
+    
+    write_registry_audit(
+        db=db, entity_type="DATA_SOURCE", entity_id=source_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Data Source permanently deleted"
+    )
+    return source
+
+def delete_department(db: Session, dept_id: UUID, current_user):
+    dept = repo.get_department_by_id(db, dept_id)
+    if not dept:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Department not found", error_code="NOT_FOUND").model_dump())
+    
+    err_msg = repo.check_active_references(db, "DEPARTMENT", dept_id)
+    if err_msg:
+        raise HTTPException(400, detail=ResponseHelper.error(message=err_msg, error_code="VALIDATION_ERROR").model_dump())
+        
+    before_state = to_dict(dept)
+    repo.delete_all_relationships_for_entity(db, "DEPARTMENT", dept_id)
+    repo.delete_entity(db, dept)
+    
+    write_registry_audit(
+        db=db, entity_type="DEPARTMENT", entity_id=dept_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Department permanently deleted"
+    )
+    return dept
+
+def delete_role(db: Session, role_id: UUID, current_user):
+    role = repo.get_role_by_id(db, role_id)
+    if not role:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Role not found", error_code="NOT_FOUND").model_dump())
+    
+    err_msg = repo.check_active_references(db, "ROLE", role_id)
+    if err_msg:
+        raise HTTPException(400, detail=ResponseHelper.error(message=err_msg, error_code="VALIDATION_ERROR").model_dump())
+        
+    before_state = to_dict(role)
+    repo.delete_all_relationships_for_entity(db, "ROLE", role_id)
+    repo.delete_entity(db, role)
+    
+    write_registry_audit(
+        db=db, entity_type="ROLE", entity_id=role_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Role permanently deleted"
+    )
+    return role
+
+def delete_user(db: Session, user_id: UUID, current_user):
+    user = repo.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(404, detail=ResponseHelper.error(message="User not found", error_code="NOT_FOUND").model_dump())
+    
+    err_msg = repo.check_active_references(db, "USER", user_id)
+    if err_msg:
+        raise HTTPException(400, detail=ResponseHelper.error(message=err_msg, error_code="VALIDATION_ERROR").model_dump())
+        
+    before_state = to_dict(user)
+    repo.delete_all_relationships_for_entity(db, "USER", user_id)
+    repo.delete_entity(db, user)
+    
+    write_registry_audit(
+        db=db, entity_type="USER", entity_id=user_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="User permanently deleted"
+    )
+    return user
+

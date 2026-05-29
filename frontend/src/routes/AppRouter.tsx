@@ -15,6 +15,10 @@ import { RegistryModelsPage } from "../pages/RegistryModelsPage";
 import { RegistryAgentsPage } from "../pages/RegistryAgentsPage";
 import { RegistryToolsPage } from "../pages/RegistryToolsPage";
 import { RegistryWorkflowsPage } from "../pages/RegistryWorkflowsPage";
+import { RegistryDepartmentsPage } from "../pages/RegistryDepartmentsPage";
+import { RegistryUsersRolesPage } from "../pages/RegistryUsersRolesPage";
+import { RegistryDataSourcesPage } from "../pages/RegistryDataSourcesPage";
+import { RegistryRelationshipsPage } from "../pages/RegistryRelationshipsPage";
 
 export const AppRouter: React.FC = () => {
   return (
@@ -125,10 +129,7 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AppShell>
-                <div style={{ padding: "2rem" }}>
-                  <h2>Data Sources</h2>
-                  <p>Data sources coming soon</p>
-                </div>
+                <RegistryDataSourcesPage />
               </AppShell>
             </ProtectedRoute>
           }
@@ -138,10 +139,7 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AppShell>
-                <div style={{ padding: "2rem" }}>
-                  <h2>Departments</h2>
-                  <p>Departments coming soon</p>
-                </div>
+                <RegistryDepartmentsPage />
               </AppShell>
             </ProtectedRoute>
           }
@@ -151,10 +149,7 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AppShell>
-                <div style={{ padding: "2rem" }}>
-                  <h2>Users &amp; Roles</h2>
-                  <p>Users and roles coming soon</p>
-                </div>
+                <RegistryUsersRolesPage />
               </AppShell>
             </ProtectedRoute>
           }
@@ -164,10 +159,7 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AppShell>
-                <div style={{ padding: "2rem" }}>
-                  <h2>Registry Relationships</h2>
-                  <p>Relationships coming soon</p>
-                </div>
+                <RegistryRelationshipsPage />
               </AppShell>
             </ProtectedRoute>
           }

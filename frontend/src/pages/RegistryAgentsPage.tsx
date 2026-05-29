@@ -17,6 +17,11 @@ export const RegistryAgentsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("agent_name");
 
+  // Set document title
+  useEffect(() => {
+    document.title = "AI Agents — GuardianIQ Registry";
+  }, []);
+
   // Debounced search query
   const [searchTerm, setSearchTerm] = useState(filters.search);
 
@@ -107,6 +112,7 @@ export const RegistryAgentsPage: React.FC = () => {
 
   return (
     <div className={styles.page}>
+      <div className={styles.breadcrumb}>Registry &gt; AI Agents</div>
       <PageHeader
         title="AI Agent Registry"
         description="Govern autonomous agents, secure authorization scopes, and configure operational modes"

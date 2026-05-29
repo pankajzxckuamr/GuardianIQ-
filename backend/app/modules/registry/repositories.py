@@ -297,9 +297,9 @@ def get_registry_summary(db: Session) -> dict:
     summary["agents"] = get_counts(RegistryAIAgent, ["status", "risk_level"])
     summary["tools"] = get_counts(RegistryTool, ["status", "sensitivity_level"])
     summary["workflows"] = get_counts(RegistryWorkflow, ["status", "business_criticality"])
-    summary["users"] = get_counts(GuardianUser, [])
-    summary["departments"] = get_counts(RegistryDepartment, [])
-    summary["data_sources"] = get_counts(RegistryDataSource, ["classification"])
+    summary["users"] = get_counts(GuardianUser, ["status"])
+    summary["departments"] = get_counts(RegistryDepartment, ["status"])
+    summary["data_sources"] = get_counts(RegistryDataSource, ["status", "classification"])
 
     return summary
 
@@ -588,3 +588,59 @@ def get_entity_name(db: Session, entity_type: str, entity_id: UUID) -> str:
     model, name_col = table_map[entity_type]
     result = db.execute(select(getattr(model, name_col)).filter(model.id == entity_id)).scalar_one_or_none()
     return result or "Unknown"
+
+
+# ---------------------------------------------------------
+# Deletion and Cascade Helpers
+# ---------------------------------------------------------
+
+def delete_entity(db: Session, entity) -> None:
+    db.delete(entity)
+    db.flush()
+
+def delete_all_relationships_for_entity(db: Session, entity_type: str, entity_id: UUID) -> None:
+    db.execute(
+        sa.delete(RegistryRelationship).filter(
+            or_(
+                sa.and_(RegistryRelationship.source_entity_type == entity_type, RegistryRelationship.source_entity_id == entity_id),
+                sa.and_(RegistryRelationship.target_entity_type == entity_type, RegistryRelationship.target_entity_id == entity_id)
+            )
+        )
+    )
+    db.flush()
+
+def check_active_references(db: Session, entity_type: str, entity_id: UUID) -> Optional[str]:
+    if entity_type == "DEPARTMENT":
+        if db.execute(select(sa.func.count()).select_from(RegistryDepartment).filter(RegistryDepartment.parent_department_id == entity_id, RegistryDepartment.status != "RETIRED")).scalar() > 0:
+            return "This department is referenced as a parent department by other departments."
+        if db.execute(select(sa.func.count()).select_from(GuardianUser).filter(GuardianUser.department_id == entity_id, GuardianUser.status != "RETIRED")).scalar() > 0:
+            return "This department is referenced by active users."
+        if db.execute(select(sa.func.count()).select_from(RegistryAIModel).filter(RegistryAIModel.department_id == entity_id, RegistryAIModel.status != "RETIRED")).scalar() > 0:
+            return "This department is referenced by registered AI models."
+        if db.execute(select(sa.func.count()).select_from(RegistryAIAgent).filter(RegistryAIAgent.department_id == entity_id, RegistryAIAgent.status != "RETIRED")).scalar() > 0:
+            return "This department is referenced by registered AI agents."
+        if db.execute(select(sa.func.count()).select_from(RegistryWorkflow).filter(RegistryWorkflow.department_id == entity_id, RegistryWorkflow.status != "RETIRED")).scalar() > 0:
+            return "This department is referenced by registered workflows."
+        if db.execute(select(sa.func.count()).select_from(RegistryDataSource).filter(RegistryDataSource.department_id == entity_id, RegistryDataSource.status != "RETIRED")).scalar() > 0:
+            return "This department is referenced by registered data sources."
+
+    elif entity_type == "ROLE":
+        if db.execute(select(sa.func.count()).select_from(GuardianUser).filter(GuardianUser.role_id == entity_id, GuardianUser.status != "RETIRED")).scalar() > 0:
+            return "This role is assigned to active users."
+
+    elif entity_type == "USER":
+        if db.execute(select(sa.func.count()).select_from(RegistryAIModel).filter(RegistryAIModel.owner_user_id == entity_id, RegistryAIModel.status != "RETIRED")).scalar() > 0:
+            return "This user is the owner of registered AI models."
+        if db.execute(select(sa.func.count()).select_from(RegistryAIAgent).filter(RegistryAIAgent.owner_user_id == entity_id, RegistryAIAgent.status != "RETIRED")).scalar() > 0:
+            return "This user is the owner of registered AI agents."
+        if db.execute(select(sa.func.count()).select_from(RegistryTool).filter(RegistryTool.owner_user_id == entity_id, RegistryTool.status != "RETIRED")).scalar() > 0:
+            return "This user is the owner of registered tools."
+        if db.execute(select(sa.func.count()).select_from(RegistryWorkflow).filter(RegistryWorkflow.owner_user_id == entity_id, RegistryWorkflow.status != "RETIRED")).scalar() > 0:
+            return "This user is the owner of registered workflows."
+        if db.execute(select(sa.func.count()).select_from(RegistryDataSource).filter(RegistryDataSource.owner_user_id == entity_id, RegistryDataSource.status != "RETIRED")).scalar() > 0:
+            return "This user is the owner of registered data sources."
+        if db.execute(select(sa.func.count()).select_from(RegistryDepartment).filter(or_(RegistryDepartment.business_owner_user_id == entity_id, RegistryDepartment.escalation_owner_user_id == entity_id), RegistryDepartment.status != "RETIRED")).scalar() > 0:
+            return "This user is referenced as a business or escalation owner for departments."
+
+    return None
+

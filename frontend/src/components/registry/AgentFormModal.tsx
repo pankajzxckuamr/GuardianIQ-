@@ -5,6 +5,9 @@ import { Modal } from "../common/Modal";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
+import { RelationshipViewer } from "./RelationshipViewer";
+import { AuditTrailViewer } from "./AuditTrailViewer";
+import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./AgentFormModal.module.css";
 
 interface AgentFormModalProps {
@@ -46,12 +49,38 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   const [isCapabilitiesJsonValid, setIsCapabilitiesJsonValid] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
+  const [loadingLookups, setLoadingLookups] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isEditMode = !!agentId;
+
+  // Reset form when modal opens or closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        agent_code: "",
+        agent_name: "",
+        agent_type: "",
+        execution_mode: "",
+        description: "",
+        confidence_threshold: 80,
+        capabilities_json: "",
+        owner_user_id: "",
+        department_id: "",
+        risk_level: "",
+        status: EntityStatus.DRAFT
+      });
+      setFieldErrors({});
+      setGeneralError(null);
+      setActiveTab("details");
+    }
+  }, [isOpen]);
 
   // Load Lookups on mount
   useEffect(() => {
     async function loadLookups() {
+      setLoadingLookups(true);
       try {
         const [usersRes, deptsRes] = await Promise.all([
           registryService.getUsersLookup(),
@@ -61,6 +90,8 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         if (deptsRes.data) setDepartments(deptsRes.data);
       } catch (err) {
         console.error("Failed to load lookups:", err);
+      } finally {
+        setLoadingLookups(false);
       }
     }
     if (isOpen) {
@@ -174,7 +205,10 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         if (colonIndex !== -1) {
           const fullField = part.substring(0, colonIndex).trim(); // "body.agent_code"
           const msg = part.substring(colonIndex + 1).trim(); // "field required"
-          const fieldName = fullField.replace("body.", "").trim();
+          let fieldName = fullField.replace("body.", "").trim();
+          
+          if (fieldName === "code") fieldName = "agent_code";
+          
           newFieldErrors[fieldName] = msg;
         }
       });
@@ -183,9 +217,13 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
     // Parse structured details array
     if (err.details && Array.isArray(err.details)) {
       err.details.forEach((d: any) => {
-        const fieldName = d.field || (d.loc && d.loc[d.loc.length - 1]);
+        let fieldName = d.field || (d.loc && d.loc[d.loc.length - 1]);
         if (fieldName) {
-          newFieldErrors[String(fieldName)] = d.message || d.msg || "Invalid value";
+          fieldName = String(fieldName);
+          
+          if (fieldName === "code") fieldName = "agent_code";
+          
+          newFieldErrors[fieldName] = d.message || d.msg || "Invalid value";
         }
       });
     }
@@ -223,6 +261,22 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
       showToast("Failed to save agent", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!agentId) return;
+    setIsDeleting(true);
+    try {
+      await registryService.deleteAgent(agentId);
+      showToast("Agent deleted successfully", "success");
+      setIsDeleteModalOpen(false);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete agent", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -420,15 +474,21 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                     name="owner_user_id"
                     value={formData.owner_user_id}
                     onChange={handleChange}
-                    disabled={loading}
+                    disabled={loading || loadingLookups}
                     className={styles.select}
                   >
-                    <option value="">-- Select Owner --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.email})
-                      </option>
-                    ))}
+                    {loadingLookups ? (
+                      <option value="">Loading owners...</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Owner --</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.full_name} ({u.email})
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -440,15 +500,21 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                     name="department_id"
                     value={formData.department_id}
                     onChange={handleChange}
-                    disabled={loading}
+                    disabled={loading || loadingLookups}
                     className={styles.select}
                   >
-                    <option value="">-- Select Department --</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.department_name} ({d.department_code})
-                      </option>
-                    ))}
+                    {loadingLookups ? (
+                      <option value="">Loading departments...</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Department --</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.department_name} ({d.department_code})
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -511,38 +577,57 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
 
               {/* Form Actions */}
               <div className={styles.formActions}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={loading}
-                  className={styles.cancelBtn}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || !isCapabilitiesJsonValid}
-                  className={styles.submitBtn}
-                >
-                  {loading ? "Saving..." : "Save Agent"}
-                </button>
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    disabled={loading}
+                    className={styles.deleteBtn}
+                  >
+                    Delete
+                  </button>
+                )}
+                <div className={styles.rightActions}>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={loading}
+                    className={styles.cancelBtn}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !isCapabilitiesJsonValid}
+                    className={styles.submitBtn}
+                  >
+                    {loading ? "Saving..." : "Save Agent"}
+                  </button>
+                </div>
               </div>
             </form>
           )}
 
           {activeTab === "relationships" && (
-            <div className={styles.placeholderTab}>
-              Relationships viewer coming in Day 9
-            </div>
+            <RelationshipViewer entityType="AGENT" entityId={agentId!} />
           )}
 
           {activeTab === "audit" && (
-            <div className={styles.placeholderTab}>
-              Audit trail coming in Day 9
-            </div>
+            <AuditTrailViewer entityType="AGENT" entityId={agentId!} />
           )}
         </div>
       </div>
+      
+      {isEditMode && (
+        <ConfirmDeleteModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleDelete}
+          entityName={formData.agent_name || formData.agent_code || 'Agent'}
+          entityType="Agent"
+          isDeleting={isDeleting}
+        />
+      )}
     </Modal>
   );
 };

@@ -98,3 +98,12 @@
   color: var(--text-secondary, #94a3b8);
   font-size: var(--font-size-sm, 0.875rem);
 }
+
+.breadcrumb {
+  font-size: 0.775rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: -1rem;
+}

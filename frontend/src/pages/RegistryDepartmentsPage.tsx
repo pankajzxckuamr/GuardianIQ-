@@ -1,17 +1,16 @@
-/* src/pages/RegistryModelsPage.tsx */
+/* src/pages/RegistryDepartmentsPage.tsx */
 
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "../components/common/PageHeader";
 import { RegistryDataTable } from "../components/common/RegistryDataTable";
 import { RegistryStatusBadge } from "../components/common/RegistryStatusBadge";
-import { RiskBadge } from "../components/common/RiskBadge";
 import { Button } from "../components/common/Button";
-import { ModelFormModal } from "../components/registry/ModelFormModal";
+import { DepartmentFormModal } from "../components/registry/DepartmentFormModal";
 import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
-import styles from "./RegistryModelsPage.module.css";
+import styles from "./RegistryDepartmentsPage.module.css";
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return "-";
@@ -27,13 +26,13 @@ const formatDate = (dateStr: string) => {
   }
 };
 
-export const RegistryModelsPage: React.FC = () => {
+export const RegistryDepartmentsPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const { filters, setFilter, paginationProps } = useRegistryFilters("model_name");
+  const { filters, setFilter, paginationProps } = useRegistryFilters("department_name");
 
   // Set document title
   useEffect(() => {
-    document.title = "AI Models — GuardianIQ Registry";
+    document.title = "Departments — GuardianIQ Registry";
   }, []);
 
   // Debounced search input state
@@ -46,13 +45,11 @@ export const RegistryModelsPage: React.FC = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, setFilter]);
 
-  // Fetch model list dynamically
+  // Fetch departments dynamically
   const { data, isLoading, refetch } = useRegistryEntity(
-    () => registryService.listModels({
+    () => registryService.listDepartments({
       search: filters.search,
       status: filters.status,
-      model_type: filters.model_type,
-      risk_level: filters.risk_level,
       page: filters.page,
       per_page: filters.pageSize,
       sort_by: filters.sortBy,
@@ -61,8 +58,6 @@ export const RegistryModelsPage: React.FC = () => {
     [
       filters.search,
       filters.status,
-      filters.model_type,
-      filters.risk_level,
       filters.page,
       filters.pageSize,
       filters.sortBy,
@@ -70,21 +65,42 @@ export const RegistryModelsPage: React.FC = () => {
     ]
   );
 
+  // Parent department list to resolve parent names
+  const [departmentsList, setDepartmentsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadLookup() {
+      try {
+        const res = await registryService.getDepartmentsLookup();
+        if (res.data) setDepartmentsList(res.data);
+      } catch (err) {
+        console.error("Failed to load departments lookup:", err);
+      }
+    }
+    loadLookup();
+  }, [data]);
+
+  const getParentName = (parentId?: string) => {
+    if (!parentId) return "—";
+    const dept = departmentsList.find(d => d.id === parentId);
+    return dept ? dept.department_name : "—";
+  };
+
   // Modal Control
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
 
   // Check RBAC permissions for register button
   const canRegister = currentUser?.is_superuser || 
     currentUser?.roles?.some(role => ["admin", "governance_manager", "super_admin"].includes(role.toLowerCase()));
 
   const handleRowClick = (row: any) => {
-    setSelectedModelId(row.id);
+    setSelectedDeptId(row.id);
     setModalOpen(true);
   };
 
   const handleRegisterClick = () => {
-    setSelectedModelId(null);
+    setSelectedDeptId(null);
     setModalOpen(true);
   };
 
@@ -94,17 +110,12 @@ export const RegistryModelsPage: React.FC = () => {
   };
 
   const columns = [
-    { key: "model_code", label: "Code" },
-    { key: "model_name", label: "Model Name", sortable: true },
+    { key: "department_code", label: "Code" },
+    { key: "department_name", label: "Department Name", sortable: true },
     { 
-      key: "model_type", 
-      label: "Type", 
-      render: (row: any) => <span className={styles.typeBadge}>{row.model_type}</span> 
-    },
-    { 
-      key: "risk_level", 
-      label: "Risk", 
-      render: (row: any) => <RiskBadge level={row.risk_level} /> 
+      key: "parent_department_id", 
+      label: "Parent Department", 
+      render: (row: any) => <span>{getParentName(row.parent_department_id)}</span> 
     },
     { 
       key: "status", 
@@ -121,25 +132,25 @@ export const RegistryModelsPage: React.FC = () => {
 
   return (
     <div className={styles.page}>
-      <div className={styles.breadcrumb}>Registry &gt; AI Models</div>
+      <div className={styles.breadcrumb}>Registry &gt; Departments</div>
       <PageHeader
-        title="AI Model Registry"
-        description="Govern AI models, standard classifications, and system risk ratings"
+        title="Department Registry"
+        description="Govern corporate structures, department codes, and governance owners."
         actions={
           canRegister && (
             <Button variant="primary" onClick={handleRegisterClick}>
-              + Register Model
+              + Register Department
             </Button>
           )
         }
       />
 
-      {/* Registry Filter and Search Options */}
+      {/* Filter and Search Options */}
       <div className={styles.filterBar}>
         <div className={styles.searchGroup}>
           <input
             type="text"
-            placeholder="Search models..."
+            placeholder="Search departments..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className={styles.searchInput}
@@ -161,35 +172,6 @@ export const RegistryModelsPage: React.FC = () => {
             <option value="RETIRED">RETIRED</option>
             <option value="ARCHIVED">ARCHIVED</option>
           </select>
-
-          {/* Model Type Dropdown */}
-          <select
-            value={filters.model_type || ""}
-            onChange={(e) => setFilter("model_type", e.target.value)}
-            className={styles.filterSelect}
-          >
-            <option value="">All Types</option>
-            <option value="LLM">LLM</option>
-            <option value="ML">ML</option>
-            <option value="CLASSIFIER">CLASSIFIER</option>
-            <option value="EMBEDDING">EMBEDDING</option>
-            <option value="RULE_BASED">RULE_BASED</option>
-            <option value="FORECASTING">FORECASTING</option>
-            <option value="OPTIMIZATION">OPTIMIZATION</option>
-          </select>
-
-          {/* Risk Level Dropdown */}
-          <select
-            value={filters.risk_level || ""}
-            onChange={(e) => setFilter("risk_level", e.target.value)}
-            className={styles.filterSelect}
-          >
-            <option value="">All Risks</option>
-            <option value="LOW">LOW</option>
-            <option value="MEDIUM">MEDIUM</option>
-            <option value="HIGH">HIGH</option>
-            <option value="CRITICAL">CRITICAL</option>
-          </select>
         </div>
       </div>
 
@@ -207,19 +189,19 @@ export const RegistryModelsPage: React.FC = () => {
           sortBy={filters.sortBy}
           sortDir={filters.sortDir}
           onRowClick={handleRowClick}
-          emptyMessage="No AI Models found matching the search criteria."
+          emptyMessage="No departments found matching the search criteria."
         />
       </div>
 
       {/* Interactive Form Edit/Create Modal */}
-      <ModelFormModal
+      <DepartmentFormModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        modelId={selectedModelId}
+        deptId={selectedDeptId}
         onSuccess={refetch}
       />
     </div>
   );
 };
 
-export default RegistryModelsPage;
+export default RegistryDepartmentsPage;
