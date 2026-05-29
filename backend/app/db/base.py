@@ -9,3 +9,8 @@ from app.modules.approval.models import Approval
 from app.modules.agent.models import Agent
 from app.modules.policy.models import Policy
 from app.modules.settings.models import ApplicationSettings
+from app.modules.registry.models import (
+    GuardianUser, RegistryRole, RegistryDepartment, RegistryDataSource,
+    RegistryAIModel, RegistryAIAgent, RegistryTool, RegistryWorkflow,
+    RegistryRelationship, RegistryAuditEvent
+)
