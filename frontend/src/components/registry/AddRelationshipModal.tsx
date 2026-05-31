@@ -22,6 +22,7 @@ const PERMITTED_COMBINATIONS: Record<string, { rel: string; target: string }[]> 
   ],
   AGENT: [
     { rel: "USES", target: "TOOL" },
+    { rel: "USES", target: "MODEL" },
     { rel: "EXECUTES", target: "WORKFLOW" }
   ],
   WORKFLOW: [

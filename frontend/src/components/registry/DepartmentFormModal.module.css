@@ -6,6 +6,35 @@
   gap: var(--spacing-md, 1rem);
 }
 
+/* Tabs */
+.tabsHeader {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--card-border, #334155);
+  margin-bottom: var(--spacing-md, 1rem);
+}
+
+.tabBtn {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: var(--font-weight-semibold, 600);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary, #f8fafc);
+}
+
+.activeTab {
+  color: var(--accent-primary, #6366f1);
+  border-bottom-color: var(--accent-primary, #6366f1);
+}
+
 .generalAlert {
   background: rgba(239, 68, 68, 0.1);
   color: var(--color-danger, #ef4444);

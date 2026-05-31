@@ -488,7 +488,9 @@ def change_data_source_status(db: Session, source: RegistryDataSource, new_statu
 # ---------------------------------------------------------
 
 def create_relationship(db: Session, data: dict) -> RegistryRelationship:
-    rel = RegistryRelationship(**data)
+    # Filter out metadata_json since the DB model registry_relationships doesn't have it
+    filtered_data = {k: v for k, v in data.items() if k != "metadata_json"}
+    rel = RegistryRelationship(**filtered_data)
     db.add(rel)
     db.flush()
     return rel

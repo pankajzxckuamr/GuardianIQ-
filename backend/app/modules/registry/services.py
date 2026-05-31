@@ -1,6 +1,7 @@
 from typing import Optional, Tuple, List
 from uuid import UUID
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.modules.auth.models import User # using User from auth, wait, user said "guardian_users" is for Phase 1
 from app.modules.registry.models import (
@@ -574,6 +575,7 @@ ALLOWED_RELATIONSHIPS = {
     ("MODEL", "USES", "DATA_SOURCE"),
     ("MODEL", "USES", "TOOL"),
     ("AGENT", "USES", "TOOL"),
+    ("AGENT", "USES", "MODEL"),
     ("AGENT", "EXECUTES", "WORKFLOW"),
     ("WORKFLOW", "USES", "DATA_SOURCE"),
     ("WORKFLOW", "USES", "TOOL"),

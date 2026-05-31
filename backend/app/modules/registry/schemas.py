@@ -419,7 +419,7 @@ class RelationshipResponse(BaseModel):
     status: EntityStatus
     metadata_json: Optional[dict] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     class Config: from_attributes = True
 
 class RelationshipDetailItem(BaseModel):
