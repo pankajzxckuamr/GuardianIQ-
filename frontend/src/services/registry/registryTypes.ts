@@ -43,6 +43,8 @@ export interface AIModel {
   department_id?: string;
   created_at: string;
   updated_at: string;
+  owner_name?: string;
+  provider_name?: string;
 }
 
 export interface AIAgent {
@@ -57,6 +59,8 @@ export interface AIAgent {
   department_id?: string;
   created_at: string;
   updated_at: string;
+  owner_name?: string;
+  provider_name?: string;
 }
 
 export interface Tool {
@@ -74,6 +78,8 @@ export interface Tool {
   metadata_json?: any;
   created_at: string;
   updated_at: string;
+  owner_name?: string;
+  provider_name?: string;
 }
 
 export interface Workflow {

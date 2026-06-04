@@ -302,7 +302,7 @@ const WorkflowNodeCanvas: React.FC<WorkflowNodeCanvasProps> = ({ value, onChange
             defaultEdgeOptions={{ style: { stroke: '#00f0ff', strokeWidth: 2 } }}
           >
             <Background color="#1e293b" gap={16} />
-            <Controls style={{ backgroundColor: '#1e293b', borderBottom: '1px solid #0b1120' }} />
+            <Controls />
           </ReactFlow>
         </div>
 

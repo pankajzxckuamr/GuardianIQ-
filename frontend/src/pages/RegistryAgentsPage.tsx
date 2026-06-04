@@ -11,11 +11,25 @@ import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
+import { useSearchParams } from "react-router-dom";
 import styles from "./RegistryAgentsPage.module.css";
+
+const cleanOwnerName = (name: string | undefined | null) => {
+  if (!name) return "-";
+  if (name.includes("(")) {
+    return name.split("(")[0].trim();
+  }
+  if (name.includes("@")) {
+    return name.split("@")[0].trim();
+  }
+  return name.trim();
+};
 
 export const RegistryAgentsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("agent_name");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get("view");
 
   // Set document title
   useEffect(() => {
@@ -60,6 +74,22 @@ export const RegistryAgentsPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (viewId) {
+      setSelectedAgentId(viewId);
+      setModalOpen(true);
+    }
+  }, [viewId]);
+
+  const handleClose = () => {
+    setModalOpen(false);
+    if (searchParams.has("view")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("view");
+      setSearchParams(newParams);
+    }
+  };
+
   // Check RBAC permission (admin or governance_manager)
   const canRegister = currentUser?.is_superuser || 
     currentUser?.roles?.some(role => ["admin", "governance_manager", "super_admin"].includes(role.toLowerCase()));
@@ -88,6 +118,8 @@ export const RegistryAgentsPage: React.FC = () => {
   const columns = [
     { key: "agent_code", label: "Code" },
     { key: "agent_name", label: "Agent Name", sortable: true },
+    { key: "provider_name", label: "Provider", render: (row: any) => row.provider_name || "-" },
+    { key: "owner_name", label: "Owner", render: (row: any) => cleanOwnerName(row.owner_name) },
     { key: "agent_type", label: "Type" },
     { 
       key: "execution_mode", 
@@ -204,7 +236,7 @@ export const RegistryAgentsPage: React.FC = () => {
       {/* Agent Modal */}
       <AgentFormModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleClose}
         agentId={selectedAgentId}
         onSuccess={refetch}
       />

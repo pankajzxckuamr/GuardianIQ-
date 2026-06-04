@@ -10,6 +10,7 @@ import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
+import { useSearchParams } from "react-router-dom";
 import styles from "./RegistryDepartmentsPage.module.css";
 
 const formatDate = (dateStr: string) => {
@@ -29,6 +30,8 @@ const formatDate = (dateStr: string) => {
 export const RegistryDepartmentsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("department_name");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get("view");
 
   // Set document title
   useEffect(() => {
@@ -89,6 +92,22 @@ export const RegistryDepartmentsPage: React.FC = () => {
   // Modal Control
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (viewId) {
+      setSelectedDeptId(viewId);
+      setModalOpen(true);
+    }
+  }, [viewId]);
+
+  const handleClose = () => {
+    setModalOpen(false);
+    if (searchParams.has("view")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("view");
+      setSearchParams(newParams);
+    }
+  };
 
   // Check RBAC permissions for register button
   const canRegister = currentUser?.is_superuser || 
@@ -196,7 +215,7 @@ export const RegistryDepartmentsPage: React.FC = () => {
       {/* Interactive Form Edit/Create Modal */}
       <DepartmentFormModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleClose}
         deptId={selectedDeptId}
         onSuccess={refetch}
       />

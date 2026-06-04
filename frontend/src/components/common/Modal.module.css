@@ -78,3 +78,8 @@
   width: calc(100% - 2rem);
   max-width: 700px;
 }
+
+.xl {
+  width: calc(100% - 2rem);
+  max-width: 1100px;
+}

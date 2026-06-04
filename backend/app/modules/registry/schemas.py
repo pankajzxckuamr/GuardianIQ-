@@ -94,6 +94,8 @@ class AIModelResponse(AIModelBase):
     updated_at: datetime
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
+    owner_name: Optional[str] = None
+    provider_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -146,6 +148,8 @@ class AIAgentResponse(AIAgentBase):
     updated_at: datetime
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
+    owner_name: Optional[str] = None
+    provider_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -201,6 +205,8 @@ class ToolResponse(ToolBase):
     tool_code: str
     created_at: datetime
     updated_at: datetime
+    owner_name: Optional[str] = None
+    provider_name: Optional[str] = None
 
     class Config:
         from_attributes = True

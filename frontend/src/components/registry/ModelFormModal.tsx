@@ -424,7 +424,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Model: ${formData.model_name}` : "Register New AI Model"}
-      size="lg"
+      size={isEditMode ? "xl" : "lg"}
     >
       <div className={styles.container}>
         {/* Form Tab Headers */}

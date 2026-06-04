@@ -117,3 +117,46 @@ button, input, select, textarea {
 .gap-sm { gap: var(--spacing-sm); }
 .gap-md { gap: var(--spacing-md); }
 .gap-lg { gap: var(--spacing-lg); }
+
+/* Custom React Flow Controls Styling */
+.react-flow__controls {
+  background-color: var(--bg-tertiary, #1b2336) !important;
+  border: 1px solid var(--card-border, rgba(99, 102, 241, 0.15)) !important;
+  border-radius: var(--radius-sm, 6px) !important;
+  box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1)) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.react-flow__controls-button {
+  background-color: var(--bg-tertiary, #1b2336) !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary, #94a3b8) !important;
+  fill: var(--text-secondary, #94a3b8) !important;
+  width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease, color 0.2s ease, fill 0.2s ease !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--bg-secondary, #121824) !important;
+  color: var(--text-primary, #f8fafc) !important;
+  fill: var(--text-primary, #f8fafc) !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+  width: 14px !important;
+  height: 14px !important;
+}

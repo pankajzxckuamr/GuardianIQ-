@@ -349,7 +349,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Workflow: ${formData.workflow_name}` : "Register New Governance Workflow"}
-      size="lg"
+      size={isEditMode ? "xl" : "lg"}
     >
       <div className={styles.container}>
         {/* Tab Headers */}

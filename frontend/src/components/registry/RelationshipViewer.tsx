@@ -144,10 +144,11 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
       "AGENT": "agents",
       "TOOL": "tools",
       "WORKFLOW": "workflows",
-      "DATA_SOURCE": "data-sources"
+      "DATA_SOURCE": "data-sources",
+      "DEPARTMENT": "departments"
     };
     const basePath = typeMap[type.toUpperCase()] || type.toLowerCase().replace("_", "-") + "s";
-    navigate(`/registry/${basePath}/${id}`);
+    navigate(`/registry/${basePath}?view=${id}`);
   };
 
   const renderRelationshipRow = (item: RelationshipItem, direction: "outgoing" | "incoming") => {
@@ -375,7 +376,7 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
             elementsSelectable={false}
           >
             <Background color="#1e293b" gap={16} />
-            <Controls style={{ backgroundColor: '#1e293b', borderBottom: '1px solid #0b1120' }} />
+            <Controls />
           </ReactFlow>
         </div>
       )}

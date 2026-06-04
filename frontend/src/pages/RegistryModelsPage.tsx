@@ -11,6 +11,7 @@ import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
+import { useSearchParams } from "react-router-dom";
 import styles from "./RegistryModelsPage.module.css";
 
 const formatDate = (dateStr: string) => {
@@ -27,9 +28,22 @@ const formatDate = (dateStr: string) => {
   }
 };
 
+const cleanOwnerName = (name: string | undefined | null) => {
+  if (!name) return "-";
+  if (name.includes("(")) {
+    return name.split("(")[0].trim();
+  }
+  if (name.includes("@")) {
+    return name.split("@")[0].trim();
+  }
+  return name.trim();
+};
+
 export const RegistryModelsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("model_name");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get("view");
 
   // Set document title
   useEffect(() => {
@@ -74,6 +88,22 @@ export const RegistryModelsPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (viewId) {
+      setSelectedModelId(viewId);
+      setModalOpen(true);
+    }
+  }, [viewId]);
+
+  const handleClose = () => {
+    setModalOpen(false);
+    if (searchParams.has("view")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("view");
+      setSearchParams(newParams);
+    }
+  };
+
   // Check RBAC permissions for register button
   const canRegister = currentUser?.is_superuser || 
     currentUser?.roles?.some(role => ["admin", "governance_manager", "super_admin"].includes(role.toLowerCase()));
@@ -96,6 +126,8 @@ export const RegistryModelsPage: React.FC = () => {
   const columns = [
     { key: "model_code", label: "Code" },
     { key: "model_name", label: "Model Name", sortable: true },
+    { key: "provider_name", label: "Provider", render: (row: any) => row.provider_name || "-" },
+    { key: "owner_name", label: "Owner", render: (row: any) => cleanOwnerName(row.owner_name) },
     { 
       key: "model_type", 
       label: "Type", 
@@ -214,7 +246,7 @@ export const RegistryModelsPage: React.FC = () => {
       {/* Interactive Form Edit/Create Modal */}
       <ModelFormModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleClose}
         modelId={selectedModelId}
         onSuccess={refetch}
       />

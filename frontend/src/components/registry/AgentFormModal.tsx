@@ -324,7 +324,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Agent: ${formData.agent_name}` : "Register New AI Agent"}
-      size="lg"
+      size={isEditMode ? "xl" : "lg"}
     >
       <div className={styles.container}>
         {/* Tab Headers */}

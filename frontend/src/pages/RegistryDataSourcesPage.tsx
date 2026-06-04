@@ -11,6 +11,7 @@ import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
 import { Check } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import styles from "./RegistryDataSourcesPage.module.css";
 
 const formatDate = (dateStr: string) => {
@@ -30,6 +31,8 @@ const formatDate = (dateStr: string) => {
 export const RegistryDataSourcesPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("source_name");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get("view");
 
   // Set document title
   useEffect(() => {
@@ -91,6 +94,22 @@ export const RegistryDataSourcesPage: React.FC = () => {
   // Modal Control
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (viewId) {
+      setSelectedSourceId(viewId);
+      setModalOpen(true);
+    }
+  }, [viewId]);
+
+  const handleClose = () => {
+    setModalOpen(false);
+    if (searchParams.has("view")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("view");
+      setSearchParams(newParams);
+    }
+  };
 
   // Check RBAC permissions for register button
   const canRegister = currentUser?.is_superuser || 
@@ -274,7 +293,7 @@ export const RegistryDataSourcesPage: React.FC = () => {
       {/* Interactive Form Edit/Create Modal */}
       <DataSourceFormModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleClose}
         sourceId={selectedSourceId}
         onSuccess={refetch}
       />

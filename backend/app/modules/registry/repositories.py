@@ -5,7 +5,7 @@ from sqlalchemy import select, asc, desc, or_
 from app.modules.registry.models import (
     RegistryAIModel, RegistryAIAgent, RegistryTool, RegistryWorkflow,
     GuardianUser, RegistryDepartment, RegistryDataSource, RegistryRole,
-    RegistryRelationship, RegistryAuditEvent
+    RegistryRelationship, RegistryAuditEvent, RegistryAIModelProvider
 )
 import math
 import sqlalchemy as sa
@@ -48,7 +48,18 @@ def create_model(db: Session, data: dict, created_by: UUID) -> RegistryAIModel:
     return model
 
 def get_model_by_id(db: Session, model_id: UUID) -> Optional[RegistryAIModel]:
-    return db.execute(select(RegistryAIModel).filter_by(id=model_id)).scalar_one_or_none()
+    res = db.execute(
+        select(RegistryAIModel, GuardianUser.full_name, RegistryAIModelProvider.provider_name)
+        .outerjoin(GuardianUser, RegistryAIModel.owner_user_id == GuardianUser.id)
+        .outerjoin(RegistryAIModelProvider, RegistryAIModel.provider_id == RegistryAIModelProvider.id)
+        .filter(RegistryAIModel.id == model_id)
+    ).first()
+    if res:
+        model, owner_name, provider_name = res
+        model.owner_name = owner_name
+        model.provider_name = provider_name
+        return model
+    return None
 
 def get_model_by_code(db: Session, code: str) -> Optional[RegistryAIModel]:
     return db.execute(select(RegistryAIModel).filter_by(model_code=code)).scalar_one_or_none()
@@ -57,7 +68,11 @@ def list_models(
     db: Session, filters: dict, page: int, page_size: int, sort_by: str, sort_dir: str
 ) -> Tuple[List[RegistryAIModel], int]:
     
-    query = select(RegistryAIModel)
+    query = select(RegistryAIModel, GuardianUser.full_name, RegistryAIModelProvider.provider_name).outerjoin(
+        GuardianUser, RegistryAIModel.owner_user_id == GuardianUser.id
+    ).outerjoin(
+        RegistryAIModelProvider, RegistryAIModel.provider_id == RegistryAIModelProvider.id
+    )
     
     if filters.get("search"):
         search_term = f"%{filters['search']}%"
@@ -91,7 +106,12 @@ def list_models(
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
     
-    items = db.execute(query).scalars().all()
+    results = db.execute(query).all()
+    items = []
+    for model, owner_name, provider_name in results:
+        model.owner_name = owner_name
+        model.provider_name = provider_name
+        items.append(model)
     return items, total
 
 def update_model(db: Session, model: RegistryAIModel, data: dict, updated_by: UUID) -> RegistryAIModel:
@@ -123,7 +143,17 @@ def create_agent(db: Session, data: dict, created_by: UUID) -> RegistryAIAgent:
     return agent
 
 def get_agent_by_id(db: Session, agent_id: UUID) -> Optional[RegistryAIAgent]:
-    return db.execute(select(RegistryAIAgent).filter_by(id=agent_id)).scalar_one_or_none()
+    res = db.execute(
+        select(RegistryAIAgent, GuardianUser.full_name)
+        .outerjoin(GuardianUser, RegistryAIAgent.owner_user_id == GuardianUser.id)
+        .filter(RegistryAIAgent.id == agent_id)
+    ).first()
+    if res:
+        agent, owner_name = res
+        agent.owner_name = owner_name
+        agent.provider_name = agent.metadata_json.get("provider_name") if agent.metadata_json else None
+        return agent
+    return None
 
 def get_agent_by_code(db: Session, code: str) -> Optional[RegistryAIAgent]:
     return db.execute(select(RegistryAIAgent).filter_by(agent_code=code)).scalar_one_or_none()
@@ -132,7 +162,9 @@ def list_agents(
     db: Session, filters: dict, page: int, page_size: int, sort_by: str, sort_dir: str
 ) -> Tuple[List[RegistryAIAgent], int]:
     
-    query = select(RegistryAIAgent)
+    query = select(RegistryAIAgent, GuardianUser.full_name).outerjoin(
+        GuardianUser, RegistryAIAgent.owner_user_id == GuardianUser.id
+    )
     
     if filters.get("search"):
         search_term = f"%{filters['search']}%"
@@ -167,7 +199,12 @@ def list_agents(
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
     
-    items = db.execute(query).scalars().all()
+    results = db.execute(query).all()
+    items = []
+    for agent, owner_name in results:
+        agent.owner_name = owner_name
+        agent.provider_name = agent.metadata_json.get("provider_name") if agent.metadata_json else None
+        items.append(agent)
     return items, total
 
 def update_agent(db: Session, agent: RegistryAIAgent, data: dict, updated_by: UUID) -> RegistryAIAgent:
@@ -197,13 +234,25 @@ def create_tool(db: Session, data: dict) -> RegistryTool:
     return tool
 
 def get_tool_by_id(db: Session, tool_id: UUID) -> Optional[RegistryTool]:
-    return db.execute(select(RegistryTool).filter_by(id=tool_id)).scalar_one_or_none()
+    res = db.execute(
+        select(RegistryTool, GuardianUser.full_name)
+        .outerjoin(GuardianUser, RegistryTool.owner_user_id == GuardianUser.id)
+        .filter(RegistryTool.id == tool_id)
+    ).first()
+    if res:
+        tool, owner_name = res
+        tool.owner_name = owner_name
+        tool.provider_name = tool.metadata_json.get("provider_name") if tool.metadata_json else None
+        return tool
+    return None
 
 def get_tool_by_code(db: Session, code: str) -> Optional[RegistryTool]:
     return db.execute(select(RegistryTool).filter_by(tool_code=code)).scalar_one_or_none()
 
 def list_tools(db: Session, filters: dict, page: int, page_size: int, sort_by: str, sort_dir: str) -> Tuple[List[RegistryTool], int]:
-    query = select(RegistryTool)
+    query = select(RegistryTool, GuardianUser.full_name).outerjoin(
+        GuardianUser, RegistryTool.owner_user_id == GuardianUser.id
+    )
     if filters.get("search"):
         search_term = f"%{filters['search']}%"
         query = query.filter(or_(RegistryTool.tool_name.ilike(search_term), RegistryTool.tool_code.ilike(search_term)))
@@ -220,7 +269,12 @@ def list_tools(db: Session, filters: dict, page: int, page_size: int, sort_by: s
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))
     
     total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()
-    items = db.execute(query.offset((page - 1) * page_size).limit(page_size)).scalars().all()
+    results = db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
+    items = []
+    for tool, owner_name in results:
+        tool.owner_name = owner_name
+        tool.provider_name = tool.metadata_json.get("provider_name") if tool.metadata_json else None
+        items.append(tool)
     return items, total
 
 def update_tool(db: Session, tool: RegistryTool, data: dict) -> RegistryTool:

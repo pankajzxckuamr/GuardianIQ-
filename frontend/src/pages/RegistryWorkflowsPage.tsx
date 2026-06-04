@@ -11,11 +11,14 @@ import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
+import { useSearchParams } from "react-router-dom";
 import styles from "./RegistryWorkflowsPage.module.css";
 
 export const RegistryWorkflowsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { filters, setFilter, paginationProps } = useRegistryFilters("workflow_name");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get("view");
 
   // Set document title
   useEffect(() => {
@@ -90,6 +93,22 @@ export const RegistryWorkflowsPage: React.FC = () => {
   // Modal control
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (viewId) {
+      setSelectedWorkflowId(viewId);
+      setModalOpen(true);
+    }
+  }, [viewId]);
+
+  const handleClose = () => {
+    setModalOpen(false);
+    if (searchParams.has("view")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("view");
+      setSearchParams(newParams);
+    }
+  };
 
   // RBAC Permission Check
   const canRegister = currentUser?.is_superuser || 
@@ -250,7 +269,7 @@ export const RegistryWorkflowsPage: React.FC = () => {
       {/* Form Modal */}
       <WorkflowFormModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleClose}
         workflowId={selectedWorkflowId}
         onSuccess={refetch}
       />

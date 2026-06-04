@@ -271,7 +271,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Department: ${formData.department_name}` : "Register New Department"}
-      size={isEditMode ? "lg" : "md"}
+      size={isEditMode ? "xl" : "md"}
     >
       <div className={styles.container}>
         {/* Tab Headers */}

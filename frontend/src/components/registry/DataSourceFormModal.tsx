@@ -323,7 +323,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Data Source: ${formData.source_name}` : "Register New Data Source"}
-      size="lg"
+      size={isEditMode ? "xl" : "lg"}
     >
       <div className={styles.container}>
         {/* Tab Headers */}
