@@ -8,6 +8,10 @@ import { EntityStatus } from "../../services/registry/registryTypes";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./RoleFormModal.module.css";
 
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
+
 interface RoleFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -231,6 +235,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="role_code" className={styles.label}>
                 Role Code <span className={styles.required}>*</span>
+                <FieldInfo tooltip="Unique identifier code for this role." />
               </label>
               <input
                 type="text"
@@ -252,6 +257,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="role_name" className={styles.label}>
                 Role Name <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The common name of this governance role." />
               </label>
               <input
                 type="text"
@@ -272,6 +278,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="role_type" className={styles.label}>
                 Role Type <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The functional category of this role." />
               </label>
               <select
                 id="role_type"
@@ -295,7 +302,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
             {/* Status (Edit mode only) */}
             {isEditMode && (
               <div className={styles.formGroup}>
-                <label htmlFor="status" className={styles.label}>Entity Status</label>
+                <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current active status of this role." /></label>
                 <select
                   id="status"
                   name="status"
@@ -319,6 +326,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
           <div className={styles.formGroupFull}>
             <label htmlFor="permissions_json" className={styles.label}>
               Permissions Specifications (JSON) <span className={styles.required}>*</span>
+              <FieldInfo tooltip="The detailed JSON configuration mapping permissions to this role." />
             </label>
             <textarea
               id="permissions_json"

@@ -1,12 +1,24 @@
 /* src/components/registry/RelationshipViewer.tsx */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { AddRelationshipModal } from "./AddRelationshipModal";
 import styles from "./RelationshipViewer.module.css";
 import { Trash2, Plus, ArrowRight } from "lucide-react";
+import { 
+  ReactFlow, 
+  Background, 
+  Controls, 
+  MarkerType, 
+  Node, 
+  Edge,
+  Handle,
+  Position
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
 interface RelationshipViewerProps {
   entityType: string;
@@ -22,18 +34,61 @@ interface RelationshipItem {
   status: string;
 }
 
+const getEntityBadgeClass = (type: string) => {
+  const t = type.toUpperCase();
+  if (t === "MODEL") return styles.badgeModel;
+  if (t === "AGENT") return styles.badgeAgent;
+  if (t === "TOOL") return styles.badgeTool;
+  if (t === "WORKFLOW") return styles.badgeWorkflow;
+  if (t === "DATA_SOURCE") return styles.badgeDataSource;
+  if (t === "DEPARTMENT") return styles.badgeDepartment;
+  if (t === "USER") return styles.badgeUser;
+  if (t === "ROLE") return styles.badgeRole;
+  return styles.badgeGeneric;
+};
+
+const formatEntityLabel = (type: string) => {
+  return type.replace("_", " ");
+};
+
+// Custom Nodes for Graph View
+const CentralNode = ({ data }: any) => (
+  <div className={`${styles.graphNode} ${styles.graphNodeCentral}`}>
+    <span className={`${styles.entityBadge} ${data.badgeClass}`}>{data.typeText}</span>
+    <span className={styles.graphNodeName} title={data.label}>{data.label}</span>
+    <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+    <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+  </div>
+);
+
+const PeripheralNode = ({ data }: any) => (
+  <div className={styles.graphNode} onClick={() => data.onClick(data.entityType, data.entityId)}>
+    <span className={`${styles.entityBadge} ${data.badgeClass}`}>{data.typeText}</span>
+    <span className={styles.graphNodeName} title={data.label}>{data.label}</span>
+    <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+    <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+  </div>
+);
+
+const nodeTypes = {
+  central: CentralNode,
+  peripheral: PeripheralNode
+};
+
 export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
   entityType,
   entityId
 }) => {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [outgoing, setOutgoing] = useState<RelationshipItem[]>([]);
   const [incoming, setIncoming] = useState<RelationshipItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "graph">("list");
 
   // Check RBAC permissions for administration
   const isAdmin = currentUser?.is_superuser || 
@@ -74,19 +129,6 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
     }
   };
 
-  const getEntityBadgeClass = (type: string) => {
-    const t = type.toUpperCase();
-    if (t === "MODEL") return styles.badgeModel;
-    if (t === "AGENT") return styles.badgeAgent;
-    if (t === "TOOL") return styles.badgeTool;
-    if (t === "WORKFLOW") return styles.badgeWorkflow;
-    if (t === "DATA_SOURCE") return styles.badgeDataSource;
-    if (t === "DEPARTMENT") return styles.badgeDepartment;
-    if (t === "USER") return styles.badgeUser;
-    if (t === "ROLE") return styles.badgeRole;
-    return styles.badgeGeneric;
-  };
-
   const getStatusBadgeClass = (status: string) => {
     const s = status.toUpperCase();
     if (s === "ACTIVE") return styles.statusActive;
@@ -95,8 +137,17 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
     return styles.statusGeneric;
   };
 
-  const formatEntityLabel = (type: string) => {
-    return type.replace("_", " ");
+  const handleNodeClick = (type: string, id: string) => {
+    // Basic navigation mapping for common registry entities
+    const typeMap: Record<string, string> = {
+      "MODEL": "models",
+      "AGENT": "agents",
+      "TOOL": "tools",
+      "WORKFLOW": "workflows",
+      "DATA_SOURCE": "data-sources"
+    };
+    const basePath = typeMap[type.toUpperCase()] || type.toLowerCase().replace("_", "-") + "s";
+    navigate(`/registry/${basePath}/${id}`);
   };
 
   const renderRelationshipRow = (item: RelationshipItem, direction: "outgoing" | "incoming") => {
@@ -159,18 +210,119 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
     );
   };
 
+  // Prepare graph data
+  const { graphNodes, graphEdges } = useMemo(() => {
+    if (viewMode !== 'graph') return { graphNodes: [], graphEdges: [] };
+
+    const nodes: Node[] = [];
+    const edges: Edge[] = [];
+
+    // Central Node
+    nodes.push({
+      id: "central",
+      type: "central",
+      position: { x: 400, y: 250 },
+      data: { 
+        label: `Current ${formatEntityLabel(entityType)}`, 
+        badgeClass: getEntityBadgeClass(entityType), 
+        typeText: entityType 
+      }
+    });
+
+    // Incoming Nodes (left side)
+    const incomingYStart = Math.max(250 - (incoming.length * 50), 50);
+    incoming.forEach((item, index) => {
+      const nodeId = `in_${item.id}`;
+      nodes.push({
+        id: nodeId,
+        type: "peripheral",
+        position: { x: 50, y: incomingYStart + (index * 120) },
+        data: { 
+          label: item.other_entity_name, 
+          badgeClass: getEntityBadgeClass(item.other_entity_type), 
+          typeText: item.other_entity_type,
+          entityId: item.other_entity_id,
+          entityType: item.other_entity_type,
+          onClick: handleNodeClick
+        }
+      });
+      edges.push({
+        id: `e_${nodeId}_central`,
+        source: nodeId,
+        target: "central",
+        label: item.relationship_type,
+        animated: true,
+        style: { stroke: '#0ea5e9', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+        labelStyle: { fill: '#fff', fontWeight: 600, fontSize: 11 },
+        labelBgStyle: { fill: '#0b1120', stroke: '#1e293b', strokeWidth: 1 }
+      });
+    });
+
+    // Outgoing Nodes (right side)
+    const outgoingYStart = Math.max(250 - (outgoing.length * 50), 50);
+    outgoing.forEach((item, index) => {
+      const nodeId = `out_${item.id}`;
+      nodes.push({
+        id: nodeId,
+        type: "peripheral",
+        position: { x: 750, y: outgoingYStart + (index * 120) },
+        data: { 
+          label: item.other_entity_name, 
+          badgeClass: getEntityBadgeClass(item.other_entity_type), 
+          typeText: item.other_entity_type,
+          entityId: item.other_entity_id,
+          entityType: item.other_entity_type,
+          onClick: handleNodeClick
+        }
+      });
+      edges.push({
+        id: `e_central_${nodeId}`,
+        source: "central",
+        target: nodeId,
+        label: item.relationship_type,
+        animated: true,
+        style: { stroke: '#0ea5e9', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+        labelStyle: { fill: '#fff', fontWeight: 600, fontSize: 11 },
+        labelBgStyle: { fill: '#0b1120', stroke: '#1e293b', strokeWidth: 1 }
+      });
+    });
+
+    return { graphNodes: nodes, graphEdges: edges };
+  }, [viewMode, incoming, outgoing, entityType]);
+
   return (
     <div className={styles.viewer}>
       <div className={styles.viewerHeader}>
         <h4 className={styles.viewerTitle}>Entity Linkages</h4>
-        <button
-          type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className={styles.addLinkBtn}
-        >
-          <Plus size={14} style={{ marginRight: "0.25rem" }} />
-          <span>Add Link</span>
-        </button>
+        <div className={styles.headerActions}>
+          {/* Segmented Control */}
+          <div className={styles.viewToggle}>
+            <button 
+              type="button" 
+              className={`${styles.viewToggleBtn} ${viewMode === 'list' ? styles.active : ''}`}
+              onClick={() => setViewMode('list')}
+            >
+              List
+            </button>
+            <button 
+              type="button" 
+              className={`${styles.viewToggleBtn} ${viewMode === 'graph' ? styles.active : ''}`}
+              onClick={() => setViewMode('graph')}
+            >
+              Graph
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className={styles.addLinkBtn}
+          >
+            <Plus size={14} style={{ marginRight: "0.25rem" }} />
+            <span>Add Link</span>
+          </button>
+        </div>
       </div>
 
       {error && <div className={styles.alertError}>{error}</div>}
@@ -182,7 +334,7 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && viewMode === "list" && (
         <div className={styles.sectionsContainer}>
           {/* Outgoing Section */}
           <div className={styles.sectionBlock}>
@@ -207,6 +359,24 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {!loading && !error && viewMode === "graph" && (
+        <div className={styles.graphContainer}>
+          <ReactFlow
+            nodes={graphNodes}
+            edges={graphEdges}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+          >
+            <Background color="#1e293b" gap={16} />
+            <Controls style={{ backgroundColor: '#1e293b', borderBottom: '1px solid #0b1120' }} />
+          </ReactFlow>
         </div>
       )}
 

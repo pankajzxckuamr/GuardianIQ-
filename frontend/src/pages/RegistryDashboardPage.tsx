@@ -8,6 +8,9 @@ import { PageHeader } from "../components/common/PageHeader";
 import * as registryService from "../services/registry/registryService";
 import styles from "./RegistryDashboardPage.module.css";
 import { Brain, Cpu, Plug, GitBranch, Users, Building2, Database, AlertTriangle, ArrowRight, Clock } from "lucide-react";
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
+} from "recharts";
 
 interface RecentItem {
   id: string;
@@ -179,6 +182,24 @@ export const RegistryDashboardPage: React.FC = () => {
     }
   ];
 
+  // --- Chart Data Preparation ---
+  const modelTypesData = summary?.models?.by_type
+    ? Object.entries(summary.models.by_type).map(([key, value]) => ({ name: key, value }))
+    : [];
+  const PIE_COLORS = ['#7B8CF7', '#0ea5e9', '#3b82f6', '#06b6d4', '#00f0ff'];
+
+  const agentRiskDataRaw = summary?.agents?.by_risk_level || {};
+  const agentRiskData = [
+    { name: 'Low', count: agentRiskDataRaw['LOW'] || 0, fill: '#10b981' },
+    { name: 'Medium', count: agentRiskDataRaw['MEDIUM'] || 0, fill: '#f59e0b' },
+    { name: 'High', count: agentRiskDataRaw['HIGH'] || 0, fill: '#f97316' },
+    { name: 'Critical', count: agentRiskDataRaw['CRITICAL'] || 0, fill: '#ef4444' },
+  ];
+
+  const toolCategoryData = summary?.tools?.by_category
+    ? Object.entries(summary.tools.by_category).map(([key, value]) => ({ name: key, count: value }))
+    : [];
+
   return (
     <div className={styles.dashboard}>
       {/* Task D: Text Breadcrumb */}
@@ -281,6 +302,88 @@ export const RegistryDashboardPage: React.FC = () => {
             </Link>
           );
         })}
+      </div>
+
+      {/* Analytics Charts Grid */}
+      <div className={styles.chartsGrid}>
+        {/* Chart 1: AI Model Types */}
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle}>Model Distribution</h3>
+          <div className={styles.chartContainer}>
+            {loading ? (
+              <div className={styles.recentLoading}>Loading data...</div>
+            ) : modelTypesData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip />
+                  <Pie
+                    data={modelTypesData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={5}
+                    dataKey="value"
+                    nameKey="name"
+                    stroke="none"
+                  >
+                    {modelTypesData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState title="No models" description="No models registered yet." />
+            )}
+          </div>
+        </div>
+
+        {/* Chart 2: AI Agents by Risk */}
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle}>Agents by Risk Level</h3>
+          <div className={styles.chartContainer}>
+            {loading ? (
+              <div className={styles.recentLoading}>Loading data...</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={agentRiskData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {agentRiskData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Chart 3: Tools by Category */}
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle}>Tools by Category</h3>
+          <div className={styles.chartContainer}>
+            {loading ? (
+              <div className={styles.recentLoading}>Loading data...</div>
+            ) : toolCategoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={toolCategoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                  <Bar dataKey="count" fill="#7B8CF7" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState title="No tools" description="No tools categorized yet." />
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Task A: Recently Updated section */}

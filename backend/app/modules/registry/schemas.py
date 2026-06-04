@@ -10,13 +10,58 @@ from app.modules.registry.constants import (
 )
 
 # ---------------------------------------------------------
+# Provider Schemas
+# ---------------------------------------------------------
+
+class ProviderBase(BaseModel):
+    provider_type: str
+    provider_name: str
+    provider_category: Optional[str] = None
+    ownership_type: Optional[str] = None
+    hosting_type: Optional[str] = None
+    data_residency: Optional[str] = None
+    risk_classification: Optional[str] = None
+    metadata_json: Optional[dict] = None
+
+class ProviderCreate(ProviderBase):
+    pass
+
+class ProviderUpdate(BaseModel):
+    provider_type: Optional[str] = None
+    provider_name: Optional[str] = None
+    provider_category: Optional[str] = None
+    ownership_type: Optional[str] = None
+    hosting_type: Optional[str] = None
+    data_residency: Optional[str] = None
+    risk_classification: Optional[str] = None
+    metadata_json: Optional[dict] = None
+
+class ProviderResponse(ProviderBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+    created_by: Optional[UUID] = None
+    updated_by: Optional[UUID] = None
+
+    class Config:
+        from_attributes = True
+
+class ProviderListResponse(BaseModel):
+    items: List[ProviderResponse]
+    total: int
+    page: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+# ---------------------------------------------------------
 # AI Model Schemas
 # ---------------------------------------------------------
 
 class AIModelBase(BaseModel):
     model_name: str
     model_type: ModelType
-    provider: Optional[str] = None
+    provider_id: Optional[UUID] = None
     version: Optional[str] = None
     purpose: str
     owner_user_id: Optional[UUID] = None
@@ -32,7 +77,7 @@ class AIModelCreate(AIModelBase):
 class AIModelUpdate(BaseModel):
     model_name: Optional[str] = None
     model_type: Optional[ModelType] = None
-    provider: Optional[str] = None
+    provider_id: Optional[UUID] = None
     version: Optional[str] = None
     purpose: Optional[str] = None
     owner_user_id: Optional[UUID] = None

@@ -8,7 +8,15 @@ import { EntityStatus } from "../../services/registry/registryTypes";
 import { RelationshipViewer } from "./RelationshipViewer";
 import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
+import WizardShell from "../common/WizardShell";
+import WorkflowNodeCanvas, { WorkflowStep } from "./WorkflowNodeCanvas";
+import { orchestrationService } from "../../services/orchestration/orchestrationService";
+import { PlayCircle } from "lucide-react";
 import styles from "./WorkflowFormModal.module.css";
+
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
 
 interface WorkflowFormModalProps {
   isOpen: boolean;
@@ -25,6 +33,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
+  const [currentWizardStep, setCurrentWizardStep] = useState(0);
 
   // Lookups data
   const [users, setUsers] = useState<{ id: string; full_name: string; email: string }[]>([]);
@@ -45,7 +54,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   });
 
   // Steps Builder state
-  const [steps, setSteps] = useState<{ step_name: string; description: string }[]>([]);
+  const [steps, setSteps] = useState<WorkflowStep[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [isMetadataJsonValid, setIsMetadataJsonValid] = useState(true);
@@ -56,6 +65,36 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const isEditMode = !!workflowId;
+
+  const wizardSteps = [
+    { label: "Workflow identity" },
+    { label: "Build steps" },
+    { label: "Properties & metadata" }
+  ];
+
+  const validateAndAdvance = (targetStep: number) => {
+    if (isEditMode) {
+      setCurrentWizardStep(targetStep);
+      return;
+    }
+    
+    // In create (strict) mode, validate before advancing
+    if (targetStep > currentWizardStep) {
+      if (currentWizardStep === 0) {
+        if (!formData.workflow_code || !formData.workflow_name || !formData.workflow_type || !formData.business_criticality) {
+          showToast("Please fill in all required fields for Workflow identity", "error");
+          return;
+        }
+      }
+      // Step 1 -> 2 is fine. Step 2 -> 3 has no mandatory fields right now except maybe steps.
+      if (currentWizardStep === 1) {
+        if (steps.length === 0) {
+           // Optionally warn, but we'll let it pass if they want empty workflows
+        }
+      }
+    }
+    setCurrentWizardStep(targetStep);
+  };
 
   // Reset form when modal opens or closes
   useEffect(() => {
@@ -76,6 +115,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
       setFieldErrors({});
       setGeneralError(null);
       setActiveTab("details");
+      setCurrentWizardStep(0);
     }
   }, [isOpen]);
 
@@ -152,6 +192,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
       if (workflowId) {
         loadWorkflow();
         setActiveTab("details");
+        setCurrentWizardStep(0);
       } else {
         // Reset form for create mode
         setFormData({
@@ -170,6 +211,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         setFieldErrors({});
         setGeneralError(null);
         setActiveTab("details");
+        setCurrentWizardStep(0);
       }
     }
   }, [isOpen, workflowId]);
@@ -214,8 +256,8 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
       parts.forEach((part: string) => {
         const colonIndex = part.indexOf(":");
         if (colonIndex !== -1) {
-          const fullField = part.substring(0, colonIndex).trim(); // "body.workflow_code"
-          const msg = part.substring(colonIndex + 1).trim(); // "field required"
+          const fullField = part.substring(0, colonIndex).trim();
+          const msg = part.substring(colonIndex + 1).trim();
           let fieldName = fullField.replace("body.", "").trim();
           
           if (fieldName === "code") fieldName = "workflow_code";
@@ -240,20 +282,6 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     }
 
     setFieldErrors(newFieldErrors);
-  };
-
-  const handleAddStep = () => {
-    setSteps([...steps, { step_name: "", description: "" }]);
-  };
-
-  const handleRemoveStep = (index: number) => {
-    setSteps(steps.filter((_, i) => i !== index));
-  };
-
-  const handleStepChange = (index: number, field: "step_name" | "description", value: string) => {
-    setSteps(
-      steps.map((step, i) => (i === index ? { ...step, [field]: value } : step))
-    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -306,6 +334,16 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     }
   };
 
+  const handleExecute = async (isDryRun: boolean = false) => {
+    if (!workflowId) return;
+    try {
+      await orchestrationService.triggerExecution(workflowId, isDryRun);
+      showToast(`Workflow execution triggered${isDryRun ? " (Dry Run)" : ""}`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to trigger execution", "error");
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -341,6 +379,19 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
           </div>
         )}
 
+        {isEditMode && (
+          <div style={{ position: "absolute", top: "16px", right: "48px", display: "flex", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => handleExecute(false)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium text-sm transition-colors"
+            >
+              <PlayCircle size={16} />
+              Execute Live
+            </button>
+          </div>
+        )}
+
         {/* General Alert */}
         {generalError && <div className={styles.generalAlert}>{generalError}</div>}
 
@@ -348,312 +399,314 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         <div className={styles.tabsContent}>
           {activeTab === "details" && (
             <form onSubmit={handleSubmit} className={styles.form}>
-              <div className={styles.formGrid}>
-                {/* Workflow Code */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="workflow_code" className={styles.label}>
-                    Workflow Code <span className={styles.required}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="workflow_code"
-                    name="workflow_code"
-                    value={formData.workflow_code}
-                    onChange={handleChange}
-                    disabled={isEditMode || loading}
-                    className={`${styles.input} ${fieldErrors.workflow_code ? styles.inputError : ""}`}
-                    required
-                  />
-                  {fieldErrors.workflow_code && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.workflow_code}</span>
-                  )}
-                </div>
+              <WizardShell
+                steps={wizardSteps}
+                currentStep={currentWizardStep}
+                onStepClick={validateAndAdvance}
+                mode={isEditMode ? "tabbed" : "strict"}
+              >
+                {/* STEP 1: Workflow identity */}
+                {currentWizardStep === 0 && (
+                  <div>
+                    <div className={styles.formGrid}>
+                      {/* Workflow Code */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="workflow_code" className={styles.label}>
+                          Workflow Code <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="Unique identifier code for this workflow." />
+                        </label>
+                        <input
+                          type="text"
+                          id="workflow_code"
+                          name="workflow_code"
+                          value={formData.workflow_code}
+                          onChange={handleChange}
+                          disabled={isEditMode || loading}
+                          className={`${styles.input} ${fieldErrors.workflow_code ? styles.inputError : ""}`}
+                          required
+                        />
+                        {fieldErrors.workflow_code && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.workflow_code}</span>
+                        )}
+                      </div>
 
-                {/* Workflow Name */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="workflow_name" className={styles.label}>
-                    Workflow Name <span className={styles.required}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="workflow_name"
-                    name="workflow_name"
-                    value={formData.workflow_name}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.input} ${fieldErrors.workflow_name ? styles.inputError : ""}`}
-                    required
-                  />
-                  {fieldErrors.workflow_name && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.workflow_name}</span>
-                  )}
-                </div>
-
-                {/* Workflow Type */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="workflow_type" className={styles.label}>
-                    Workflow Type <span className={styles.required}>*</span>
-                  </label>
-                  <select
-                    id="workflow_type"
-                    name="workflow_type"
-                    value={formData.workflow_type}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.select} ${fieldErrors.workflow_type ? styles.inputError : ""}`}
-                    required
-                  >
-                    <option value="">-- Select Type --</option>
-                    <option value="ENQUIRY">ENQUIRY</option>
-                    <option value="APPROVAL">APPROVAL</option>
-                    <option value="CUSTOMER_SIGNAL">CUSTOMER_SIGNAL</option>
-                    <option value="RISK_REVIEW">RISK_REVIEW</option>
-                    <option value="OPERATIONAL_ACTION">OPERATIONAL_ACTION</option>
-                  </select>
-                  {fieldErrors.workflow_type && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.workflow_type}</span>
-                  )}
-                </div>
-
-                {/* Business Criticality */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="business_criticality" className={styles.label}>
-                    Business Criticality <span className={styles.required}>*</span>
-                  </label>
-                  <select
-                    id="business_criticality"
-                    name="business_criticality"
-                    value={formData.business_criticality}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.select} ${fieldErrors.business_criticality ? styles.inputError : ""}`}
-                    required
-                  >
-                    <option value="">-- Select Criticality --</option>
-                    <option value="LOW">LOW</option>
-                    <option value="MEDIUM">MEDIUM</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="CRITICAL">CRITICAL</option>
-                  </select>
-                  {fieldErrors.business_criticality && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.business_criticality}</span>
-                  )}
-                </div>
-
-                {/* Department */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="department_id" className={styles.label}>Department</label>
-                  <select
-                    id="department_id"
-                    name="department_id"
-                    value={formData.department_id}
-                    onChange={handleChange}
-                    disabled={loading || loadingLookups}
-                    className={styles.select}
-                  >
-                    {loadingLookups ? (
-                      <option value="">Loading departments...</option>
-                    ) : (
-                      <>
-                        <option value="">-- Select Department --</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.department_name} ({d.department_code})
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                {/* Owner User */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="owner_user_id" className={styles.label}>Owner User</label>
-                  <select
-                    id="owner_user_id"
-                    name="owner_user_id"
-                    value={formData.owner_user_id}
-                    onChange={handleChange}
-                    disabled={loading || loadingLookups}
-                    className={styles.select}
-                  >
-                    {loadingLookups ? (
-                      <option value="">Loading owners...</option>
-                    ) : (
-                      <>
-                        <option value="">-- Select Owner --</option>
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.full_name} ({u.email})
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                {/* Approval Required checkbox toggle */}
-                <div className={`${styles.formGroup} ${styles.checkboxGroup}`}>
-                  <label htmlFor="approval_required" className={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      id="approval_required"
-                      name="approval_required"
-                      checked={formData.approval_required}
-                      onChange={handleChange}
-                      disabled={loading}
-                      className={styles.checkboxInput}
-                    />
-                    <span>Requires Governance Approval</span>
-                  </label>
-                </div>
-
-                {/* Status (Edit only) */}
-                {isEditMode && (
-                  <div className={styles.formGroup}>
-                    <label htmlFor="status" className={styles.label}>Entity Status</label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      disabled={loading}
-                      className={styles.select}
-                    >
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="INACTIVE">INACTIVE</option>
-                      <option value="SUSPENDED">SUSPENDED</option>
-                      <option value="RETIRED">RETIRED</option>
-                      <option value="ARCHIVED">ARCHIVED</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              <div className={styles.formGroupFull}>
-                <label htmlFor="description" className={styles.label}>
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  disabled={loading}
-                  rows={2}
-                  className={styles.textarea}
-                />
-              </div>
-
-              {/* Steps Builder repeatable sub-form */}
-              <div className={styles.stepsBuilderSection}>
-                <div className={styles.stepsHeader}>
-                  <label className={styles.label}>Workflow Steps Builder</label>
-                  <button
-                    type="button"
-                    onClick={handleAddStep}
-                    disabled={loading}
-                    className={styles.addStepBtn}
-                  >
-                    + Add Step
-                  </button>
-                </div>
-
-                {steps.length === 0 ? (
-                  <div className={styles.emptySteps}>
-                    No workflow steps defined. Click "+ Add Step" to build the execution path.
-                  </div>
-                ) : (
-                  <div className={styles.stepsList}>
-                    {steps.map((step, index) => (
-                      <div key={index} className={styles.stepRow}>
-                        <div className={styles.stepIndex}>{index + 1}</div>
-                        <div className={styles.stepInputs}>
-                          <input
-                            type="text"
-                            placeholder="Step name (e.g., Compliance Triage)"
-                            value={step.step_name}
-                            onChange={(e) => handleStepChange(index, "step_name", e.target.value)}
-                            disabled={loading}
-                            className={styles.stepInput}
-                            required
-                          />
-                          <input
-                            type="text"
-                            placeholder="Step description..."
-                            value={step.description}
-                            onChange={(e) => handleStepChange(index, "description", e.target.value)}
-                            disabled={loading}
-                            className={styles.stepInput}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStep(index)}
+                      {/* Workflow Name */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="workflow_name" className={styles.label}>
+                          Workflow Name <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The common name of this workflow." />
+                        </label>
+                        <input
+                          type="text"
+                          id="workflow_name"
+                          name="workflow_name"
+                          value={formData.workflow_name}
+                          onChange={handleChange}
                           disabled={loading}
-                          className={styles.removeStepBtn}
-                          title="Remove Step"
+                          className={`${styles.input} ${fieldErrors.workflow_name ? styles.inputError : ""}`}
+                          required
+                        />
+                        {fieldErrors.workflow_name && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.workflow_name}</span>
+                        )}
+                      </div>
+
+                      {/* Workflow Type */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="workflow_type" className={styles.label}>
+                          Workflow Type <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The functional category of this workflow." />
+                        </label>
+                        <select
+                          id="workflow_type"
+                          name="workflow_type"
+                          value={formData.workflow_type}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.workflow_type ? styles.inputError : ""}`}
+                          required
                         >
-                          ✕
+                          <option value="">-- Select Type --</option>
+                          <option value="ENQUIRY">ENQUIRY</option>
+                          <option value="APPROVAL">APPROVAL</option>
+                          <option value="CUSTOMER_SIGNAL">CUSTOMER_SIGNAL</option>
+                          <option value="RISK_REVIEW">RISK_REVIEW</option>
+                          <option value="OPERATIONAL_ACTION">OPERATIONAL_ACTION</option>
+                        </select>
+                        {fieldErrors.workflow_type && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.workflow_type}</span>
+                        )}
+                      </div>
+
+                      {/* Department */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="department_id" className={styles.label}>Department <FieldInfo tooltip="The department that owns or manages this workflow." /></label>
+                        <select
+                          id="department_id"
+                          name="department_id"
+                          value={formData.department_id}
+                          onChange={handleChange}
+                          disabled={loading || loadingLookups}
+                          className={styles.select}
+                        >
+                          {loadingLookups ? (
+                            <option value="">Loading departments...</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Department --</option>
+                              {departments.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.department_name} ({d.department_code})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Business Criticality */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="business_criticality" className={styles.label}>
+                          Business Criticality <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The assessed business impact of this workflow." />
+                        </label>
+                        <select
+                          id="business_criticality"
+                          name="business_criticality"
+                          value={formData.business_criticality}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.business_criticality ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Criticality --</option>
+                          <option value="LOW">LOW</option>
+                          <option value="MEDIUM">MEDIUM</option>
+                          <option value="HIGH">HIGH</option>
+                          <option value="CRITICAL">CRITICAL</option>
+                        </select>
+                        {fieldErrors.business_criticality && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.business_criticality}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <div className={styles.rightActions} style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => validateAndAdvance(1)} className={styles.submitBtn}>
+                          Next
                         </button>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 )}
-              </div>
 
-              {/* Metadata JSON */}
-              <div className={styles.formGroupFull}>
-                <label htmlFor="metadata_json" className={styles.label}>
-                  Metadata JSON
-                </label>
-                <textarea
-                  id="metadata_json"
-                  name="metadata_json"
-                  value={formData.metadata_json}
-                  onChange={handleChange}
-                  disabled={loading}
-                  rows={3}
-                  placeholder='{ "key": "value" }'
-                  className={`${styles.textarea} ${styles.jsonTextarea} ${!isMetadataJsonValid ? styles.invalidJson : ""}`}
-                />
-                {!isMetadataJsonValid && (
-                  <span className={styles.fieldErrorText}>Invalid JSON formatting. Please correct before submitting.</span>
-                )}
-              </div>
+                {/* STEP 2: Build steps */}
+                {currentWizardStep === 1 && (
+                  <div>
+                    <div style={{ marginBottom: '1rem', color: '#94a3b8', fontSize: '14px' }}>
+                      Design the workflow by adding nodes and connecting them. Changes are saved automatically.
+                    </div>
+                    <WorkflowNodeCanvas 
+                      value={steps} 
+                      onChange={setSteps} 
+                    />
 
-              {/* Form Actions */}
-              <div className={styles.formActions}>
-                {isEditMode && (
-                  <button
-                    type="button"
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    disabled={loading}
-                    className={styles.deleteBtn}
-                  >
-                    Delete
-                  </button>
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <button type="button" onClick={() => setCurrentWizardStep(0)} className={styles.cancelBtn}>
+                        Back
+                      </button>
+                      <div className={styles.rightActions}>
+                        <button type="button" onClick={() => validateAndAdvance(2)} className={styles.submitBtn}>
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <div className={styles.rightActions}>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={loading}
-                    className={styles.cancelBtn}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || !isMetadataJsonValid}
-                    className={styles.submitBtn}
-                  >
-                    {loading ? "Saving..." : "Save Workflow"}
-                  </button>
-                </div>
-              </div>
+
+                {/* STEP 3: Properties & metadata */}
+                {currentWizardStep === 2 && (
+                  <div>
+                    <div className={styles.formGrid}>
+                      {/* Owner User */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="owner_user_id" className={styles.label}>Owner User <FieldInfo tooltip="The primary business owner of this workflow." /></label>
+                        <select
+                          id="owner_user_id"
+                          name="owner_user_id"
+                          value={formData.owner_user_id}
+                          onChange={handleChange}
+                          disabled={loading || loadingLookups}
+                          className={styles.select}
+                        >
+                          {loadingLookups ? (
+                            <option value="">Loading owners...</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Owner --</option>
+                              {users.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.full_name} ({u.email})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Approval Required checkbox toggle */}
+                      <div className={`${styles.formGroup} ${styles.checkboxGroup}`} style={{ display: 'flex', alignItems: 'center' }}>
+                        <label htmlFor="approval_required" className={styles.checkboxLabel} style={{ marginBottom: 0 }}>
+                          <input
+                            type="checkbox"
+                            id="approval_required"
+                            name="approval_required"
+                            checked={formData.approval_required}
+                            onChange={handleChange}
+                            disabled={loading}
+                            className={styles.checkboxInput}
+                          />
+                          <span>Requires Governance Approval <FieldInfo tooltip="Whether explicit governance approval is required before execution." /></span>
+                        </label>
+                      </div>
+
+                      {/* Status (Edit only) */}
+                      {isEditMode && (
+                        <div className={styles.formGroup}>
+                          <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current active status of this workflow." /></label>
+                          <select
+                            id="status"
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            disabled={loading}
+                            className={styles.select}
+                          >
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="SUSPENDED">SUSPENDED</option>
+                            <option value="RETIRED">RETIRED</option>
+                            <option value="ARCHIVED">ARCHIVED</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    <div className={styles.formGroupFull} style={{ marginTop: '1rem' }}>
+                      <label htmlFor="description" className={styles.label}>
+                        Description <FieldInfo tooltip="A detailed description of what the workflow does." />
+                      </label>
+                      <textarea
+                        id="description"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        disabled={loading}
+                        rows={2}
+                        className={styles.textarea}
+                      />
+                    </div>
+
+                    {/* Metadata JSON */}
+                    <div className={styles.formGroupFull}>
+                      <label htmlFor="metadata_json" className={styles.label}>
+                        Metadata JSON <FieldInfo tooltip="Any additional structured configuration or details in JSON format." />
+                      </label>
+                      <textarea
+                        id="metadata_json"
+                        name="metadata_json"
+                        value={formData.metadata_json}
+                        onChange={handleChange}
+                        disabled={loading}
+                        rows={3}
+                        placeholder='{ "key": "value" }'
+                        className={`${styles.textarea} ${styles.jsonTextarea} ${!isMetadataJsonValid ? styles.invalidJson : ""}`}
+                      />
+                      {!isMetadataJsonValid && (
+                        <span className={styles.fieldErrorText}>Invalid JSON formatting. Please correct before submitting.</span>
+                      )}
+                    </div>
+
+                    {/* Form Actions */}
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <button type="button" onClick={() => setCurrentWizardStep(1)} className={styles.cancelBtn}>
+                        Back
+                      </button>
+
+                      {isEditMode && (
+                        <button
+                          type="button"
+                          onClick={() => setIsDeleteModalOpen(true)}
+                          disabled={loading}
+                          className={styles.deleteBtn}
+                        >
+                          Delete
+                        </button>
+                      )}
+                      <div className={styles.rightActions}>
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          disabled={loading}
+                          className={styles.cancelBtn}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading || !isMetadataJsonValid}
+                          className={styles.submitBtn}
+                        >
+                          {loading ? "Saving..." : "Save Workflow"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </WizardShell>
             </form>
           )}
 

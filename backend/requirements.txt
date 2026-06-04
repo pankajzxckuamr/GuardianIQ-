@@ -11,3 +11,5 @@ python-dotenv
 email-validator
 python-multipart
 httpx
+celery
+redis

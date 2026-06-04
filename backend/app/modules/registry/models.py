@@ -1,6 +1,7 @@
 from uuid import uuid4
 from sqlalchemy import Column, String, Boolean, Text, TIMESTAMP, Numeric, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
 from app.db.session import Base
 
 class GuardianUser(Base):
@@ -8,6 +9,7 @@ class GuardianUser(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     email = Column(String(255), unique=True, nullable=False)
+    
     full_name = Column(String(200), nullable=False)
     department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=True)
     role_id = Column(UUID(as_uuid=True), ForeignKey("registry_roles.id"), nullable=True)
@@ -67,6 +69,23 @@ class RegistryDataSource(Base):
     created_by = Column(UUID(as_uuid=True), nullable=True)
     updated_by = Column(UUID(as_uuid=True), nullable=True)
 
+class RegistryAIModelProvider(Base):
+    __tablename__ = "registry_ai_model_providers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    provider_type = Column(String(80), nullable=False)
+    provider_name = Column(String(200), nullable=False)
+    provider_category = Column(String(80), nullable=True)
+    ownership_type = Column(String(80), nullable=True)
+    hosting_type = Column(String(80), nullable=True)
+    data_residency = Column(String(80), nullable=True)
+    risk_classification = Column(String(50), nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    updated_by = Column(UUID(as_uuid=True), nullable=True)
+
 class RegistryAIModel(Base):
     __tablename__ = "registry_ai_models"
 
@@ -74,7 +93,7 @@ class RegistryAIModel(Base):
     model_code = Column(String(80), unique=True, nullable=False)
     model_name = Column(String(200), nullable=False)
     model_type = Column(String(80), nullable=False)
-    provider = Column(String(120), nullable=True)
+    provider_id = Column(UUID(as_uuid=True), ForeignKey("registry_ai_model_providers.id"), nullable=True)
     version = Column(String(80), nullable=True)
     purpose = Column(Text, nullable=False)
     owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
@@ -87,6 +106,8 @@ class RegistryAIModel(Base):
     updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
     created_by = Column(UUID(as_uuid=True), nullable=True)
     updated_by = Column(UUID(as_uuid=True), nullable=True)
+
+    provider = relationship("RegistryAIModelProvider", backref="models")
 
 class RegistryAIAgent(Base):
     __tablename__ = "registry_ai_agents"

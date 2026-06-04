@@ -6,6 +6,10 @@ import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import styles from "./AddRelationshipModal.module.css";
 
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
+
 interface AddRelationshipModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -227,6 +231,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="targetEntityType" className={styles.label}>
                 Target Entity Type <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The type of entity you want to connect to." />
               </label>
               <select
                 id="targetEntityType"
@@ -249,6 +254,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="relationshipType" className={styles.label}>
                 Relationship Action <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The nature of the relationship." />
               </label>
               <select
                 id="relationshipType"
@@ -271,6 +277,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="targetEntityId" className={styles.label}>
                 Target Entity <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The specific entity you are connecting to." />
               </label>
               <select
                 id="targetEntityId"

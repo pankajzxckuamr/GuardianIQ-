@@ -49,6 +49,7 @@ add_exception_handlers(app)
 
 from app.modules.foundation.routes import router as foundation_router
 from app.modules.registry.routes import router as registry_router
+from app.modules.orchestration.routes import router as orchestration_router
 
 app.include_router(auth_router)
 app.include_router(department_router)
@@ -61,7 +62,7 @@ app.include_router(recommendation_router)
 app.include_router(approval_router)
 app.include_router(foundation_router)
 app.include_router(registry_router)
-
+app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
 
 @app.get("/api/health", response_model=StandardResponse[dict])
 def health_check():

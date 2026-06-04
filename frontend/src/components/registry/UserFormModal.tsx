@@ -8,6 +8,10 @@ import { EntityStatus } from "../../services/registry/registryTypes";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./UserFormModal.module.css";
 
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
+
 interface UserFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -233,6 +237,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="email" className={styles.label}>
                 Email Address <span className={styles.required}>*</span>
+                <FieldInfo tooltip="Primary email address for this user." />
               </label>
               <input
                 type="email"
@@ -254,6 +259,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="full_name" className={styles.label}>
                 Full Name <span className={styles.required}>*</span>
+                <FieldInfo tooltip="Full legal or preferred name of the user." />
               </label>
               <input
                 type="text"
@@ -272,7 +278,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
             {/* Department */}
             <div className={styles.formGroup}>
-              <label htmlFor="department_id" className={styles.label}>Department</label>
+              <label htmlFor="department_id" className={styles.label}>Department <FieldInfo tooltip="The department this user belongs to." /></label>
               <select
                 id="department_id"
                 name="department_id"
@@ -298,7 +304,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
             {/* Role */}
             <div className={styles.formGroup}>
-              <label htmlFor="role_id" className={styles.label}>Governance Role</label>
+              <label htmlFor="role_id" className={styles.label}>Governance Role <FieldInfo tooltip="The governance role assigned to this user." /></label>
               <select
                 id="role_id"
                 name="role_id"
@@ -324,7 +330,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
             {/* Approval Limit Level */}
             <div className={styles.formGroup}>
-              <label htmlFor="approval_limit_level" className={styles.label}>Approval Limit Clearance</label>
+              <label htmlFor="approval_limit_level" className={styles.label}>Approval Limit Clearance <FieldInfo tooltip="The financial or operational approval limit granted to this user." /></label>
               <select
                 id="approval_limit_level"
                 name="approval_limit_level"
@@ -344,7 +350,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             {/* Status (Edit mode only) */}
             {isEditMode && (
               <div className={styles.formGroup}>
-                <label htmlFor="status" className={styles.label}>Entity Status</label>
+                <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current active status of this user." /></label>
                 <select
                   id="status"
                   name="status"

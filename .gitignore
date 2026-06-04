@@ -7,8 +7,16 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
+<<<<<<< Updated upstream
 *.md
+=======
 
+# Markdown
+*md
+>>>>>>> Stashed changes
+
+# Node
+frontend/node_modules/
 
 # Environment variables
 .env

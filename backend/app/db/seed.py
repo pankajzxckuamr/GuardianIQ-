@@ -156,33 +156,38 @@ def seed():
 
         db.commit()
 
-        # --- Seed Default Admin User ---
-        print("\n👤 Seeding Default Admin User...")
-        admin_email = "admin@guardianiq.com"
-        existing_admin = db.query(User).filter(User.email == admin_email).first()
+        # --- Seed Demo Users ---
+        print("\n👤 Seeding Demo Users...")
+        demo_users = [
+            {"email": "admin@guardianiq.com", "name": "Super Admin", "role_code": "SUPER_ADMIN"},
+            {"email": "reviewer@guardianiq.com", "name": "Reviewer User", "role_code": "APPROVER"},
+            {"email": "auditor@guardianiq.com", "name": "Auditor User", "role_code": "AUDITOR"},
+        ]
 
-        if not existing_admin:
-            admin_user = User(
-                name="Super Admin",
-                email=admin_email,
-                hashed_password=hash_password("Admin@1234!")
-            )
-            db.add(admin_user)
-            db.flush()  # Get admin_user.id before assigning roles
+        for u in demo_users:
+            existing_user = db.query(User).filter(User.email == u["email"]).first()
 
-            super_admin_role = db.query(Role).filter(
-                Role.role_code == "SUPER_ADMIN"
-            ).first()
+            if not existing_user:
+                new_user = User(
+                    name=u["name"],
+                    email=u["email"],
+                    hashed_password=hash_password("Admin@1234!")
+                )
+                db.add(new_user)
+                db.flush()
 
-            if super_admin_role:
-                admin_user.roles.append(super_admin_role)
-                print(f"   ✅ Created admin user: {admin_email}")
-                print(f"   ✅ Assigned role: SUPER_ADMIN")
-                print(f"   ⚠️  Default password is 'Admin@1234!' — change after first login!")
+                user_role = db.query(Role).filter(Role.role_code == u["role_code"]).first()
+
+                if user_role:
+                    new_user.roles.append(user_role)
+                    print(f"   ✅ Created user: {u['email']}")
+                    print(f"   ✅ Assigned role: {u['role_code']}")
+                else:
+                    print(f"   ❌ Role {u['role_code']} not found — skipping role assignment for {u['email']}")
             else:
-                print("   ❌ SUPER_ADMIN role not found — skipping role assignment")
-        else:
-            print(f"   ⏭️  Already exists: {admin_email}")
+                print(f"   ⏭️  Already exists: {u['email']}")
+
+        print(f"   ⚠️  Default password for all demo users is 'Admin@1234!'")
 
         db.commit()
         print("\n🎉 Seeding complete!\n")

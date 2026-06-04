@@ -6,12 +6,13 @@ import * as registryService from "../../services/registry/registryService";
 import { 
   Shield, 
   LayoutDashboard, 
-  HeartPulse, 
-  History, 
-  Users, 
+  HeartPulse,
+  History,
+  Users,
   LogOut, 
   Menu, 
   X,
+  PlayCircle,
   User as UserIcon,
   Library,
   Brain,
@@ -26,6 +27,7 @@ import {
   Search,
   Loader2
 } from "lucide-react";
+import { CommandPalette } from "./CommandPalette";
 import "./AppShell.css";
 
 interface AppShellProps {
@@ -156,6 +158,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const navItems = [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Execution Dashboard", path: "/executions", icon: PlayCircle },
     { label: "Foundation Health", path: "/health", icon: HeartPulse },
     { label: "Audit Logs", path: "/audit", icon: History },
   ];
@@ -350,6 +353,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {children}
         </main>
       </div>
+
+      <CommandPalette />
     </div>
   );
 };

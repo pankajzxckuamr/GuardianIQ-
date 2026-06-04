@@ -8,7 +8,12 @@ import { EntityStatus } from "../../services/registry/registryTypes";
 import { RelationshipViewer } from "./RelationshipViewer";
 import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
+import WizardShell from "../common/WizardShell";
 import styles from "./AgentFormModal.module.css";
+
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
 
 interface AgentFormModalProps {
   isOpen: boolean;
@@ -25,6 +30,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
+  const [currentWizardStep, setCurrentWizardStep] = useState(0);
 
   // Lookups data
   const [users, setUsers] = useState<{ id: string; full_name: string; email: string }[]>([]);
@@ -55,6 +61,36 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
 
   const isEditMode = !!agentId;
 
+  const wizardSteps = [
+    { label: "Agent identification" },
+    { label: "Execution & thresholds" },
+    { label: "Capabilities & credentials" }
+  ];
+
+  const validateAndAdvance = (targetStep: number) => {
+    if (isEditMode) {
+      setCurrentWizardStep(targetStep);
+      return;
+    }
+    
+    // In create (strict) mode, validate before advancing
+    if (targetStep > currentWizardStep) {
+      if (currentWizardStep === 0) {
+        if (!formData.agent_code || !formData.agent_name || !formData.agent_type) {
+          showToast("Please fill in all required fields for Agent Identification", "error");
+          return;
+        }
+      }
+      if (currentWizardStep === 1) {
+        if (!formData.execution_mode || !formData.risk_level) {
+          showToast("Please fill in all required fields for Execution & Thresholds", "error");
+          return;
+        }
+      }
+    }
+    setCurrentWizardStep(targetStep);
+  };
+
   // Reset form when modal opens or closes
   useEffect(() => {
     if (!isOpen) {
@@ -74,6 +110,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
       setFieldErrors({});
       setGeneralError(null);
       setActiveTab("details");
+      setCurrentWizardStep(0);
     }
   }, [isOpen]);
 
@@ -138,6 +175,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
       if (agentId) {
         loadAgent();
         setActiveTab("details");
+        setCurrentWizardStep(0);
       } else {
         // Reset form for create mode
         setFormData({
@@ -156,6 +194,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         setFieldErrors({});
         setGeneralError(null);
         setActiveTab("details");
+        setCurrentWizardStep(0);
       }
     }
   }, [isOpen, agentId]);
@@ -330,281 +369,335 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                 </div>
               )}
 
-              <div className={styles.formGrid}>
-                {/* Agent Code */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="agent_code" className={styles.label}>
-                    Agent Code <span className={styles.required}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="agent_code"
-                    name="agent_code"
-                    value={formData.agent_code}
-                    onChange={handleChange}
-                    disabled={isEditMode || loading}
-                    className={`${styles.input} ${fieldErrors.agent_code ? styles.inputError : ""}`}
-                    required
-                  />
-                  {fieldErrors.agent_code && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.agent_code}</span>
-                  )}
-                </div>
+              <WizardShell
+                steps={wizardSteps}
+                currentStep={currentWizardStep}
+                onStepClick={validateAndAdvance}
+                mode={isEditMode ? "tabbed" : "strict"}
+              >
+                {/* STEP 1: Agent Identification */}
+                {currentWizardStep === 0 && (
+                  <div>
+                    <div className={styles.formGrid}>
+                      {/* Agent Code */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="agent_code" className={styles.label}>
+                          Agent Code <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="Unique identifier code for this AI agent." />
+                        </label>
+                        <input
+                          type="text"
+                          id="agent_code"
+                          name="agent_code"
+                          value={formData.agent_code}
+                          onChange={handleChange}
+                          disabled={isEditMode || loading}
+                          className={`${styles.input} ${fieldErrors.agent_code ? styles.inputError : ""}`}
+                          required
+                        />
+                        {fieldErrors.agent_code && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.agent_code}</span>
+                        )}
+                      </div>
 
-                {/* Agent Name */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="agent_name" className={styles.label}>
-                    Agent Name <span className={styles.required}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="agent_name"
-                    name="agent_name"
-                    value={formData.agent_name}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.input} ${fieldErrors.agent_name ? styles.inputError : ""}`}
-                    required
-                  />
-                  {fieldErrors.agent_name && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.agent_name}</span>
-                  )}
-                </div>
+                      {/* Agent Name */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="agent_name" className={styles.label}>
+                          Agent Name <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The common name used for this agent." />
+                        </label>
+                        <input
+                          type="text"
+                          id="agent_name"
+                          name="agent_name"
+                          value={formData.agent_name}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.input} ${fieldErrors.agent_name ? styles.inputError : ""}`}
+                          required
+                        />
+                        {fieldErrors.agent_name && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.agent_name}</span>
+                        )}
+                      </div>
 
-                {/* Agent Type */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="agent_type" className={styles.label}>
-                    Agent Type <span className={styles.required}>*</span>
-                  </label>
-                  <select
-                    id="agent_type"
-                    name="agent_type"
-                    value={formData.agent_type}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.select} ${fieldErrors.agent_type ? styles.inputError : ""}`}
-                    required
-                  >
-                    <option value="">-- Select Type --</option>
-                    <option value="RECOMMENDATION">RECOMMENDATION</option>
-                    <option value="TRIAGE">TRIAGE</option>
-                    <option value="EXTRACTION">EXTRACTION</option>
-                    <option value="EXECUTION">EXECUTION</option>
-                    <option value="MONITORING">MONITORING</option>
-                  </select>
-                  {fieldErrors.agent_type && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.agent_type}</span>
-                  )}
-                </div>
+                      {/* Agent Type */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="agent_type" className={styles.label}>
+                          Agent Type <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The functional category of this agent." />
+                        </label>
+                        <select
+                          id="agent_type"
+                          name="agent_type"
+                          value={formData.agent_type}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.agent_type ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Type --</option>
+                          <option value="RECOMMENDATION">RECOMMENDATION</option>
+                          <option value="TRIAGE">TRIAGE</option>
+                          <option value="EXTRACTION">EXTRACTION</option>
+                          <option value="EXECUTION">EXECUTION</option>
+                          <option value="MONITORING">MONITORING</option>
+                        </select>
+                        {fieldErrors.agent_type && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.agent_type}</span>
+                        )}
+                      </div>
 
-                {/* Execution Mode */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="execution_mode" className={styles.label}>
-                    Execution Mode <span className={styles.required}>*</span>
-                  </label>
-                  <select
-                    id="execution_mode"
-                    name="execution_mode"
-                    value={formData.execution_mode}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.select} ${fieldErrors.execution_mode ? styles.inputError : ""}`}
-                    required
-                  >
-                    <option value="">-- Select Mode --</option>
-                    <option value="READ_ONLY">READ_ONLY</option>
-                    <option value="RECOMMEND_ONLY">RECOMMEND_ONLY</option>
-                    <option value="APPROVAL_REQUIRED">APPROVAL_REQUIRED</option>
-                    <option value="LIMITED_EXECUTION">LIMITED_EXECUTION</option>
-                    <option value="BLOCKED">BLOCKED</option>
-                  </select>
-                  {fieldErrors.execution_mode && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.execution_mode}</span>
-                  )}
-                </div>
-
-                {/* Confidence Threshold */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="confidence_threshold" className={styles.label}>
-                    Confidence Threshold (%)
-                  </label>
-                  <input
-                    type="number"
-                    id="confidence_threshold"
-                    name="confidence_threshold"
-                    value={formData.confidence_threshold}
-                    onChange={handleChange}
-                    disabled={loading}
-                    min={0}
-                    max={100}
-                    className={styles.input}
-                  />
-                </div>
-
-                {/* Risk Level */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="risk_level" className={styles.label}>
-                    Risk Level <span className={styles.required}>*</span>
-                  </label>
-                  <select
-                    id="risk_level"
-                    name="risk_level"
-                    value={formData.risk_level}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className={`${styles.select} ${fieldErrors.risk_level ? styles.inputError : ""}`}
-                    required
-                  >
-                    <option value="">-- Select Risk Level --</option>
-                    <option value="LOW">LOW</option>
-                    <option value="MEDIUM">MEDIUM</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="CRITICAL">CRITICAL</option>
-                  </select>
-                  {fieldErrors.risk_level && (
-                    <span className={styles.fieldErrorText}>{fieldErrors.risk_level}</span>
-                  )}
-                </div>
-
-                {/* Owner User */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="owner_user_id" className={styles.label}>Owner User</label>
-                  <select
-                    id="owner_user_id"
-                    name="owner_user_id"
-                    value={formData.owner_user_id}
-                    onChange={handleChange}
-                    disabled={loading || loadingLookups}
-                    className={styles.select}
-                  >
-                    {loadingLookups ? (
-                      <option value="">Loading owners...</option>
-                    ) : (
-                      <>
-                        <option value="">-- Select Owner --</option>
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.full_name} ({u.email})
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                {/* Department */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="department_id" className={styles.label}>Department</label>
-                  <select
-                    id="department_id"
-                    name="department_id"
-                    value={formData.department_id}
-                    onChange={handleChange}
-                    disabled={loading || loadingLookups}
-                    className={styles.select}
-                  >
-                    {loadingLookups ? (
-                      <option value="">Loading departments...</option>
-                    ) : (
-                      <>
-                        <option value="">-- Select Department --</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.department_name} ({d.department_code})
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                {/* Status (Edit mode only) */}
-                {isEditMode && (
-                  <div className={styles.formGroup}>
-                    <label htmlFor="status" className={styles.label}>Entity Status</label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      disabled={loading}
-                      className={styles.select}
-                    >
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="INACTIVE">INACTIVE</option>
-                      <option value="SUSPENDED">SUSPENDED</option>
-                      <option value="RETIRED">RETIRED</option>
-                      <option value="ARCHIVED">ARCHIVED</option>
-                    </select>
+                      {/* Department */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="department_id" className={styles.label}>Department <FieldInfo tooltip="The department that owns or manages this agent." /></label>
+                        <select
+                          id="department_id"
+                          name="department_id"
+                          value={formData.department_id}
+                          onChange={handleChange}
+                          disabled={loading || loadingLookups}
+                          className={styles.select}
+                        >
+                          {loadingLookups ? (
+                            <option value="">Loading departments...</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Department --</option>
+                              {departments.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.department_name} ({d.department_code})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    {/* Description */}
+                    <div className={styles.formGroupFull}>
+                      <label htmlFor="description" className={styles.label}>Description <FieldInfo tooltip="A detailed description of what the agent does." /></label>
+                      <textarea
+                        id="description"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        disabled={loading}
+                        rows={3}
+                        className={styles.textarea}
+                      />
+                    </div>
+                    
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <div className={styles.rightActions} style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => validateAndAdvance(1)} className={styles.submitBtn}>
+                          Next
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
 
-              {/* Description */}
-              <div className={styles.formGroupFull}>
-                <label htmlFor="description" className={styles.label}>Description</label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  disabled={loading}
-                  rows={3}
-                  className={styles.textarea}
-                />
-              </div>
+                {/* STEP 2: Execution & thresholds */}
+                {currentWizardStep === 1 && (
+                  <div>
+                    <div className={styles.formGrid}>
+                      {/* Execution Mode */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="execution_mode" className={styles.label}>
+                          Execution Mode <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="Controls how this agent is allowed to execute tasks." />
+                        </label>
+                        <select
+                          id="execution_mode"
+                          name="execution_mode"
+                          value={formData.execution_mode}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.execution_mode ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Mode --</option>
+                          <option value="READ_ONLY">READ_ONLY</option>
+                          <option value="RECOMMEND_ONLY">RECOMMEND_ONLY</option>
+                          <option value="APPROVAL_REQUIRED">APPROVAL_REQUIRED</option>
+                          <option value="LIMITED_EXECUTION">LIMITED_EXECUTION</option>
+                          <option value="BLOCKED">BLOCKED</option>
+                        </select>
+                        {fieldErrors.execution_mode && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.execution_mode}</span>
+                        )}
+                      </div>
 
-              {/* Capabilities JSON */}
-              <div className={styles.formGroupFull}>
-                <label htmlFor="capabilities_json" className={styles.label}>
-                  Capabilities JSON
-                </label>
-                <textarea
-                  id="capabilities_json"
-                  name="capabilities_json"
-                  value={formData.capabilities_json}
-                  onChange={handleChange}
-                  disabled={loading}
-                  rows={4}
-                  placeholder='{ "can_write": true, "integrations": ["slack"] }'
-                  className={`${styles.textarea} ${styles.jsonTextarea} ${!isCapabilitiesJsonValid ? styles.invalidJson : ""}`}
-                />
-                {!isCapabilitiesJsonValid && (
-                  <span className={styles.fieldErrorText}>Invalid JSON format. Please correct before submitting.</span>
+                      {/* Confidence Threshold */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="confidence_threshold" className={styles.label}>
+                          Confidence Threshold (%) <FieldInfo tooltip="The minimum confidence score required for this agent to act autonomously." />
+                        </label>
+                        <input
+                          type="number"
+                          id="confidence_threshold"
+                          name="confidence_threshold"
+                          value={formData.confidence_threshold}
+                          onChange={handleChange}
+                          disabled={loading}
+                          min={0}
+                          max={100}
+                          className={styles.input}
+                        />
+                      </div>
+
+                      {/* Risk Level */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="risk_level" className={styles.label}>
+                          Risk Level <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The assessed risk level associated with this agent." />
+                        </label>
+                        <select
+                          id="risk_level"
+                          name="risk_level"
+                          value={formData.risk_level}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.risk_level ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Risk Level --</option>
+                          <option value="LOW">LOW</option>
+                          <option value="MEDIUM">MEDIUM</option>
+                          <option value="HIGH">HIGH</option>
+                          <option value="CRITICAL">CRITICAL</option>
+                        </select>
+                        {fieldErrors.risk_level && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.risk_level}</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <button type="button" onClick={() => setCurrentWizardStep(0)} className={styles.cancelBtn}>
+                        Back
+                      </button>
+                      <div className={styles.rightActions}>
+                        <button type="button" onClick={() => validateAndAdvance(2)} className={styles.submitBtn}>
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </div>
 
-              {/* Form Actions */}
-              <div className={styles.formActions}>
-                {isEditMode && (
-                  <button
-                    type="button"
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    disabled={loading}
-                    className={styles.deleteBtn}
-                  >
-                    Delete
-                  </button>
+                {/* STEP 3: Capabilities & credentials */}
+                {currentWizardStep === 2 && (
+                  <div>
+                    <div className={styles.formGrid}>
+                      {/* Owner User */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="owner_user_id" className={styles.label}>Owner User <FieldInfo tooltip="The user primarily responsible for this agent." /></label>
+                        <select
+                          id="owner_user_id"
+                          name="owner_user_id"
+                          value={formData.owner_user_id}
+                          onChange={handleChange}
+                          disabled={loading || loadingLookups}
+                          className={styles.select}
+                        >
+                          {loadingLookups ? (
+                            <option value="">Loading owners...</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Owner --</option>
+                              {users.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.full_name} ({u.email})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+                      
+                      {/* Status (Edit mode only) */}
+                      {isEditMode && (
+                        <div className={styles.formGroup}>
+                          <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current lifecycle status of the agent." /></label>
+                          <select
+                            id="status"
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            disabled={loading}
+                            className={styles.select}
+                          >
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="SUSPENDED">SUSPENDED</option>
+                            <option value="RETIRED">RETIRED</option>
+                            <option value="ARCHIVED">ARCHIVED</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Capabilities JSON */}
+                    <div className={styles.formGroupFull}>
+                      <label htmlFor="capabilities_json" className={styles.label}>
+                        Capabilities JSON <FieldInfo tooltip="A JSON payload defining specific technical capabilities." />
+                      </label>
+                      <textarea
+                        id="capabilities_json"
+                        name="capabilities_json"
+                        value={formData.capabilities_json}
+                        onChange={handleChange}
+                        disabled={loading}
+                        rows={4}
+                        placeholder='{ "can_write": true, "integrations": ["slack"] }'
+                        className={`${styles.textarea} ${styles.jsonTextarea} ${!isCapabilitiesJsonValid ? styles.invalidJson : ""}`}
+                      />
+                      {!isCapabilitiesJsonValid && (
+                        <span className={styles.fieldErrorText}>Invalid JSON format. Please correct before submitting.</span>
+                      )}
+                    </div>
+
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <button type="button" onClick={() => setCurrentWizardStep(1)} className={styles.cancelBtn}>
+                        Back
+                      </button>
+                      
+                      {isEditMode && (
+                        <button
+                          type="button"
+                          onClick={() => setIsDeleteModalOpen(true)}
+                          disabled={loading}
+                          className={styles.deleteBtn}
+                        >
+                          Delete
+                        </button>
+                      )}
+                      
+                      <div className={styles.rightActions}>
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          disabled={loading}
+                          className={styles.cancelBtn}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading || !isCapabilitiesJsonValid}
+                          className={styles.submitBtn}
+                        >
+                          {loading ? "Saving..." : "Save Agent"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <div className={styles.rightActions}>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={loading}
-                    className={styles.cancelBtn}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || !isCapabilitiesJsonValid}
-                    className={styles.submitBtn}
-                  >
-                    {loading ? "Saving..." : "Save Agent"}
-                  </button>
-                </div>
-              </div>
+              </WizardShell>
             </form>
           )}
 

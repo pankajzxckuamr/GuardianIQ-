@@ -10,6 +10,10 @@ import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./DepartmentFormModal.module.css";
 
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
+
 interface DepartmentFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -307,6 +311,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="department_code" className={styles.label}>
                 Department Code <span className={styles.required}>*</span>
+                <FieldInfo tooltip="Unique identifier code for this department." />
               </label>
               <input
                 type="text"
@@ -328,6 +333,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
             <div className={styles.formGroup}>
               <label htmlFor="department_name" className={styles.label}>
                 Department Name <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The common name of this department." />
               </label>
               <input
                 type="text"
@@ -346,7 +352,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
 
              {/* Parent Department */}
             <div className={styles.formGroup}>
-              <label htmlFor="parent_department_id" className={styles.label}>Parent Department</label>
+              <label htmlFor="parent_department_id" className={styles.label}>Parent Department <FieldInfo tooltip="The parent department in the organizational hierarchy." /></label>
               <select
                 id="parent_department_id"
                 name="parent_department_id"
@@ -372,7 +378,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
 
             {/* Business Owner */}
             <div className={styles.formGroup}>
-              <label htmlFor="business_owner_user_id" className={styles.label}>Business Owner</label>
+              <label htmlFor="business_owner_user_id" className={styles.label}>Business Owner <FieldInfo tooltip="The primary business owner or leader of this department." /></label>
               <select
                 id="business_owner_user_id"
                 name="business_owner_user_id"
@@ -398,7 +404,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
 
             {/* Escalation Owner */}
             <div className={styles.formGroup}>
-              <label htmlFor="escalation_owner_user_id" className={styles.label}>Escalation Owner</label>
+              <label htmlFor="escalation_owner_user_id" className={styles.label}>Escalation Owner <FieldInfo tooltip="The user to contact for critical escalations regarding this department's assets." /></label>
               <select
                 id="escalation_owner_user_id"
                 name="escalation_owner_user_id"
@@ -425,7 +431,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
             {/* Status (Edit mode only) */}
             {isEditMode && (
               <div className={styles.formGroup}>
-                <label htmlFor="status" className={styles.label}>Entity Status</label>
+                <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current active status of this department." /></label>
                 <select
                   id="status"
                   name="status"
@@ -448,7 +454,7 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
           {/* Metadata JSON */}
           <div className={styles.formGroupFull}>
             <label htmlFor="metadata_json" className={styles.label}>
-              Metadata JSON
+              Metadata JSON <FieldInfo tooltip="Any additional structured configuration or details in JSON format." />
             </label>
             <textarea
               id="metadata_json"

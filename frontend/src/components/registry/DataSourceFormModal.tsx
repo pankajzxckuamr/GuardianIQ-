@@ -8,7 +8,12 @@ import { EntityStatus } from "../../services/registry/registryTypes";
 import { RelationshipViewer } from "./RelationshipViewer";
 import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
+import WizardShell from "../common/WizardShell";
 import styles from "./DataSourceFormModal.module.css";
+
+const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
+  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
+);
 
 interface DataSourceFormModalProps {
   isOpen: boolean;
@@ -25,6 +30,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
+  const [currentWizardStep, setCurrentWizardStep] = useState(0);
 
   // Lookups data
   const [users, setUsers] = useState<{ id: string; full_name: string; email: string }[]>([]);
@@ -57,6 +63,29 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
 
   const isEditMode = !!sourceId;
 
+  const wizardSteps = [
+    { label: "Identity & classification" },
+    { label: "Connection properties" }
+  ];
+
+  const validateAndAdvance = (targetStep: number) => {
+    if (isEditMode) {
+      setCurrentWizardStep(targetStep);
+      return;
+    }
+    
+    // In create (strict) mode, validate before advancing
+    if (targetStep > currentWizardStep) {
+      if (currentWizardStep === 0) {
+        if (!formData.source_code || !formData.source_name || !formData.source_type || !formData.classification || !formData.sensitivity_level) {
+          showToast("Please fill in all required fields for Identity & classification", "error");
+          return;
+        }
+      }
+    }
+    setCurrentWizardStep(targetStep);
+  };
+
   // Reset form when modal opens or closes
   useEffect(() => {
     if (!isOpen) {
@@ -78,6 +107,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       setFieldErrors({});
       setGeneralError(null);
       setActiveTab("details");
+      setCurrentWizardStep(0);
     }
   }, [isOpen]);
 
@@ -144,6 +174,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       if (sourceId) {
         loadDataSource();
         setActiveTab("details");
+        setCurrentWizardStep(0);
       } else {
         // Reset form for create mode
         setFormData({
@@ -164,6 +195,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
         setFieldErrors({});
         setGeneralError(null);
         setActiveTab("details");
+        setCurrentWizardStep(0);
       }
     }
   }, [isOpen, sourceId]);
@@ -291,7 +323,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Data Source: ${formData.source_name}` : "Register New Data Source"}
-      size={isEditMode ? "lg" : "md"}
+      size="lg"
     >
       <div className={styles.container}>
         {/* Tab Headers */}
@@ -326,321 +358,357 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
         <div className={styles.tabsContent}>
           {activeTab === "details" && (
             <form onSubmit={handleSubmit} className={styles.form}>
-              <div className={styles.formGrid}>
-            {/* Source Code */}
-            <div className={styles.formGroup}>
-              <label htmlFor="source_code" className={styles.label}>
-                Source Code <span className={styles.required}>*</span>
-              </label>
-              <input
-                type="text"
-                id="source_code"
-                name="source_code"
-                value={formData.source_code}
-                onChange={handleChange}
-                disabled={isEditMode || loading}
-                placeholder="e.g. WH_ANALYTICS"
-                className={`${styles.input} ${fieldErrors.source_code ? styles.inputError : ""}`}
-                required
-              />
-              {fieldErrors.source_code && (
-                <span className={styles.fieldErrorText}>{fieldErrors.source_code}</span>
-              )}
-            </div>
-
-            {/* Source Name */}
-            <div className={styles.formGroup}>
-              <label htmlFor="source_name" className={styles.label}>
-                Source Name <span className={styles.required}>*</span>
-              </label>
-              <input
-                type="text"
-                id="source_name"
-                name="source_name"
-                value={formData.source_name}
-                onChange={handleChange}
-                disabled={loading}
-                className={`${styles.input} ${fieldErrors.source_name ? styles.inputError : ""}`}
-                required
-              />
-              {fieldErrors.source_name && (
-                <span className={styles.fieldErrorText}>{fieldErrors.source_name}</span>
-              )}
-            </div>
-
-            {/* Source Type */}
-            <div className={styles.formGroup}>
-              <label htmlFor="source_type" className={styles.label}>
-                Source Type <span className={styles.required}>*</span>
-              </label>
-              <select
-                id="source_type"
-                name="source_type"
-                value={formData.source_type}
-                onChange={handleChange}
-                disabled={loading}
-                className={`${styles.select} ${fieldErrors.source_type ? styles.inputError : ""}`}
-                required
+              <WizardShell
+                steps={wizardSteps}
+                currentStep={currentWizardStep}
+                onStepClick={validateAndAdvance}
+                mode={isEditMode ? "tabbed" : "strict"}
               >
-                <option value="">-- Select Type --</option>
-                <option value="DATABASE">DATABASE</option>
-                <option value="API">API</option>
-                <option value="FILE">FILE</option>
-                <option value="CRM">CRM</option>
-                <option value="ERP">ERP</option>
-                <option value="DATA_LAKE">DATA LAKE</option>
-                <option value="EMAIL">EMAIL</option>
-                <option value="WEBFORM">WEBFORM</option>
-              </select>
-              {fieldErrors.source_type && (
-                <span className={styles.fieldErrorText}>{fieldErrors.source_type}</span>
-              )}
-            </div>
+                {/* STEP 1: Identity & classification */}
+                {currentWizardStep === 0 && (
+                  <div>
+                    <div className={styles.formGrid}>
+                      {/* Source Code */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="source_code" className={styles.label}>
+                          Source Code <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="Unique identifier for this data source." />
+                        </label>
+                        <input
+                          type="text"
+                          id="source_code"
+                          name="source_code"
+                          value={formData.source_code}
+                          onChange={handleChange}
+                          disabled={isEditMode || loading}
+                          placeholder="e.g. WH_ANALYTICS"
+                          className={`${styles.input} ${fieldErrors.source_code ? styles.inputError : ""}`}
+                          required
+                        />
+                        {fieldErrors.source_code && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.source_code}</span>
+                        )}
+                      </div>
 
-             {/* Technical Owner */}
-            <div className={styles.formGroup}>
-              <label htmlFor="owner_user_id" className={styles.label}>Technical Owner</label>
-              <select
-                id="owner_user_id"
-                name="owner_user_id"
-                value={formData.owner_user_id}
-                onChange={handleChange}
-                disabled={loading || loadingLookups}
-                className={styles.select}
-              >
-                {loadingLookups ? (
-                  <option value="">Loading owners...</option>
-                ) : (
-                  <>
-                    <option value="">-- Select Owner --</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.email})
-                      </option>
-                    ))}
-                  </>
+                      {/* Source Name */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="source_name" className={styles.label}>
+                          Source Name <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The common name used for this data source." />
+                        </label>
+                        <input
+                          type="text"
+                          id="source_name"
+                          name="source_name"
+                          value={formData.source_name}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.input} ${fieldErrors.source_name ? styles.inputError : ""}`}
+                          required
+                        />
+                        {fieldErrors.source_name && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.source_name}</span>
+                        )}
+                      </div>
+
+                      {/* Source Type */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="source_type" className={styles.label}>
+                          Source Type <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The technical category or format of this data source." />
+                        </label>
+                        <select
+                          id="source_type"
+                          name="source_type"
+                          value={formData.source_type}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.source_type ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Type --</option>
+                          <option value="DATABASE">DATABASE</option>
+                          <option value="API">API</option>
+                          <option value="FILE">FILE</option>
+                          <option value="CRM">CRM</option>
+                          <option value="ERP">ERP</option>
+                          <option value="DATA_LAKE">DATA LAKE</option>
+                          <option value="EMAIL">EMAIL</option>
+                          <option value="WEBFORM">WEBFORM</option>
+                        </select>
+                        {fieldErrors.source_type && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.source_type}</span>
+                        )}
+                      </div>
+
+                      {/* Classification */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="classification" className={styles.label}>
+                          Classification <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The general data classification policy category." />
+                        </label>
+                        <select
+                          id="classification"
+                          name="classification"
+                          value={formData.classification}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.classification ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Classification --</option>
+                          <option value="PUBLIC">🟢 PUBLIC</option>
+                          <option value="INTERNAL">🔵 INTERNAL</option>
+                          <option value="CONFIDENTIAL">🟡 CONFIDENTIAL</option>
+                          <option value="RESTRICTED">🔴 RESTRICTED</option>
+                        </select>
+                        {fieldErrors.classification && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.classification}</span>
+                        )}
+                      </div>
+
+                      {/* Sensitivity Level */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="sensitivity_level" className={styles.label}>
+                          Sensitivity Level <span className={styles.required}>*</span>
+                          <FieldInfo tooltip="The assessed sensitivity level of the data contained." />
+                        </label>
+                        <select
+                          id="sensitivity_level"
+                          name="sensitivity_level"
+                          value={formData.sensitivity_level}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={`${styles.select} ${fieldErrors.sensitivity_level ? styles.inputError : ""}`}
+                          required
+                        >
+                          <option value="">-- Select Sensitivity --</option>
+                          <option value="LOW">LOW</option>
+                          <option value="MEDIUM">MEDIUM</option>
+                          <option value="HIGH">HIGH</option>
+                          <option value="CRITICAL">CRITICAL</option>
+                        </select>
+                        {fieldErrors.sensitivity_level && (
+                          <span className={styles.fieldErrorText}>{fieldErrors.sensitivity_level}</span>
+                        )}
+                      </div>
+
+                      {/* Department */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="department_id" className={styles.label}>Department <FieldInfo tooltip="The department that owns or manages this data source." /></label>
+                        <select
+                          id="department_id"
+                          name="department_id"
+                          value={formData.department_id}
+                          onChange={handleChange}
+                          disabled={loading || loadingLookups}
+                          className={styles.select}
+                        >
+                          {loadingLookups ? (
+                            <option value="">Loading departments...</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Department --</option>
+                              {departments.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.department_name} ({d.department_code})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Region */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="region" className={styles.label}>Region <FieldInfo tooltip="The geographic or cloud region where this data source resides." /></label>
+                        <input
+                          type="text"
+                          id="region"
+                          name="region"
+                          value={formData.region}
+                          onChange={handleChange}
+                          disabled={loading}
+                          placeholder="e.g. us-east-1, eu-west-1"
+                          className={styles.input}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <div className={styles.rightActions} style={{ width: '100%', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => validateAndAdvance(1)} className={styles.submitBtn}>
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </select>
-            </div>
 
-            {/* Department */}
-            <div className={styles.formGroup}>
-              <label htmlFor="department_id" className={styles.label}>Department</label>
-              <select
-                id="department_id"
-                name="department_id"
-                value={formData.department_id}
-                onChange={handleChange}
-                disabled={loading || loadingLookups}
-                className={styles.select}
-              >
-                {loadingLookups ? (
-                  <option value="">Loading departments...</option>
-                ) : (
-                  <>
-                    <option value="">-- Select Department --</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.department_name} ({d.department_code})
-                      </option>
-                    ))}
-                  </>
+                {/* STEP 2: Connection properties */}
+                {currentWizardStep === 1 && (
+                  <div>
+                    {/* Connection Reference */}
+                    <div className={styles.formGroupFull}>
+                      <label htmlFor="connection_reference" className={styles.label}>Connection Reference <FieldInfo tooltip="A technical reference string for connecting to this source (no secrets)." /></label>
+                      <input
+                        type="text"
+                        id="connection_reference"
+                        name="connection_reference"
+                        value={formData.connection_reference}
+                        onChange={handleChange}
+                        disabled={loading}
+                        placeholder="e.g. postgres://db.local:5432/analytics"
+                        className={styles.input}
+                      />
+                      <span className={styles.helperText}>
+                        System reference only — no tokens or passwords
+                      </span>
+                    </div>
+
+                    <div className={styles.formGrid}>
+                      {/* Technical Owner */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="owner_user_id" className={styles.label}>Technical Owner <FieldInfo tooltip="The user acting as the technical owner of this data source." /></label>
+                        <select
+                          id="owner_user_id"
+                          name="owner_user_id"
+                          value={formData.owner_user_id}
+                          onChange={handleChange}
+                          disabled={loading || loadingLookups}
+                          className={styles.select}
+                        >
+                          {loadingLookups ? (
+                            <option value="">Loading owners...</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Owner --</option>
+                              {users.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.full_name} ({u.email})
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Retention Policy */}
+                      <div className={styles.formGroup}>
+                        <label htmlFor="retention_policy" className={styles.label}>Retention Policy <FieldInfo tooltip="The policy defining how long data is kept in this source." /></label>
+                        <input
+                          type="text"
+                          id="retention_policy"
+                          name="retention_policy"
+                          value={formData.retention_policy}
+                          onChange={handleChange}
+                          disabled={loading}
+                          placeholder="e.g. 7 years, indefinite"
+                          className={styles.input}
+                        />
+                      </div>
+                      
+                      {/* Status (Edit mode only) */}
+                      {isEditMode && (
+                        <div className={styles.formGroup}>
+                          <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current lifecycle status of the data source." /></label>
+                          <select
+                            id="status"
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            disabled={loading}
+                            className={styles.select}
+                          >
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="SUSPENDED">SUSPENDED</option>
+                            <option value="RETIRED">RETIRED</option>
+                            <option value="ARCHIVED">ARCHIVED</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Contains PII Toggle & Warning */}
+                    <div className={styles.formGroupFull} style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          name="contains_pii"
+                          checked={formData.contains_pii}
+                          onChange={handleChange}
+                          disabled={loading}
+                          className={styles.checkbox}
+                        />
+                        <span className={styles.checkboxText}>This Data Source contains PII (Personally Identifiable Information)</span>
+                      </label>
+
+                      {formData.contains_pii && (
+                        <div className={styles.piiWarning}>
+                          ⚠️ Contains PII. Ensure DPA compliance.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Metadata JSON */}
+                    <div className={styles.formGroupFull}>
+                      <label htmlFor="metadata_json" className={styles.label}>
+                        Metadata JSON <FieldInfo tooltip="Any additional structured configuration or details in JSON format." />
+                      </label>
+                      <textarea
+                        id="metadata_json"
+                        name="metadata_json"
+                        value={formData.metadata_json}
+                        onChange={handleChange}
+                        disabled={loading}
+                        rows={4}
+                        placeholder='{ "key": "value" }'
+                        className={`${styles.textarea} ${styles.jsonTextarea} ${!isMetadataJsonValid ? styles.invalidJson : ""}`}
+                      />
+                      {!isMetadataJsonValid && (
+                        <span className={styles.fieldErrorText}>Invalid JSON formatting. Please correct before submitting.</span>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className={styles.formActions} style={{ marginTop: '1.5rem' }}>
+                      <button type="button" onClick={() => setCurrentWizardStep(0)} className={styles.cancelBtn}>
+                        Back
+                      </button>
+
+                      {isEditMode && (
+                        <button
+                          type="button"
+                          onClick={() => setIsDeleteModalOpen(true)}
+                          disabled={loading}
+                          className={styles.deleteBtn}
+                        >
+                          Delete
+                        </button>
+                      )}
+                      <div className={styles.rightActions}>
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          disabled={loading}
+                          className={styles.cancelBtn}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading || !isMetadataJsonValid}
+                          className={styles.submitBtn}
+                        >
+                          {loading ? "Saving..." : "Save Data Source"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </select>
-            </div>
-
-            {/* Classification */}
-            <div className={styles.formGroup}>
-              <label htmlFor="classification" className={styles.label}>
-                Classification <span className={styles.required}>*</span>
-              </label>
-              <select
-                id="classification"
-                name="classification"
-                value={formData.classification}
-                onChange={handleChange}
-                disabled={loading}
-                className={`${styles.select} ${fieldErrors.classification ? styles.inputError : ""}`}
-                required
-              >
-                <option value="">-- Select Classification --</option>
-                <option value="PUBLIC">🟢 PUBLIC</option>
-                <option value="INTERNAL">🔵 INTERNAL</option>
-                <option value="CONFIDENTIAL">🟡 CONFIDENTIAL</option>
-                <option value="RESTRICTED">🔴 RESTRICTED</option>
-              </select>
-              {fieldErrors.classification && (
-                <span className={styles.fieldErrorText}>{fieldErrors.classification}</span>
-              )}
-            </div>
-
-            {/* Sensitivity Level */}
-            <div className={styles.formGroup}>
-              <label htmlFor="sensitivity_level" className={styles.label}>
-                Sensitivity Level <span className={styles.required}>*</span>
-              </label>
-              <select
-                id="sensitivity_level"
-                name="sensitivity_level"
-                value={formData.sensitivity_level}
-                onChange={handleChange}
-                disabled={loading}
-                className={`${styles.select} ${fieldErrors.sensitivity_level ? styles.inputError : ""}`}
-                required
-              >
-                <option value="">-- Select Sensitivity --</option>
-                <option value="LOW">LOW</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HIGH">HIGH</option>
-                <option value="CRITICAL">CRITICAL</option>
-              </select>
-              {fieldErrors.sensitivity_level && (
-                <span className={styles.fieldErrorText}>{fieldErrors.sensitivity_level}</span>
-              )}
-            </div>
-
-            {/* Region */}
-            <div className={styles.formGroup}>
-              <label htmlFor="region" className={styles.label}>Region</label>
-              <input
-                type="text"
-                id="region"
-                name="region"
-                value={formData.region}
-                onChange={handleChange}
-                disabled={loading}
-                placeholder="e.g. us-east-1, eu-west-1"
-                className={styles.input}
-              />
-            </div>
-
-            {/* Retention Policy */}
-            <div className={styles.formGroup}>
-              <label htmlFor="retention_policy" className={styles.label}>Retention Policy</label>
-              <input
-                type="text"
-                id="retention_policy"
-                name="retention_policy"
-                value={formData.retention_policy}
-                onChange={handleChange}
-                disabled={loading}
-                placeholder="e.g. 7 years, indefinite"
-                className={styles.input}
-              />
-            </div>
-
-            {/* Status (Edit mode only) */}
-            {isEditMode && (
-              <div className={styles.formGroup}>
-                <label htmlFor="status" className={styles.label}>Entity Status</label>
-                <select
-                  id="status"
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  disabled={loading}
-                  className={styles.select}
-                >
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                  <option value="SUSPENDED">SUSPENDED</option>
-                  <option value="RETIRED">RETIRED</option>
-                  <option value="ARCHIVED">ARCHIVED</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* Connection Reference */}
-          <div className={styles.formGroupFull}>
-            <label htmlFor="connection_reference" className={styles.label}>Connection Reference</label>
-            <input
-              type="text"
-              id="connection_reference"
-              name="connection_reference"
-              value={formData.connection_reference}
-              onChange={handleChange}
-              disabled={loading}
-              placeholder="e.g. postgres://db.local:5432/analytics"
-              className={styles.input}
-            />
-            <span className={styles.helperText}>
-              System reference only — no tokens or passwords
-            </span>
-          </div>
-
-          {/* Contains PII Toggle & Warning */}
-          <div className={styles.formGroupFull}>
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                name="contains_pii"
-                checked={formData.contains_pii}
-                onChange={handleChange}
-                disabled={loading}
-                className={styles.checkbox}
-              />
-              <span className={styles.checkboxText}>This Data Source contains PII (Personally Identifiable Information)</span>
-            </label>
-
-            {formData.contains_pii && (
-              <div className={styles.piiWarning}>
-                ⚠️ Contains PII. Ensure DPA compliance.
-              </div>
-            )}
-          </div>
-
-          {/* Metadata JSON */}
-          <div className={styles.formGroupFull}>
-            <label htmlFor="metadata_json" className={styles.label}>
-              Metadata JSON
-            </label>
-            <textarea
-              id="metadata_json"
-              name="metadata_json"
-              value={formData.metadata_json}
-              onChange={handleChange}
-              disabled={loading}
-              rows={4}
-              placeholder='{ "key": "value" }'
-              className={`${styles.textarea} ${styles.jsonTextarea} ${!isMetadataJsonValid ? styles.invalidJson : ""}`}
-            />
-            {!isMetadataJsonValid && (
-              <span className={styles.fieldErrorText}>Invalid JSON formatting. Please correct before submitting.</span>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className={styles.formActions}>
-            {isEditMode && (
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(true)}
-                disabled={loading}
-                className={styles.deleteBtn}
-              >
-                Delete
-              </button>
-            )}
-            <div className={styles.rightActions}>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={loading}
-                className={styles.cancelBtn}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !isMetadataJsonValid}
-                className={styles.submitBtn}
-              >
-                {loading ? "Saving..." : "Save Data Source"}
-              </button>
-            </div>
-          </div>
+              </WizardShell>
             </form>
           )}
 

@@ -19,6 +19,7 @@ import { RegistryDepartmentsPage } from "../pages/RegistryDepartmentsPage";
 import { RegistryUsersRolesPage } from "../pages/RegistryUsersRolesPage";
 import { RegistryDataSourcesPage } from "../pages/RegistryDataSourcesPage";
 import { RegistryRelationshipsPage } from "../pages/RegistryRelationshipsPage";
+import { ExecutionDashboardPage } from "../pages/ExecutionDashboardPage";
 
 export const AppRouter: React.FC = () => {
   return (
@@ -160,6 +161,16 @@ export const AppRouter: React.FC = () => {
             <ProtectedRoute>
               <AppShell>
                 <RegistryRelationshipsPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/executions"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <ExecutionDashboardPage />
               </AppShell>
             </ProtectedRoute>
           }
