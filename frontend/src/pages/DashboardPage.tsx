@@ -6,6 +6,7 @@ import { Badge } from "../components/common/Badge";
 import { Table } from "../components/common/Table";
 import { useAuth } from "../hooks/useAuth";
 import { fetchDbHealth } from "../services/health/healthService";
+import { fetchTenants } from "../services/tenants/tenantService";
 import { 
   ShieldCheck, 
   Users, 
@@ -46,28 +47,69 @@ export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [dbLatency, setDbLatency] = useState<number | null>(null);
   const [dbStatus, setDbStatus] = useState<string>("DOWN");
+  const [tenantCount, setTenantCount] = useState<number>(1);
+  const [activeTenantDesc, setActiveTenantDesc] = useState<string>("Default Platform Tenant active");
 
   useEffect(() => {
     let active = true;
-    const loadDbHealth = async () => {
+    const loadDashboardData = async () => {
+      const healthPromise = (async () => {
+        try {
+          const health = await fetchDbHealth();
+          if (active) {
+            setDbLatency(health.latency_ms ?? null);
+            setDbStatus(health.status === "healthy" ? "UP" : "DOWN");
+          }
+        } catch (e) {
+          if (active) {
+            setDbLatency(null);
+            setDbStatus("DOWN");
+          }
+        }
+      })();
+
+      const tenantsPromise = (async () => {
+        try {
+          const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
+          if (token) {
+            const response = await fetchTenants(token, 1, 20);
+            const tenantList = response.items || [];
+            const activeTenants = tenantList.filter(t => t.is_active);
+            if (active) {
+              setTenantCount(activeTenants.length);
+              if (activeTenants.length === 1) {
+                setActiveTenantDesc(`${activeTenants[0].name} active`);
+              } else if (activeTenants.length > 1) {
+                setActiveTenantDesc(`${activeTenants[0].name} & ${activeTenants.length - 1} more active`);
+              } else {
+                setActiveTenantDesc("No active tenants");
+              }
+            }
+          } else {
+            if (active) {
+              setTenantCount(1);
+              setActiveTenantDesc("Default Platform Tenant active");
+            }
+          }
+        } catch (e) {
+          console.warn("Using local fallback tenants data:", e);
+          if (active) {
+            setTenantCount(1);
+            setActiveTenantDesc("Default Platform Tenant active");
+          }
+        }
+      })();
+
       try {
-        const health = await fetchDbHealth();
-        if (active) {
-          setDbLatency(health.latency_ms ?? null);
-          setDbStatus(health.status === "healthy" ? "UP" : "DOWN");
-        }
-      } catch (e) {
-        if (active) {
-          setDbLatency(null);
-          setDbStatus("DOWN");
-        }
+        await Promise.all([healthPromise, tenantsPromise]);
       } finally {
         if (active) {
           setLoading(false);
         }
       }
     };
-    loadDbHealth();
+
+    loadDashboardData();
     return () => {
       active = false;
     };
@@ -136,9 +178,9 @@ export const DashboardPage: React.FC = () => {
 
         <MetricCard 
           title="Active Tenants"
-          value="1"
+          value={tenantCount}
           icon={<Users size={24} className="metric-icon info" />}
-          description="Default Platform Tenant active"
+          description={activeTenantDesc}
         />
 
         <MetricCard 
