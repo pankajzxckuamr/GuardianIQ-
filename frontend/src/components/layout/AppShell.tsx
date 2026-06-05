@@ -12,7 +12,6 @@ import {
   LogOut, 
   Menu, 
   X,
-  PlayCircle,
   User as UserIcon,
   Library,
   Brain,
@@ -158,7 +157,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const navItems = [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { label: "Execution Dashboard", path: "/executions", icon: PlayCircle },
     { label: "Foundation Health", path: "/health", icon: HeartPulse },
     { label: "Audit Logs", path: "/audit", icon: History },
   ];

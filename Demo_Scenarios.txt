@@ -1,0 +1,194 @@
+GUARDIANIQ ENTERPRISE - DEMO SCENARIOS
+======================================
+
+Below are three complete, full-fledged demo scenarios you can use to populate the GuardianIQ platform. They follow a logical sequence so all dependencies (owners and departments) map correctly.
+
+--------------------------------------------------------------------------------
+SCENARIO 1: AUTOMATED EMPLOYEE ONBOARDING & COMPLIANCE (HR)
+--------------------------------------------------------------------------------
+This scenario models an AI agent that automatically reads new employee documents and updates the company roster.
+
+1. Department
+- Code: DEPT-HR-001
+- Name: Human Resources & Compliance
+- Business/Escalation Owner: (Your Super Admin)
+
+2. User
+- Name: Sarah Jenkins
+- Email: sjenkins@guardianiq.com
+- Phone: +1-555-0199
+- Department: Human Resources & Compliance
+- Role: admin (or governance_manager)
+
+3. Data Source
+- Code: DS-HR-WORKDAY
+- Name: Workday Employee Roster
+- Type: PostgreSQL
+- Classification: CONFIDENTIAL
+- Sensitivity Level: HIGH
+- Owner: Sarah Jenkins
+- Department: Human Resources & Compliance
+- Connection: postgresql://hr-service:***@db.workday.internal/roster
+
+4. AI Model
+- Code: LLM-COMPLIANCE-DOCS
+- Name: Legal & Compliance Document Analyzer
+- Type: LLM
+- Purpose: Scans new employee onboarding documents to ensure all legal signatures are present.
+- Risk Level: HIGH
+- Owner: Sarah Jenkins
+
+5. AI Agent
+- Code: AGENT-ONBOARD-01
+- Name: Autonomous Onboarding Coordinator
+- Type: TASK_ORIENTED
+- Execution Mode: LIMITED_EXECUTION
+- Risk Level: HIGH
+- Confidence Threshold: 0.98
+- Owner: Sarah Jenkins
+
+6. Workflow
+- Code: WF-ONBOARDING-PIPELINE
+- Name: Automated NDA & Employee Setup
+- Type: APPROVAL
+- Business Criticality: MISSION_CRITICAL
+- Approval Required: Yes
+- Owner: Sarah Jenkins
+- Build Steps (Canvas): START -> Fetch Employee Record -> Scan Signed NDA -> [Approval: HR Legal Sign-off] -> END
+
+7. Relationships to Build
+- Go to Agent (Autonomous Onboarding Coordinator):
+  -> + Add Relationship -> Target: MODEL (Legal & Compliance Document Analyzer) -> Action: USES
+  -> + Add Relationship -> Target: WORKFLOW (Automated NDA & Employee Setup) -> Action: EXECUTES
+- Go to Workflow (Automated NDA & Employee Setup):
+  -> + Add Relationship -> Target: DATA_SOURCE (Workday Employee Roster) -> Action: USES
+
+
+--------------------------------------------------------------------------------
+SCENARIO 2: AUTOMATED REFUND PROCESSING (CUSTOMER SUPPORT)
+--------------------------------------------------------------------------------
+This scenario models an AI that evaluates customer complaints and issues refunds via Stripe.
+
+1. Department
+- Code: DEPT-SUP-002
+- Name: Global Customer Support
+- Business/Escalation Owner: (Your Super Admin)
+
+2. User
+- Name: Michael Chang
+- Email: mchang@guardianiq.com
+- Phone: +1-555-0200
+- Department: Global Customer Support
+- Role: admin
+
+3. Tool
+- Code: API-REFUND-STRIPE
+- Name: Stripe Refund API
+- Category: API_CONNECTOR
+- Access Mode: EXECUTE
+- Sensitivity Level: HIGH
+- Endpoint: https://api.stripe.com/v1/refunds
+- Owner: Michael Chang
+
+4. AI Model
+- Code: LLM-SUPPORT-001
+- Name: Support Refund Classifier v2
+- Type: LLM
+- Purpose: Evaluates customer messages to determine automated refund eligibility.
+- Risk Level: MEDIUM
+- Owner: Michael Chang
+
+5. AI Agent
+- Code: AGENT-REFUND-BOT
+- Name: Autonomous Refund Agent
+- Type: TASK_ORIENTED
+- Execution Mode: APPROVAL_REQUIRED
+- Risk Level: HIGH
+- Confidence Threshold: 0.95
+- Owner: Michael Chang
+
+6. Workflow
+- Code: WF-AUTO-REFUND
+- Name: Automated Refund Processing
+- Type: OPERATIONAL_ACTION
+- Business Criticality: HIGH
+- Approval Required: Yes
+- Owner: Michael Chang
+- Build Steps (Canvas): START -> Read Customer Email -> Check Refund Eligibility -> [Approval: Manager Approval] -> Trigger Stripe API -> END
+
+7. Relationships to Build
+- Go to Agent (Autonomous Refund Agent):
+  -> + Add Relationship -> Target: MODEL (Support Refund Classifier v2) -> Action: USES
+  -> + Add Relationship -> Target: WORKFLOW (Automated Refund Processing) -> Action: EXECUTES
+- Go to Workflow (Automated Refund Processing):
+  -> + Add Relationship -> Target: TOOL (Stripe Refund API) -> Action: USES
+
+
+--------------------------------------------------------------------------------
+SCENARIO 3: REAL-TIME FINANCIAL FRAUD PREVENTION (FINANCE)
+--------------------------------------------------------------------------------
+This scenario models a high-speed, fully autonomous agent that freezes compromised bank accounts without human intervention.
+
+1. Department
+- Code: DEPT-FIN-003
+- Name: Finance & Risk Management
+- Business/Escalation Owner: (Your Super Admin)
+
+2. User
+- Name: Elena Rodriguez
+- Email: erodriguez@guardianiq.com
+- Phone: +1-555-0300
+- Department: Finance & Risk Management
+- Role: admin
+
+3. Data Source
+- Code: DS-FIN-LEDGER
+- Name: Transaction Ledger Database
+- Type: MongoDB
+- Classification: RESTRICTED
+- Sensitivity Level: CRITICAL
+- Owner: Elena Rodriguez
+- Connection: mongodb://finance-cluster:27017/ledger
+
+4. Tool
+- Code: API-ACCOUNT-FREEZE
+- Name: Core Banking Account Freeze API
+- Category: API_CONNECTOR
+- Access Mode: EXECUTE
+- Sensitivity Level: CRITICAL
+- Endpoint: https://core.banking.internal/api/v2/accounts/freeze
+- Owner: Elena Rodriguez
+
+5. AI Model
+- Code: ML-FRAUD-DETECT-V4
+- Name: Transaction Anomaly Detector
+- Type: CLASSIFICATION
+- Purpose: Neural network detecting real-time fraudulent patterns in credit card swipes.
+- Risk Level: CRITICAL
+- Owner: Elena Rodriguez
+
+6. AI Agent
+- Code: AGENT-FRAUD-SENTINEL
+- Name: Autonomous Fraud Sentinel
+- Type: EVENT_DRIVEN
+- Execution Mode: FULLY_AUTONOMOUS
+- Risk Level: CRITICAL
+- Confidence Threshold: 0.99
+- Owner: Elena Rodriguez
+
+7. Workflow
+- Code: WF-FRAUD-FREEZE
+- Name: Zero-Day Fraud Freeze Protocol
+- Type: SECURITY_RESPONSE
+- Business Criticality: MISSION_CRITICAL
+- Approval Required: No
+- Owner: Elena Rodriguez
+- Build Steps (Canvas): START -> Ingest Ledger Stream -> Evaluate Anomaly -> Execute Account Freeze -> Alert Risk Team -> END
+
+8. Relationships to Build
+- Go to Agent (Autonomous Fraud Sentinel):
+  -> + Add Relationship -> Target: MODEL (Transaction Anomaly Detector) -> Action: USES
+  -> + Add Relationship -> Target: WORKFLOW (Zero-Day Fraud Freeze Protocol) -> Action: EXECUTES
+- Go to Workflow (Zero-Day Fraud Freeze Protocol):
+  -> + Add Relationship -> Target: DATA_SOURCE (Transaction Ledger Database) -> Action: USES
+  -> + Add Relationship -> Target: TOOL (Core Banking Account Freeze API) -> Action: USES

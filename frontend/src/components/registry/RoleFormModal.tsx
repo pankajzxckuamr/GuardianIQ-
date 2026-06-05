@@ -223,8 +223,8 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditMode ? `Edit Role: ${formData.role_name}` : "Register New Governance Role"}
-      size="md"
+      title={isEditMode ? `Edit Role: ${formData.role_name}` : "Register New Role"}
+      size="xl"
     >
       <div className={styles.container}>
         {generalError && <div className={styles.generalAlert}>{generalError}</div>}

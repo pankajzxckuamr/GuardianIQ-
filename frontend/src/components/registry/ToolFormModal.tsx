@@ -323,8 +323,8 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditMode ? `Edit Tool: ${formData.tool_name}` : "Register New Tool & Connector"}
-      size={isEditMode ? "xl" : "lg"}
+      title={isEditMode ? `Edit Tool: ${formData.tool_name}` : "Register New Tool"}
+      size="xl"
     >
       <div className={styles.container}>
         {/* Tab Headers */}

@@ -14,6 +14,3 @@ from app.modules.registry.models import (
     RegistryAIModel, RegistryAIAgent, RegistryTool, RegistryWorkflow,
     RegistryRelationship, RegistryAuditEvent
 )
-from app.modules.orchestration.models import (
-    WorkflowExecution, WorkflowSchedule, ExecutionFinding, ExecutionEventLog
-)

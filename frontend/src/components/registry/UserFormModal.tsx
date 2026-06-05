@@ -226,7 +226,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit User: ${formData.full_name}` : "Register New User"}
-      size="md"
+      size="xl"
     >
       <div className={styles.container}>
         {generalError && <div className={styles.generalAlert}>{generalError}</div>}

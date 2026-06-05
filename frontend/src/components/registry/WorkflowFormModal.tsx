@@ -10,7 +10,6 @@ import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import WorkflowNodeCanvas, { WorkflowStep } from "./WorkflowNodeCanvas";
-import { orchestrationService } from "../../services/orchestration/orchestrationService";
 import { PlayCircle } from "lucide-react";
 import styles from "./WorkflowFormModal.module.css";
 
@@ -334,22 +333,12 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     }
   };
 
-  const handleExecute = async (isDryRun: boolean = false) => {
-    if (!workflowId) return;
-    try {
-      await orchestrationService.triggerExecution(workflowId, isDryRun);
-      showToast(`Workflow execution triggered${isDryRun ? " (Dry Run)" : ""}`, "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to trigger execution", "error");
-    }
-  };
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Workflow: ${formData.workflow_name}` : "Register New Governance Workflow"}
-      size={isEditMode ? "xl" : "lg"}
+      size="xl"
     >
       <div className={styles.container}>
         {/* Tab Headers */}
@@ -375,19 +364,6 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
               onClick={() => setActiveTab("audit")}
             >
               Audit Trail
-            </button>
-          </div>
-        )}
-
-        {isEditMode && (
-          <div style={{ position: "absolute", top: "16px", right: "48px", display: "flex", gap: "8px" }}>
-            <button
-              type="button"
-              onClick={() => handleExecute(false)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium text-sm transition-colors"
-            >
-              <PlayCircle size={16} />
-              Execute Live
             </button>
           </div>
         )}
