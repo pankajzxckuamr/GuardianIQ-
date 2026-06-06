@@ -159,6 +159,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { label: "Foundation Health", path: "/health", icon: HeartPulse },
     { label: "Audit Logs", path: "/audit", icon: History },
+    { label: "Executions", path: "/executions", icon: GitBranch },
   ];
 
   // Admin and Superuser items

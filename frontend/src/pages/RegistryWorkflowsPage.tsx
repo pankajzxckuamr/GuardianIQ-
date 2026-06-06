@@ -12,6 +12,9 @@ import { useRegistryEntity } from "../hooks/useRegistryEntity";
 import { useAuth } from "../hooks/useAuth";
 import * as registryService from "../services/registry/registryService";
 import { useSearchParams } from "react-router-dom";
+import { useToast } from "../hooks/useToast";
+import { orchestrationService } from "../services/orchestration/orchestrationService";
+import { Play } from "lucide-react";
 import styles from "./RegistryWorkflowsPage.module.css";
 
 export const RegistryWorkflowsPage: React.FC = () => {
@@ -19,6 +22,28 @@ export const RegistryWorkflowsPage: React.FC = () => {
   const { filters, setFilter, paginationProps } = useRegistryFilters("workflow_name");
   const [searchParams, setSearchParams] = useSearchParams();
   const viewId = searchParams.get("view");
+  const { showToast } = useToast();
+  const [executingId, setExecutingId] = useState<string | null>(null);
+
+  const handleRunWorkflow = async (e: React.MouseEvent, row: any) => {
+    e.stopPropagation();
+    setExecutingId(row.id);
+    try {
+      showToast(`Triggering execution for workflow "${row.workflow_name}"...`, "info");
+      const res = await orchestrationService.triggerExecution(row.id, false);
+      if (res && res.message) {
+        showToast(`Workflow execution triggered successfully! Task ID: ${res.task_id || "N/A"}`, "success");
+      } else {
+        showToast("Workflow execution triggered.", "success");
+      }
+    } catch (err: any) {
+      console.error("Failed to trigger execution:", err);
+      const errMsg = err?.response?.data?.detail || err?.message || "Internal Server Error";
+      showToast(`Failed to trigger execution: ${errMsg}`, "error");
+    } finally {
+      setExecutingId(null);
+    }
+  };
 
   // Set document title
   useEffect(() => {
@@ -162,6 +187,24 @@ export const RegistryWorkflowsPage: React.FC = () => {
       key: "status", 
       label: "Status",
       render: (row: any) => <RegistryStatusBadge status={row.status} />
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: any) => {
+        const isExecuting = executingId === row.id;
+        return (
+          <button
+            className={styles.runButton}
+            onClick={(e) => handleRunWorkflow(e, row)}
+            disabled={isExecuting}
+            title="Execute Workflow Live"
+          >
+            <Play size={12} className={isExecuting ? styles.spinIcon : ""} />
+            <span>{isExecuting ? "Running..." : "Run"}</span>
+          </button>
+        );
+      }
     }
   ];
 

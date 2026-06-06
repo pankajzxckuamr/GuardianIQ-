@@ -17,6 +17,8 @@ import json
 
 class RegistryEncoder(json.JSONEncoder):
     def default(self, obj):
+        if type(obj).__name__ == 'Decimal':
+            return float(obj)
         if isinstance(obj, UUID):
             return str(obj)
         if hasattr(obj, 'isoformat'):

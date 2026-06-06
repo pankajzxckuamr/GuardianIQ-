@@ -66,20 +66,21 @@
 /* Sizing Options */
 .sm {
   width: calc(100% - 2rem);
-  max-width: 350px;
+  max-width: 450px;
 }
 
 .md {
   width: calc(100% - 2rem);
-  max-width: 500px;
+  max-width: 680px;
 }
 
 .lg {
   width: calc(100% - 2rem);
-  max-width: 700px;
+  max-width: 980px;
 }
 
 .xl {
   width: calc(100% - 2rem);
-  max-width: 1100px;
+  max-width: 1500px;
 }
+

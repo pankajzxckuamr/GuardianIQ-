@@ -10,7 +10,6 @@ import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import WorkflowNodeCanvas, { WorkflowStep } from "./WorkflowNodeCanvas";
-import { PlayCircle } from "lucide-react";
 import styles from "./WorkflowFormModal.module.css";
 
 const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
