@@ -3,7 +3,8 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.modules.auth.models import User # using User from auth, wait, user said "guardian_users" is for Phase 1
+from app.modules.auth.models import User, Role as AuthRole
+from app.core.security import hash_password
 from app.modules.registry.models import (
     RegistryAIModel, RegistryAIAgent, GuardianUser, RegistryDepartment,
     RegistryTool, RegistryWorkflow, RegistryRole, RegistryDataSource
@@ -545,6 +546,25 @@ def create_user(db: Session, payload: schemas.GuardianUserCreate, current_user) 
     if payload.role_id:
         validators.validate_entity_exists(db, RegistryRole, payload.role_id, "Role")
         
+    # Attempt to create the AuthUser automatically for login
+    auth_user = db.query(User).filter(User.email == payload.email).first()
+    if not auth_user:
+        auth_user = User(
+            name=payload.full_name,
+            full_name=payload.full_name,
+            email=payload.email,
+            hashed_password=hash_password("Admin@1234!")
+        )
+        db.add(auth_user)
+        db.flush()
+        
+        if payload.role_id:
+            reg_role = repo.get_role_by_id(db, payload.role_id)
+            if reg_role:
+                auth_role = db.query(AuthRole).filter(AuthRole.role_code == reg_role.role_code).first()
+                if auth_role:
+                    auth_user.roles.append(auth_role)
+    
     user = repo.create_user(db, payload.model_dump())
     
     write_registry_audit(
