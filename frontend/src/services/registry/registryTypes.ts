@@ -27,7 +27,7 @@ export type ToolCategory = "ERP" | "CRM" | "EMAIL" | "TICKETING" | "DATABASE" | 
 
 export type AccessMode = "READ_ONLY" | "WRITE" | "EXECUTE" | "ADMIN";
 
-export type WorkflowType = "ENQUIRY" | "APPROVAL" | "CUSTOMER_SIGNAL" | "RISK_REVIEW" | "OPERATIONAL_ACTION";
+export type WorkflowType = "ENQUIRY" | "APPROVAL" | "CUSTOMER_SIGNAL" | "RISK_REVIEW" | "OPERATIONAL_ACTION" | "AI_AGENT_PIPELINE";
 
 export type SourceType = "DATABASE" | "API" | "FILE" | "CRM" | "ERP" | "DATA_LAKE" | "EMAIL" | "WEBFORM";
 

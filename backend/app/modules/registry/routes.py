@@ -25,7 +25,7 @@ audit_router = APIRouter()
 search_router = APIRouter()
 
 def require_read_roles(current_user, request_id: str):
-    if current_user.role_code not in ["ADMIN", "GOVERNANCE_MANAGER", "REVIEWER", "AUDITOR"]:
+    if current_user.role_code not in ["ADMIN", "GOVERNANCE_MANAGER", "APPROVER", "AUDITOR"]:
         raise HTTPException(403, detail=ResponseHelper.error(
             message="Insufficient permission", error_code="FORBIDDEN", request_id=request_id
         ).model_dump())
@@ -546,7 +546,7 @@ def approve_workflow_endpoint(
     current_user = Depends(get_current_user)
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    require_write_roles(current_user, request_id)
+    require_read_roles(current_user, request_id)
     
     workflow = services.approve_workflow(db, id, current_user)
     db.commit()
@@ -565,7 +565,7 @@ def reject_workflow_endpoint(
     current_user = Depends(get_current_user)
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    require_write_roles(current_user, request_id)
+    require_read_roles(current_user, request_id)
     
     workflow = services.reject_workflow(db, id, current_user)
     db.commit()
