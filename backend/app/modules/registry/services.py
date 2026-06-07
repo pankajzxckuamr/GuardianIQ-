@@ -268,8 +268,21 @@ def create_workflow(db: Session, payload: schemas.WorkflowCreate, current_user) 
         validators.validate_entity_exists(db, GuardianUser, payload.owner_user_id, "Owner User")
     if payload.department_id:
         validators.validate_entity_exists(db, RegistryDepartment, payload.department_id, "Department")
+    if payload.approver_user_id:
+        validators.validate_entity_exists(db, GuardianUser, payload.approver_user_id, "Approver User")
+        
+    if payload.approval_required and payload.approver_user_id:
+        payload.status = "PENDING_APPROVAL"
         
     workflow = repo.create_workflow(db, payload.model_dump())
+    
+    if workflow.approval_required and workflow.approver_user_id:
+        owner = repo.get_user_by_id(db, workflow.owner_user_id) if workflow.owner_user_id else None
+        approver = repo.get_user_by_id(db, workflow.approver_user_id)
+        owner_name = owner.full_name if owner else "Unknown"
+        if approver:
+            from app.modules.registry.notifications import send_workflow_approval_notification
+            send_workflow_approval_notification(workflow.workflow_name, approver.email, owner_name)
     
     write_registry_audit(
         db=db,
@@ -292,10 +305,20 @@ def update_workflow(db: Session, workflow_id: UUID, payload: schemas.WorkflowUpd
         validators.validate_entity_exists(db, GuardianUser, payload.owner_user_id, "Owner User")
     if payload.department_id:
         validators.validate_entity_exists(db, RegistryDepartment, payload.department_id, "Department")
+    if payload.approver_user_id:
+        validators.validate_entity_exists(db, GuardianUser, payload.approver_user_id, "Approver User")
 
     before_state = to_dict(workflow)
     workflow = repo.update_workflow(db, workflow, payload.model_dump(exclude_unset=True))
     after_state = to_dict(workflow)
+    
+    if workflow.approval_required and workflow.approver_user_id:
+        owner = repo.get_user_by_id(db, workflow.owner_user_id) if workflow.owner_user_id else None
+        approver = repo.get_user_by_id(db, workflow.approver_user_id)
+        owner_name = owner.full_name if owner else "Unknown"
+        if approver:
+            from app.modules.registry.notifications import send_workflow_approval_notification
+            send_workflow_approval_notification(workflow.workflow_name, approver.email, owner_name)
     
     write_registry_audit(
         db=db,
@@ -329,6 +352,64 @@ def change_workflow_status(db: Session, workflow_id: UUID, payload: schemas.Stat
         before_json=before_state,
         after_json=after_state,
         change_summary=payload.reason or f"Status changed to {payload.status}"
+    )
+    return workflow
+
+def approve_workflow(db: Session, workflow_id: UUID, current_user) -> RegistryWorkflow:
+    workflow = repo.get_workflow_by_id(db, workflow_id)
+    if not workflow:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Workflow not found", error_code="NOT_FOUND").model_dump())
+        
+    if workflow.status != "PENDING_APPROVAL":
+        raise HTTPException(400, detail=ResponseHelper.error(message="Workflow is not pending approval", error_code="VALIDATION_ERROR").model_dump())
+        
+    # Security check: only the assigned approver or admin can approve
+    is_admin = current_user.role_code in ["ADMIN", "GOVERNANCE_MANAGER"]
+    if str(workflow.approver_user_id) != str(current_user.id) and not is_admin:
+        raise HTTPException(403, detail=ResponseHelper.error(message="Only the designated approver can approve this workflow", error_code="FORBIDDEN").model_dump())
+        
+    before_state = to_dict(workflow)
+    workflow = repo.change_workflow_status(db, workflow, "ACTIVE")
+    after_state = to_dict(workflow)
+    
+    write_registry_audit(
+        db=db,
+        entity_type="WORKFLOW",
+        entity_id=workflow.id,
+        event_type="STATUS_CHANGED",
+        changed_by=current_user.id,
+        before_json=before_state,
+        after_json=after_state,
+        change_summary="Workflow approved by designated approver"
+    )
+    return workflow
+
+def reject_workflow(db: Session, workflow_id: UUID, current_user) -> RegistryWorkflow:
+    workflow = repo.get_workflow_by_id(db, workflow_id)
+    if not workflow:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Workflow not found", error_code="NOT_FOUND").model_dump())
+        
+    if workflow.status != "PENDING_APPROVAL":
+        raise HTTPException(400, detail=ResponseHelper.error(message="Workflow is not pending approval", error_code="VALIDATION_ERROR").model_dump())
+        
+    # Security check: only the assigned approver or admin can reject
+    is_admin = current_user.role_code in ["ADMIN", "GOVERNANCE_MANAGER"]
+    if str(workflow.approver_user_id) != str(current_user.id) and not is_admin:
+        raise HTTPException(403, detail=ResponseHelper.error(message="Only the designated approver can reject this workflow", error_code="FORBIDDEN").model_dump())
+        
+    before_state = to_dict(workflow)
+    workflow = repo.change_workflow_status(db, workflow, "REJECTED")
+    after_state = to_dict(workflow)
+    
+    write_registry_audit(
+        db=db,
+        entity_type="WORKFLOW",
+        entity_id=workflow.id,
+        event_type="STATUS_CHANGED",
+        changed_by=current_user.id,
+        before_json=before_state,
+        after_json=after_state,
+        change_summary="Workflow rejected by designated approver"
     )
     return workflow
 

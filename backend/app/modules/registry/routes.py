@@ -538,6 +538,44 @@ def change_workflow_status(
         request_id=request_id
     )
 
+@workflows_router.post("/workflows/{id}/approve", summary="Approve Workflow", description="Approve a pending workflow.")
+def approve_workflow_endpoint(
+    request: Request,
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    
+    workflow = services.approve_workflow(db, id, current_user)
+    db.commit()
+    
+    return ResponseHelper.success(
+        data=schemas.WorkflowResponse.model_validate(workflow).model_dump(),
+        message="Workflow approved successfully",
+        request_id=request_id
+    )
+
+@workflows_router.post("/workflows/{id}/reject", summary="Reject Workflow", description="Reject a pending workflow.")
+def reject_workflow_endpoint(
+    request: Request,
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    
+    workflow = services.reject_workflow(db, id, current_user)
+    db.commit()
+    
+    return ResponseHelper.success(
+        data=schemas.WorkflowResponse.model_validate(workflow).model_dump(),
+        message="Workflow rejected successfully",
+        request_id=request_id
+    )
+
 # ---------------------------------------------------------
 # Summary Endpoint
 # ---------------------------------------------------------

@@ -2,6 +2,8 @@
 
 export enum EntityStatus {
   DRAFT = "DRAFT",
+  PENDING_APPROVAL = "PENDING_APPROVAL",
+  REJECTED = "REJECTED",
   ACTIVE = "ACTIVE",
   INACTIVE = "INACTIVE",
   SUSPENDED = "SUSPENDED",
@@ -89,6 +91,7 @@ export interface Workflow {
   workflow_type: WorkflowType;
   department_id?: string;
   owner_user_id?: string;
+  approver_user_id?: string;
   description?: string;
   approval_required?: boolean;
   business_criticality?: string;
@@ -97,6 +100,9 @@ export interface Workflow {
   metadata_json?: any;
   created_at: string;
   updated_at: string;
+  owner_name?: string;
+  approver_name?: string;
+  approver_email?: string;
 }
 
 export interface GuardianUser {

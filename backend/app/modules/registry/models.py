@@ -158,12 +158,15 @@ class RegistryWorkflow(Base):
     owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"))
     description = Column(Text, nullable=True)
     approval_required = Column(Boolean, default=False)
+    approver_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
     business_criticality = Column(String(50), nullable=False)
     status = Column(String(30), default='DRAFT')
     steps_json = Column(JSONB, nullable=True)
     metadata_json = Column(JSONB, nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, default=func.now())
     updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
+
+    approver = relationship("GuardianUser", foreign_keys=[approver_user_id])
 
 class RegistryRelationship(Base):
     __tablename__ = "registry_relationships"

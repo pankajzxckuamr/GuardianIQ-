@@ -185,6 +185,18 @@ export function changeWorkflowStatus(id: string, status: string, reason?: string
   );
 }
 
+export function approveWorkflow(id: string): Promise<ApiResponse<Workflow>> {
+  return wrapResponse<Workflow>(
+    serverClient.post(`${BASE_PATH}/workflows/${id}/approve`)
+  );
+}
+
+export function rejectWorkflow(id: string): Promise<ApiResponse<Workflow>> {
+  return wrapResponse<Workflow>(
+    serverClient.post(`${BASE_PATH}/workflows/${id}/reject`)
+  );
+}
+
 export function deleteWorkflow(id: string): Promise<ApiResponse<void>> {
   return wrapResponse<void>(
     serverClient.delete(`${BASE_PATH}/workflows/${id}`)

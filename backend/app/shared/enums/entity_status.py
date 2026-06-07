@@ -2,6 +2,8 @@ from enum import Enum
 
 class EntityStatus(str, Enum):
     DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    REJECTED = "REJECTED"
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     SUSPENDED = "SUSPENDED"

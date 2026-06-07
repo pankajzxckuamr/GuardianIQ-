@@ -14,7 +14,7 @@ import * as registryService from "../services/registry/registryService";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../hooks/useToast";
 import { orchestrationService } from "../services/orchestration/orchestrationService";
-import { Play } from "lucide-react";
+import { Play, Check, X } from "lucide-react";
 import styles from "./RegistryWorkflowsPage.module.css";
 
 export const RegistryWorkflowsPage: React.FC = () => {
@@ -42,6 +42,28 @@ export const RegistryWorkflowsPage: React.FC = () => {
       showToast(`Failed to trigger execution: ${errMsg}`, "error");
     } finally {
       setExecutingId(null);
+    }
+  };
+
+  const handleApproveWorkflow = async (e: React.MouseEvent, row: any) => {
+    e.stopPropagation();
+    try {
+      await registryService.approveWorkflow(row.id);
+      showToast(`Workflow "${row.workflow_name}" approved.`, "success");
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || "Failed to approve workflow.", "error");
+    }
+  };
+
+  const handleRejectWorkflow = async (e: React.MouseEvent, row: any) => {
+    e.stopPropagation();
+    try {
+      await registryService.rejectWorkflow(row.id);
+      showToast(`Workflow "${row.workflow_name}" rejected.`, "success");
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || "Failed to reject workflow.", "error");
     }
   };
 
@@ -183,6 +205,11 @@ export const RegistryWorkflowsPage: React.FC = () => {
         </span>
       )
     },
+    {
+      key: "approver",
+      label: "Approver",
+      render: (row: any) => row.approver_name || row.approver_email || "—"
+    },
     { 
       key: "status", 
       label: "Status",
@@ -193,16 +220,44 @@ export const RegistryWorkflowsPage: React.FC = () => {
       label: "Actions",
       render: (row: any) => {
         const isExecuting = executingId === row.id;
+        const isPending = row.status === "PENDING_APPROVAL";
+        const canApprove = currentUser && (currentUser.email === row.approver_email || currentUser.roles?.some((role: string) => ["admin", "governance_manager", "super_admin"].includes(role.toLowerCase())));
+
         return (
-          <button
-            className={styles.runButton}
-            onClick={(e) => handleRunWorkflow(e, row)}
-            disabled={isExecuting}
-            title="Execute Workflow Live"
-          >
-            <Play size={12} className={isExecuting ? styles.spinIcon : ""} />
-            <span>{isExecuting ? "Running..." : "Run"}</span>
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className={styles.runButton}
+              onClick={(e) => handleRunWorkflow(e, row)}
+              disabled={isExecuting}
+              title="Execute Workflow Live"
+            >
+              <Play size={12} className={isExecuting ? styles.spinIcon : ""} />
+              <span>{isExecuting ? "Running..." : "Run"}</span>
+            </button>
+            
+            {isPending && canApprove && (
+              <>
+                <button
+                  className={styles.runButton}
+                  style={{ backgroundColor: '#10b981', color: 'white', borderColor: '#059669' }}
+                  onClick={(e) => handleApproveWorkflow(e, row)}
+                  title="Approve Workflow"
+                >
+                  <Check size={12} />
+                  <span>Approve</span>
+                </button>
+                <button
+                  className={styles.runButton}
+                  style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#b91c1c' }}
+                  onClick={(e) => handleRejectWorkflow(e, row)}
+                  title="Reject Workflow"
+                >
+                  <X size={12} />
+                  <span>Reject</span>
+                </button>
+              </>
+            )}
+          </div>
         );
       }
     }
@@ -244,6 +299,8 @@ export const RegistryWorkflowsPage: React.FC = () => {
           >
             <option value="">All Statuses</option>
             <option value="DRAFT">DRAFT</option>
+            <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
+            <option value="REJECTED">REJECTED</option>
             <option value="ACTIVE">ACTIVE</option>
             <option value="INACTIVE">INACTIVE</option>
             <option value="SUSPENDED">SUSPENDED</option>

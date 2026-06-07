@@ -300,13 +300,37 @@ def create_workflow(db: Session, data: dict) -> RegistryWorkflow:
     return workflow
 
 def get_workflow_by_id(db: Session, workflow_id: UUID) -> Optional[RegistryWorkflow]:
-    return db.execute(select(RegistryWorkflow).filter_by(id=workflow_id)).scalar_one_or_none()
+    OwnerUser = sa.orm.aliased(GuardianUser)
+    ApproverUser = sa.orm.aliased(GuardianUser)
+    
+    res = db.execute(
+        select(RegistryWorkflow, OwnerUser.full_name.label("owner_name"), ApproverUser.full_name.label("approver_name"), ApproverUser.email.label("approver_email"))
+        .outerjoin(OwnerUser, RegistryWorkflow.owner_user_id == OwnerUser.id)
+        .outerjoin(ApproverUser, RegistryWorkflow.approver_user_id == ApproverUser.id)
+        .filter(RegistryWorkflow.id == workflow_id)
+    ).first()
+    
+    if res:
+        workflow, owner_name, approver_name, approver_email = res
+        workflow.owner_name = owner_name
+        workflow.approver_name = approver_name
+        workflow.approver_email = approver_email
+        return workflow
+    return None
 
 def get_workflow_by_code(db: Session, code: str) -> Optional[RegistryWorkflow]:
     return db.execute(select(RegistryWorkflow).filter_by(workflow_code=code)).scalar_one_or_none()
 
 def list_workflows(db: Session, filters: dict, page: int, page_size: int, sort_by: str, sort_dir: str) -> Tuple[List[RegistryWorkflow], int]:
-    query = select(RegistryWorkflow)
+    OwnerUser = sa.orm.aliased(GuardianUser)
+    ApproverUser = sa.orm.aliased(GuardianUser)
+
+    query = select(RegistryWorkflow, OwnerUser.full_name.label("owner_name"), ApproverUser.full_name.label("approver_name"), ApproverUser.email.label("approver_email")).outerjoin(
+        OwnerUser, RegistryWorkflow.owner_user_id == OwnerUser.id
+    ).outerjoin(
+        ApproverUser, RegistryWorkflow.approver_user_id == ApproverUser.id
+    )
+
     if filters.get("search"):
         search_term = f"%{filters['search']}%"
         query = query.filter(or_(RegistryWorkflow.workflow_name.ilike(search_term), RegistryWorkflow.workflow_code.ilike(search_term)))
@@ -317,7 +341,15 @@ def list_workflows(db: Session, filters: dict, page: int, page_size: int, sort_b
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))
     
     total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()
-    items = db.execute(query.offset((page - 1) * page_size).limit(page_size)).scalars().all()
+    results = db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
+    
+    items = []
+    for workflow, owner_name, approver_name, approver_email in results:
+        workflow.owner_name = owner_name
+        workflow.approver_name = approver_name
+        workflow.approver_email = approver_email
+        items.append(workflow)
+        
     return items, total
 
 def update_workflow(db: Session, workflow: RegistryWorkflow, data: dict) -> RegistryWorkflow:

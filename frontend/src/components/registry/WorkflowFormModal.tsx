@@ -44,6 +44,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     workflow_type: "",
     department_id: "",
     owner_user_id: "",
+    approver_user_id: "",
     description: "",
     approval_required: false,
     business_criticality: "",
@@ -103,6 +104,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         workflow_type: "",
         department_id: "",
         owner_user_id: "",
+        approver_user_id: "",
         description: "",
         approval_required: false,
         business_criticality: "",
@@ -155,6 +157,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
             workflow_type: w.workflow_type || "",
             department_id: w.department_id || "",
             owner_user_id: w.owner_user_id || "",
+            approver_user_id: w.approver_user_id || "",
             description: w.description || "",
             approval_required: !!w.approval_required,
             business_criticality: w.business_criticality || "",
@@ -199,6 +202,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
           workflow_type: "",
           department_id: "",
           owner_user_id: "",
+          approver_user_id: "",
           description: "",
           approval_required: false,
           business_criticality: "",
@@ -585,6 +589,34 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
                           <span>Requires Governance Approval <FieldInfo tooltip="Whether explicit governance approval is required before execution." /></span>
                         </label>
                       </div>
+
+                      {/* Approver User */}
+                      {formData.approval_required && (
+                        <div className={styles.formGroup}>
+                          <label htmlFor="approver_user_id" className={styles.label}>Approver User <FieldInfo tooltip="The designated approver for this workflow." /></label>
+                          <select
+                            id="approver_user_id"
+                            name="approver_user_id"
+                            value={formData.approver_user_id}
+                            onChange={handleChange}
+                            disabled={loading || loadingLookups}
+                            className={styles.select}
+                          >
+                            {loadingLookups ? (
+                              <option value="">Loading approvers...</option>
+                            ) : (
+                              <>
+                                <option value="">-- Select Approver --</option>
+                                {users.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.full_name} ({u.email})
+                                  </option>
+                                ))}
+                              </>
+                            )}
+                          </select>
+                        </div>
+                      )}
 
                       {/* Status (Edit only) */}
                       {isEditMode && (

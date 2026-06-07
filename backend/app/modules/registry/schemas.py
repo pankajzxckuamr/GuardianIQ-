@@ -229,6 +229,7 @@ class WorkflowBase(BaseModel):
     workflow_type: WorkflowType
     department_id: Optional[UUID] = None
     owner_user_id: Optional[UUID] = None
+    approver_user_id: Optional[UUID] = None
     description: Optional[str] = None
     approval_required: bool = False
     business_criticality: str
@@ -256,6 +257,9 @@ class WorkflowResponse(WorkflowBase):
     workflow_code: str
     created_at: datetime
     updated_at: datetime
+    owner_name: Optional[str] = None
+    approver_name: Optional[str] = None
+    approver_email: Optional[str] = None
 
     class Config:
         from_attributes = True
