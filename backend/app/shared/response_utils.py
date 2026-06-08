@@ -32,14 +32,19 @@ class ResponseHelper:
         message: str,
         data: Any = None,
         status_code: int = 400,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
+        error_code: Optional[str] = None,
+        **kwargs
     ) -> StandardResponse:
         """Create an error response."""
+        if data is None and "details" in kwargs:
+            data = kwargs["details"]
         return StandardResponse(
             status="error",
             request_id=request_id or get_request_id(),
             message=message,
-            data=data
+            data=data,
+            error_code=error_code
         )
     
     @staticmethod

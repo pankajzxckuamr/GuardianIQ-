@@ -67,3 +67,13 @@ export async function refreshAccessToken(req: RefreshRequest): Promise<TokenResp
   const body = await res.json();
   return body.data ?? body;
 }
+
+export async function changePassword(newPassword: string, token: string): Promise<void> {
+  const res = await fetch(`${AUTH_BASE}/change-password`, {
+    method: "POST",
+    headers: authHeaders(token),
+    credentials: "include",
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
+}

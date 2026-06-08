@@ -49,14 +49,17 @@ export function useRegistryFilters(defaultSortBy = "", defaultPageSize = 10) {
   const setFilter = useCallback((key: string, value: any) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (value === undefined || value === null || value === "") {
+      const currentValue = prev.get(key) || "";
+      const newValue = value === undefined || value === null ? "" : String(value);
+
+      if (newValue === "") {
         next.delete(key);
       } else {
-        next.set(key, String(value));
+        next.set(key, newValue);
       }
 
-      // Whenever we change filters (other than page), reset page to 1
-      if (key !== "page") {
+      // Only reset page to 1 if the key is not "page" AND the value actually changed
+      if (key !== "page" && currentValue !== newValue) {
         next.set("page", "1");
       }
       return next;

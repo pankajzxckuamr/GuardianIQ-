@@ -30,6 +30,12 @@ def add_exception_handlers(app: FastAPI):
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        if isinstance(exc.detail, dict):
+            content = exc.detail.copy()
+            if "request_id" not in content or not content["request_id"]:
+                content["request_id"] = get_request_id()
+            return JSONResponse(status_code=exc.status_code, content=content)
+            
         return JSONResponse(
             status_code=exc.status_code,
             content=StandardResponse(

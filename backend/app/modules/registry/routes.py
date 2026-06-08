@@ -44,7 +44,7 @@ def require_write_roles(current_user, request_id: str):
 def list_models(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     model_type: Optional[str] = None,
@@ -171,7 +171,7 @@ def change_model_status(
 def list_agents(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     agent_type: Optional[str] = None,
@@ -298,7 +298,7 @@ def change_agent_status(
 def list_tools(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     tool_category: Optional[str] = None,
@@ -425,9 +425,12 @@ def change_tool_status(
 def list_workflows(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
+    workflow_type: Optional[str] = None,
+    business_criticality: Optional[str] = None,
+    approval_required: Optional[bool] = None,
     sort_by: str = Query("created_at"),
     sort_dir: str = Query("desc"),
     db: Session = Depends(get_db),
@@ -438,7 +441,10 @@ def list_workflows(
     
     filters = {
         "search": search,
-        "status": status
+        "status": status,
+        "workflow_type": workflow_type,
+        "business_criticality": business_criticality,
+        "approval_required": approval_required
     }
     
     items, total = repo.list_workflows(db, filters, page, page_size, sort_by, sort_dir)
@@ -614,7 +620,7 @@ def lookup_departments(request: Request, db: Session = Depends(get_db), current_
 
 @departments_router.get("/departments", summary="List Departments")
 def list_departments(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -683,7 +689,7 @@ def lookup_roles(request: Request, db: Session = Depends(get_db), current_user =
 
 @roles_router.get("/roles", summary="List Roles")
 def list_roles(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -752,7 +758,7 @@ def lookup_users(request: Request, db: Session = Depends(get_db), current_user =
 
 @users_router.get("/users", summary="List Users")
 def list_users(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -810,7 +816,7 @@ def change_user_status(request: Request, id: UUID, payload: schemas.StatusChange
 
 @data_sources_router.get("/data-sources", summary="List Data Sources")
 def list_data_sources(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -986,7 +992,7 @@ def delete_data_source(request: Request, id: UUID, db: Session = Depends(get_db)
 @audit_router.get("/audit/{entity_type}/{entity_id}", summary="Get Audit Events")
 def get_audit_events(
     request: Request, entity_type: str, entity_id: UUID, event_type: Optional[str] = None,
-    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))

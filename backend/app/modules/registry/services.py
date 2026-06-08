@@ -366,7 +366,18 @@ def approve_workflow(db: Session, workflow_id: UUID, current_user) -> RegistryWo
         
     # Security check: only the assigned approver or admin can approve
     is_admin = current_user.role_code in ["ADMIN", "GOVERNANCE_MANAGER"]
-    if str(workflow.approver_user_id) != str(current_user.id) and not is_admin:
+    
+    approver_email = getattr(workflow, "approver_email", None)
+    if not approver_email and workflow.approver_user_id:
+        approver = db.query(GuardianUser).filter(GuardianUser.id == workflow.approver_user_id).first()
+        if approver:
+            approver_email = approver.email
+            
+    is_approver = False
+    if approver_email and current_user.email:
+        is_approver = (approver_email.strip().lower() == current_user.email.strip().lower())
+        
+    if not is_approver and not is_admin:
         raise HTTPException(403, detail=ResponseHelper.error(message="Only the designated approver can approve this workflow", error_code="FORBIDDEN").model_dump())
         
     before_state = to_dict(workflow)
@@ -395,7 +406,18 @@ def reject_workflow(db: Session, workflow_id: UUID, current_user) -> RegistryWor
         
     # Security check: only the assigned approver or admin can reject
     is_admin = current_user.role_code in ["ADMIN", "GOVERNANCE_MANAGER"]
-    if str(workflow.approver_user_id) != str(current_user.id) and not is_admin:
+    
+    approver_email = getattr(workflow, "approver_email", None)
+    if not approver_email and workflow.approver_user_id:
+        approver = db.query(GuardianUser).filter(GuardianUser.id == workflow.approver_user_id).first()
+        if approver:
+            approver_email = approver.email
+            
+    is_approver = False
+    if approver_email and current_user.email:
+        is_approver = (approver_email.strip().lower() == current_user.email.strip().lower())
+        
+    if not is_approver and not is_admin:
         raise HTTPException(403, detail=ResponseHelper.error(message="Only the designated approver can reject this workflow", error_code="FORBIDDEN").model_dump())
         
     before_state = to_dict(workflow)
@@ -549,11 +571,13 @@ def create_user(db: Session, payload: schemas.GuardianUserCreate, current_user) 
     # Attempt to create the AuthUser automatically for login
     auth_user = db.query(User).filter(User.email == payload.email).first()
     if not auth_user:
+        first_name = payload.full_name.split()[0] if payload.full_name else "User"
+        default_pwd = f"{first_name}@1234!"
         auth_user = User(
             name=payload.full_name,
             full_name=payload.full_name,
             email=payload.email,
-            hashed_password=hash_password("Admin@1234!")
+            hashed_password=hash_password(default_pwd)
         )
         db.add(auth_user)
         db.flush()

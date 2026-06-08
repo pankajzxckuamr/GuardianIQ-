@@ -15,7 +15,7 @@ from app.core.security import (
 from app.core.config import settings
 from jose import jwt, JWTError
 from app.modules.auth.dependencies import get_current_user, require_permission
-from app.modules.auth.schemas import TokenResponse, RefreshTokenRequest, RoleResponse, PermissionResponse
+from app.modules.auth.schemas import TokenResponse, RefreshTokenRequest, RoleResponse, PermissionResponse, ChangePasswordRequest
 from app.modules.auth.models import TokenBlocklist
 from app.modules.auth.dependencies import oauth2_scheme
 from app.shared.responses import StandardResponse
@@ -89,6 +89,29 @@ def login(
             detail="Invalid credentials"
         )
 
+    # Check if needs password change (excluding ADMIN, AUDITOR, APPROVER roles)
+    needs_password_change = False
+    is_excluded = False
+    for r in user.roles:
+        if r.role_code in ["SUPER_ADMIN", "ADMIN", "GOVERNANCE_ADMIN", "GOVERNANCE_MANAGER", "AUDITOR", "APPROVER"]:
+            is_excluded = True
+            break
+            
+    if not is_excluded:
+        first_name = user.name.split()[0] if user.name else "User"
+        first_name_fn = user.full_name.split()[0] if user.full_name else "User"
+        email_prefix = user.email.split("@")[0] if user.email else "User"
+        
+        default_pwd1 = f"{first_name}@1234!"
+        default_pwd2 = f"{first_name_fn}@1234!"
+        default_pwd3 = f"{email_prefix}@1234!"
+        
+        if (verify_password(default_pwd1, user.hashed_password) or 
+            verify_password(default_pwd2, user.hashed_password) or 
+            verify_password(default_pwd3, user.hashed_password) or 
+            verify_password("Admin@1234!", user.hashed_password)):
+            needs_password_change = True
+
     access_token = create_access_token(
         data={
             "sub": str(user.id),
@@ -136,10 +159,12 @@ def login(
         "status": "success",
         "message": "Login successful",
         "request_id": get_request_id(),
+        "needs_password_change": needs_password_change,
         "data": {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
+            "needs_password_change": needs_password_change,
             "user": {
                 "id": user.id,
                 "name": user.name,
@@ -251,6 +276,39 @@ def logout(
     return ResponseHelper.success(
         message="Logged out successfully",
         data=None
+    )
+
+
+@router.post("/change-password", response_model=StandardResponse[dict])
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.core.security import hash_password
+    
+    if not payload.new_password or len(payload.new_password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 6 characters long"
+        )
+        
+    first_name = current_user.name.split()[0] if current_user.name else "User"
+    first_name_fn = current_user.full_name.split()[0] if current_user.full_name else "User"
+    email_prefix = current_user.email.split("@")[0] if current_user.email else "User"
+    
+    if payload.new_password in [f"{first_name}@1234!", f"{first_name_fn}@1234!", f"{email_prefix}@1234!", "Admin@1234!"]:
+        raise HTTPException(
+            status_code=400,
+            detail="New password cannot be the same as the default password."
+        )
+        
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.commit()
+    
+    return ResponseHelper.success(
+        message="Password updated successfully",
+        data={"user_id": current_user.id}
     )
 
 

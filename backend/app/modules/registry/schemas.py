@@ -245,6 +245,7 @@ class WorkflowUpdate(BaseModel):
     workflow_type: Optional[WorkflowType] = None
     department_id: Optional[UUID] = None
     owner_user_id: Optional[UUID] = None
+    approver_user_id: Optional[UUID] = None
     description: Optional[str] = None
     approval_required: Optional[bool] = None
     business_criticality: Optional[str] = None

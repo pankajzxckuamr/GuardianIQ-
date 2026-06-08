@@ -336,6 +336,12 @@ def list_workflows(db: Session, filters: dict, page: int, page_size: int, sort_b
         query = query.filter(or_(RegistryWorkflow.workflow_name.ilike(search_term), RegistryWorkflow.workflow_code.ilike(search_term)))
     if filters.get("status"):
         query = query.filter(RegistryWorkflow.status == filters["status"])
+    if filters.get("workflow_type"):
+        query = query.filter(RegistryWorkflow.workflow_type == filters["workflow_type"])
+    if filters.get("business_criticality"):
+        query = query.filter(RegistryWorkflow.business_criticality == filters["business_criticality"])
+    if filters.get("approval_required") is not None:
+        query = query.filter(RegistryWorkflow.approval_required == filters["approval_required"])
 
     order_column = getattr(RegistryWorkflow, sort_by, RegistryWorkflow.created_at)
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))

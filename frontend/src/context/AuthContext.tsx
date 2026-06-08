@@ -5,9 +5,10 @@ import { storage } from "../utils/storage.ts";
 import { getErrorMessage } from "../utils/errors.ts";
 
 interface AuthContextProps extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<{ needsPasswordChange: boolean }>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  completeFirstLogin: (accessToken: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -72,12 +73,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string): Promise<{ needsPasswordChange: boolean }> => {
     setState((s) => ({ ...s, loading: true }));
     try {
       const data = await apiLogin({ username, password });
       setTokens(data.access_token, data.refresh_token);
+      
+      if (data.needs_password_change) {
+        setState((s) => ({ ...s, loading: false }));
+        return { needsPasswordChange: true };
+      }
+      
       await loadUser(data.access_token);
+      return { needsPasswordChange: false };
     } catch (e) {
       const msg = getErrorMessage(e);
       console.error("Login error:", msg);
@@ -86,6 +94,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setState({ currentUser: null, isAuthenticated: false, loading: false });
       throw new Error(msg);
     }
+  };
+
+  const completeFirstLogin = async (accessToken: string) => {
+    await loadUser(accessToken);
   };
 
   const logout = async () => {
@@ -118,6 +130,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         logout,
         refreshSession,
+        completeFirstLogin,
       }}
     >
       {children}
