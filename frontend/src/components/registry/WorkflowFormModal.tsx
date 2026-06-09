@@ -21,13 +21,17 @@ interface WorkflowFormModalProps {
   onClose: () => void;
   workflowId?: string | null;
   onSuccess: () => void;
+  defaultDepartmentId?: string | null;
+  defaultUserId?: string | null;
 }
 
 export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   isOpen,
   onClose,
   workflowId,
-  onSuccess
+  onSuccess,
+  defaultDepartmentId,
+  defaultUserId
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
@@ -200,8 +204,8 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
           workflow_code: "",
           workflow_name: "",
           workflow_type: "",
-          department_id: "",
-          owner_user_id: "",
+          department_id: defaultDepartmentId || "",
+          owner_user_id: defaultUserId || "",
           approver_user_id: "",
           description: "",
           approval_required: false,
@@ -216,7 +220,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         setCurrentWizardStep(0);
       }
     }
-  }, [isOpen, workflowId]);
+  }, [isOpen, workflowId, defaultDepartmentId, defaultUserId]);
 
   // Validate metadata_json
   useEffect(() => {

@@ -20,4 +20,5 @@ export interface AuditQueryParams {
   per_page?: number;
   event_type?: string;
   actor_id?: string;
+  created_after?: string;
 }

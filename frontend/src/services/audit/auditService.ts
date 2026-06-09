@@ -23,6 +23,7 @@ export async function fetchAuditEvents(
   if (params.per_page) query.set("per_page", String(params.per_page));
   if (params.event_type) query.set("event_type", params.event_type);
   if (params.actor_id) query.set("actor_id", params.actor_id);
+  if (params.created_after) query.set("created_after", params.created_after);
 
   const res = await fetch(`${AUDIT_BASE}/events?${query.toString()}`, {
     headers: auditHeaders(token),

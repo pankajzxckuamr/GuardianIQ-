@@ -23,6 +23,7 @@ data_sources_router = APIRouter()
 relationships_router = APIRouter()
 audit_router = APIRouter()
 search_router = APIRouter()
+register_all_router = APIRouter()
 
 def require_read_roles(current_user, request_id: str):
     if current_user.role_code not in ["ADMIN", "GOVERNANCE_MANAGER", "APPROVER", "AUDITOR"]:
@@ -1031,6 +1032,99 @@ def global_search(request: Request, q: str = Query(..., min_length=2), db: Sessi
     )
 
 # ---------------------------------------------------------
+# Register All / Guided Onboarding Endpoints
+# ---------------------------------------------------------
+
+@register_all_router.get("/register-all", summary="List Guided Onboardings", description="Retrieve paginated list of completed guided onboarding sessions.")
+def list_register_all_sessions(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    search: Optional[str] = None,
+    sort_by: str = Query("created_at"),
+    sort_dir: str = Query("desc"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_read_roles(current_user, request_id)
+    
+    items, total = services.list_register_all(db, {"search": search}, page, page_size, sort_by, sort_dir)
+    total_pages = math.ceil(total / page_size) if total > 0 else 0
+    
+    response_data = schemas.RegisterAllListResponse(
+        items=[schemas.RegisterAllResponse.model_validate(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1
+    )
+    
+    return ResponseHelper.success(
+        data=response_data.model_dump(),
+        message="Guided onboarding sessions retrieved successfully",
+        request_id=request_id
+    )
+
+@register_all_router.post("/register-all", summary="Create Guided Onboarding", description="Register a guided onboarding session linking all modules.")
+def create_register_all_session(
+    request: Request,
+    payload: schemas.RegisterAllCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    
+    session_record = services.create_register_all(db, payload, current_user)
+    db.commit()
+    
+    # Reload to join names
+    detail = services.get_register_all(db, session_record.id)
+    
+    return ResponseHelper.success(
+        data=schemas.RegisterAllResponse.model_validate(detail).model_dump(),
+        message="Guided onboarding session saved successfully",
+        request_id=request_id
+    )
+
+@register_all_router.get("/register-all/{id}", summary="Get Guided Onboarding Session")
+def get_register_all_session(
+    request: Request,
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_read_roles(current_user, request_id)
+    
+    session_record = services.get_register_all(db, id)
+    return ResponseHelper.success(
+        data=schemas.RegisterAllResponse.model_validate(session_record).model_dump(),
+        message="Guided onboarding session retrieved",
+        request_id=request_id
+    )
+
+@register_all_router.delete("/register-all/{id}", summary="Delete Guided Onboarding Session Record")
+def delete_register_all_session(
+    request: Request,
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    
+    services.delete_register_all(db, id, current_user)
+    db.commit()
+    return ResponseHelper.success(
+        message="Guided onboarding session record deleted",
+        request_id=request_id
+    )
+
+# ---------------------------------------------------------
 # Unified Registry Router
 # ---------------------------------------------------------
 router = APIRouter(prefix="/api/registry")
@@ -1046,3 +1140,4 @@ router.include_router(data_sources_router, tags=["Registry - Data Sources"])
 router.include_router(relationships_router, tags=["Registry - Relationships"])
 router.include_router(audit_router, tags=["Registry - Audit"])
 router.include_router(search_router, tags=["Registry - Search"])
+router.include_router(register_all_router, tags=["Registry - Register All"])

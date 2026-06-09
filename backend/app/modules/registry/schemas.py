@@ -536,3 +536,49 @@ class GlobalSearchResponse(BaseModel):
     users: List[SearchResultItem]
     data_sources: List[SearchResultItem]
 
+# ---------------------------------------------------------
+# Register All / Guided Onboarding Schemas
+# ---------------------------------------------------------
+
+class RegisterAllBase(BaseModel):
+    name: str
+    department_id: Optional[UUID] = None
+    role_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    data_source_id: Optional[UUID] = None
+    model_id: Optional[UUID] = None
+    agent_id: Optional[UUID] = None
+    tool_id: Optional[UUID] = None
+    workflow_id: Optional[UUID] = None
+
+class RegisterAllCreate(RegisterAllBase):
+    pass
+
+class RegisterAllResponse(RegisterAllBase):
+    id: UUID
+    created_at: datetime
+    created_by: Optional[UUID] = None
+    
+    # Human-readable names for references
+    department_name: Optional[str] = None
+    role_name: Optional[str] = None
+    user_name: Optional[str] = None
+    data_source_name: Optional[str] = None
+    model_name: Optional[str] = None
+    agent_name: Optional[str] = None
+    tool_name: Optional[str] = None
+    workflow_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class RegisterAllListResponse(BaseModel):
+    items: List[RegisterAllResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+

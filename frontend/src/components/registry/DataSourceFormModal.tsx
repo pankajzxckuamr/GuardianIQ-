@@ -20,13 +20,17 @@ interface DataSourceFormModalProps {
   onClose: () => void;
   sourceId?: string | null;
   onSuccess: () => void;
+  defaultDepartmentId?: string | null;
+  defaultUserId?: string | null;
 }
 
 export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
   isOpen,
   onClose,
   sourceId,
-  onSuccess
+  onSuccess,
+  defaultDepartmentId,
+  defaultUserId
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
@@ -175,14 +179,13 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
         loadDataSource();
         setActiveTab("details");
         setCurrentWizardStep(0);
-      } else {
         // Reset form for create mode
         setFormData({
           source_code: "",
           source_name: "",
           source_type: "",
-          owner_user_id: "",
-          department_id: "",
+          owner_user_id: defaultUserId || "",
+          department_id: defaultDepartmentId || "",
           classification: "",
           sensitivity_level: "",
           region: "",
@@ -198,7 +201,7 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
         setCurrentWizardStep(0);
       }
     }
-  }, [isOpen, sourceId]);
+  }, [isOpen, sourceId, defaultDepartmentId, defaultUserId]);
 
   // Validate metadata_json
   useEffect(() => {

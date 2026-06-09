@@ -24,7 +24,8 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
-  Loader2
+  Loader2,
+  Sparkles
 } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import "./AppShell.css";
@@ -160,6 +161,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: "Foundation Health", path: "/health", icon: HeartPulse },
     { label: "Audit Logs", path: "/audit", icon: History },
     { label: "Executions", path: "/executions", icon: GitBranch },
+    { label: "Register All", path: "/register-all", icon: Sparkles },
   ];
 
   // Admin and Superuser items

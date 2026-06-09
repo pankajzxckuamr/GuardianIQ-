@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -41,6 +42,7 @@ def get_audit_events_api(
     per_page: int = Query(20, ge=1),
     event_type: Optional[str] = None,
     actor_id: Optional[int] = None,
+    created_after: Optional[datetime] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -52,6 +54,8 @@ def get_audit_events_api(
         query = query.filter(AuditEvent.event_type == event_type)
     if actor_id:
         query = query.filter(AuditEvent.actor_user_id == actor_id)
+    if created_after:
+        query = query.filter(AuditEvent.created_at >= created_after)
         
     total = query.count()
     

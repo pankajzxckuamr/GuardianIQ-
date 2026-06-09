@@ -1,3 +1,8 @@
+import time
+from datetime import datetime, timezone
+
+START_TIME = time.time()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -67,9 +72,15 @@ app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orc
 @app.get("/api/health", response_model=StandardResponse[dict])
 def health_check():
     from app.shared.response_utils import ResponseHelper
+    uptime = time.time() - START_TIME
     return ResponseHelper.success(
         message="GuardianIQ backend running",
-        data={"status": "healthy"}
+        data={
+            "status": "healthy",
+            "version": APP_VERSION,
+            "uptime": uptime,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
     )
 
 

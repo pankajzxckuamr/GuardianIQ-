@@ -1,5 +1,6 @@
 /* src/pages/DashboardPage.tsx */
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/common/PageHeader";
 import { Card } from "../components/common/Card";
 import { Badge } from "../components/common/Badge";
@@ -7,13 +8,12 @@ import { Table } from "../components/common/Table";
 import { useAuth } from "../hooks/useAuth";
 import { fetchDbHealth } from "../services/health/healthService";
 import { fetchTenants } from "../services/tenants/tenantService";
+import { fetchAuditEvents } from "../services/audit/auditService";
 import { 
   ShieldCheck, 
   Users, 
   Activity, 
-  FileText,
-  Lock,
-  Globe
+  FileText
 } from "lucide-react";
 import "./DashboardPage.css";
 
@@ -23,11 +23,12 @@ interface MetricCardProps {
   icon: React.ReactNode;
   description: string;
   glow?: boolean;
+  onClick?: () => void;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, description, glow = false }) => {
+const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, description, glow = false, onClick }) => {
   return (
-    <Card className="metric-card" glow={glow}>
+    <Card className={`metric-card ${onClick ? "clickable" : ""}`} glow={glow} onClick={onClick}>
       <div className="metric-card-inner">
         <div className="metric-card-details">
           <span className="metric-card-title">{title}</span>
@@ -44,11 +45,13 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, description
 
 export const DashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dbLatency, setDbLatency] = useState<number | null>(null);
   const [dbStatus, setDbStatus] = useState<string>("DOWN");
   const [tenantCount, setTenantCount] = useState<number>(1);
   const [activeTenantDesc, setActiveTenantDesc] = useState<string>("Default Platform Tenant active");
+  const [auditCount, setAuditCount] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -100,8 +103,27 @@ export const DashboardPage: React.FC = () => {
         }
       })();
 
+      const auditPromise = (async () => {
+        try {
+          const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
+          if (token) {
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            const response = await fetchAuditEvents(token, {
+              per_page: 1,
+              created_after: startOfToday.toISOString(),
+            });
+            if (active) {
+              setAuditCount(response.total);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fetch audit events for today:", e);
+        }
+      })();
+
       try {
-        await Promise.all([healthPromise, tenantsPromise]);
+        await Promise.all([healthPromise, tenantsPromise, auditPromise]);
       } finally {
         if (active) {
           setLoading(false);
@@ -188,48 +210,25 @@ export const DashboardPage: React.FC = () => {
           value={dbStatus === "UP" ? "99.9%" : "OFFLINE"}
           icon={<Activity size={24} className={`metric-icon ${dbStatus === "UP" ? "success" : "danger"}`} />}
           description={dbStatus === "UP" && dbLatency !== null ? `Database latency: ${dbLatency.toFixed(1)} ms` : "Database is unreachable"}
+          onClick={() => navigate("/health")}
         />
 
         <MetricCard 
           title="Audit Trail"
-          value="SECURE"
+          value={auditCount !== null ? auditCount : "SECURE"}
           icon={<FileText size={24} className="metric-icon warning" />}
-          description="All event digests verified"
+          description={auditCount !== null ? "SECURE • All event digests verified" : "All event digests verified"}
+          onClick={() => navigate("/audit")}
         />
       </div>
 
-      <div className="dashboard-sections">
-        <div className="dashboard-section-main">
-          <Card title="Current Session Context" subtitle="Active identities and verified fingerprints on this domain">
-            <Table 
-              columns={columns} 
-              data={recentSessions} 
-              loading={loading} 
-            />
-          </Card>
-        </div>
-
-        <aside className="dashboard-section-sidebar">
-          <Card title="Platform Controls" subtitle="Quick capabilities">
-            <div className="controls-list">
-              <div className="control-item">
-                <Globe size={18} className="control-icon" />
-                <div className="control-text">
-                  <span className="control-title">Federated Domains</span>
-                  <span className="control-desc">Configure active single sign-on</span>
-                </div>
-              </div>
-              <div className="control-item">
-                <Lock size={18} className="control-icon" />
-                <div className="control-text">
-                  <span className="control-title">Rotated Keys</span>
-                  <span className="control-desc">AES-256 tokens update hourly</span>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </aside>
-      </div>
+      <Card title="Current Session Context" subtitle="Active identities and verified fingerprints on this domain">
+        <Table 
+          columns={columns} 
+          data={recentSessions} 
+          loading={loading} 
+        />
+      </Card>
     </div>
   );
 };

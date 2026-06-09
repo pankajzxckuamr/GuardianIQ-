@@ -7,7 +7,8 @@ from app.modules.auth.models import User, Role as AuthRole
 from app.core.security import hash_password
 from app.modules.registry.models import (
     RegistryAIModel, RegistryAIAgent, GuardianUser, RegistryDepartment,
-    RegistryTool, RegistryWorkflow, RegistryRole, RegistryDataSource
+    RegistryTool, RegistryWorkflow, RegistryRole, RegistryDataSource,
+    RegistryRegisterAll
 )
 from app.modules.registry import repositories as repo
 from app.modules.registry import schemas
@@ -310,7 +311,23 @@ def update_workflow(db: Session, workflow_id: UUID, payload: schemas.WorkflowUpd
         validators.validate_entity_exists(db, GuardianUser, payload.approver_user_id, "Approver User")
 
     before_state = to_dict(workflow)
-    workflow = repo.update_workflow(db, workflow, payload.model_dump(exclude_unset=True))
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    
+    # Check if status should transition to PENDING_APPROVAL
+    old_approver = workflow.approver_user_id
+    new_approver = payload.approver_user_id if payload.approver_user_id is not None else workflow.approver_user_id
+    
+    old_approval_required = workflow.approval_required
+    new_approval_required = payload.approval_required if payload.approval_required is not None else workflow.approval_required
+    
+    if new_approval_required and new_approver:
+        if (old_approver != new_approver or 
+            not old_approval_required or 
+            workflow.status in ["DRAFT", "REJECTED"]):
+            update_data["status"] = "PENDING_APPROVAL"
+            
+    workflow = repo.update_workflow(db, workflow, update_data)
     after_state = to_dict(workflow)
     
     if workflow.approval_required and workflow.approver_user_id:
@@ -894,4 +911,51 @@ def delete_user(db: Session, user_id: UUID, current_user):
         changed_by=current_user.id, before_json=before_state, change_summary="User permanently deleted"
     )
     return user
+
+def create_register_all(db: Session, payload: schemas.RegisterAllCreate, current_user) -> RegistryRegisterAll:
+    if payload.department_id:
+        validators.validate_entity_exists(db, RegistryDepartment, payload.department_id, "Department")
+    if payload.role_id:
+        validators.validate_entity_exists(db, RegistryRole, payload.role_id, "Role")
+    if payload.user_id:
+        validators.validate_entity_exists(db, GuardianUser, payload.user_id, "User")
+    if payload.data_source_id:
+        validators.validate_entity_exists(db, RegistryDataSource, payload.data_source_id, "Data Source")
+    if payload.model_id:
+        validators.validate_entity_exists(db, RegistryAIModel, payload.model_id, "AI Model")
+    if payload.agent_id:
+        validators.validate_entity_exists(db, RegistryAIAgent, payload.agent_id, "AI Agent")
+    if payload.tool_id:
+        validators.validate_entity_exists(db, RegistryTool, payload.tool_id, "Tool")
+    if payload.workflow_id:
+        validators.validate_entity_exists(db, RegistryWorkflow, payload.workflow_id, "Workflow")
+
+    reg = repo.create_register_all(db, payload.model_dump(), current_user.id)
+    write_registry_audit(
+        db=db, entity_type="REGISTER_ALL", entity_id=reg.id, event_type="CREATED",
+        changed_by=current_user.id, after_json=to_dict(reg), change_summary="Guided onboarding session completed"
+    )
+    return reg
+
+def get_register_all(db: Session, reg_all_id: UUID) -> RegistryRegisterAll:
+    reg = repo.get_register_all_by_id(db, reg_all_id)
+    if not reg:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Register All session not found", error_code="NOT_FOUND").model_dump())
+    return reg
+
+def list_register_all(db: Session, filters: dict, page: int, page_size: int, sort_by: str, sort_dir: str) -> Tuple[List[RegistryRegisterAll], int]:
+    return repo.list_register_all(db, filters, page, page_size, sort_by, sort_dir)
+
+def delete_register_all(db: Session, reg_all_id: UUID, current_user) -> RegistryRegisterAll:
+    reg = repo.get_register_all_by_id(db, reg_all_id)
+    if not reg:
+        raise HTTPException(404, detail=ResponseHelper.error(message="Register All session not found", error_code="NOT_FOUND").model_dump())
+    before_state = to_dict(reg)
+    repo.delete_entity(db, reg)
+    write_registry_audit(
+        db=db, entity_type="REGISTER_ALL", entity_id=reg_all_id, event_type="DELETED",
+        changed_by=current_user.id, before_json=before_state, change_summary="Guided onboarding session record deleted"
+    )
+    return reg
+
 

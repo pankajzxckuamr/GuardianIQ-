@@ -9,13 +9,17 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   glow?: boolean;
+  onClick?: () => void;
 }
 
 export const Card: React.FC<CardProps> = ({
-  title, subtitle, actions, children, className = "", glow = false,
+  title, subtitle, actions, children, className = "", glow = false, onClick,
 }) => {
   return (
-    <div className={`card ${glow ? "card--glow" : ""} ${className}`}>
+    <div 
+      className={`card ${glow ? "card--glow" : ""} ${className}`}
+      onClick={onClick}
+    >
       {(title || actions) && (
         <div className="card-header">
           <div className="card-header-text">

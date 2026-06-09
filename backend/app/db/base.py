@@ -12,5 +12,5 @@ from app.modules.settings.models import ApplicationSettings
 from app.modules.registry.models import (
     GuardianUser, RegistryRole, RegistryDepartment, RegistryDataSource,
     RegistryAIModel, RegistryAIAgent, RegistryTool, RegistryWorkflow,
-    RegistryRelationship, RegistryAuditEvent
+    RegistryRelationship, RegistryAuditEvent, RegistryRegisterAll
 )

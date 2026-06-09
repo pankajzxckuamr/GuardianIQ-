@@ -20,13 +20,15 @@ interface ToolFormModalProps {
   onClose: () => void;
   toolId?: string | null;
   onSuccess: () => void;
+  defaultUserId?: string | null;
 }
 
 export const ToolFormModal: React.FC<ToolFormModalProps> = ({
   isOpen,
   onClose,
   toolId,
-  onSuccess
+  onSuccess,
+  defaultUserId
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
@@ -182,7 +184,7 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
           sensitivity_level: "",
           allowed_operations_json: "",
           endpoint_reference: "",
-          owner_user_id: "",
+          owner_user_id: defaultUserId || "",
           status: EntityStatus.DRAFT,
           metadata_json: ""
         });
@@ -192,7 +194,7 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
         setCurrentWizardStep(0);
       }
     }
-  }, [isOpen, toolId]);
+  }, [isOpen, toolId, defaultUserId]);
 
   // Validate metadata_json
   useEffect(() => {

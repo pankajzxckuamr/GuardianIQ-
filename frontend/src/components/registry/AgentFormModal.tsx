@@ -20,13 +20,17 @@ interface AgentFormModalProps {
   onClose: () => void;
   agentId?: string | null;
   onSuccess: () => void;
+  defaultDepartmentId?: string | null;
+  defaultUserId?: string | null;
 }
 
 export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   isOpen,
   onClose,
   agentId,
-  onSuccess
+  onSuccess,
+  defaultDepartmentId,
+  defaultUserId
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
@@ -186,8 +190,8 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
           description: "",
           confidence_threshold: 80,
           capabilities_json: "",
-          owner_user_id: "",
-          department_id: "",
+          owner_user_id: defaultUserId || "",
+          department_id: defaultDepartmentId || "",
           risk_level: "",
           status: EntityStatus.DRAFT
         });
@@ -197,7 +201,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         setCurrentWizardStep(0);
       }
     }
-  }, [isOpen, agentId]);
+  }, [isOpen, agentId, defaultDepartmentId, defaultUserId]);
 
   // Validate capabilities_json
   useEffect(() => {

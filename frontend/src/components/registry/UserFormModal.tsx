@@ -17,13 +17,17 @@ interface UserFormModalProps {
   onClose: () => void;
   userId?: string | null;
   onSuccess: () => void;
+  defaultDepartmentId?: string | null;
+  defaultRoleId?: string | null;
 }
 
 export const UserFormModal: React.FC<UserFormModalProps> = ({
   isOpen,
   onClose,
   userId,
-  onSuccess
+  onSuccess,
+  defaultDepartmentId,
+  defaultRoleId
 }) => {
   const { showToast } = useToast();
 
@@ -122,8 +126,8 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         setFormData({
           email: "",
           full_name: "",
-          department_id: "",
-          role_id: "",
+          department_id: defaultDepartmentId || "",
+          role_id: defaultRoleId || "",
           approval_limit_level: "",
           status: EntityStatus.ACTIVE
         });
@@ -131,7 +135,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         setGeneralError(null);
       }
     }
-  }, [isOpen, userId]);
+  }, [isOpen, userId, defaultDepartmentId, defaultRoleId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

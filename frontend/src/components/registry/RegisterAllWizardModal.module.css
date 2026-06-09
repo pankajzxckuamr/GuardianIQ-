@@ -1,0 +1,392 @@
+/* src/components/registry/RegisterAllWizardModal.module.css */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md) 0;
+  color: var(--text-primary);
+}
+
+/* Stepper Header */
+.stepperHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-sm);
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--border-color);
+  margin-bottom: var(--spacing-md);
+  overflow-x: auto;
+  gap: var(--spacing-sm);
+}
+
+.stepNode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  transition: all var(--transition-normal);
+  flex: 1;
+  min-width: 80px;
+  position: relative;
+}
+
+.stepIconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  transition: all var(--transition-normal);
+  z-index: 1;
+}
+
+.stepLabel {
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-secondary);
+  transition: all var(--transition-normal);
+  white-space: nowrap;
+}
+
+/* Stepper Connection Line */
+.stepConnector {
+  flex: 1;
+  height: 2px;
+  background-color: var(--border-color);
+  margin-top: -24px;
+  min-width: 15px;
+  transition: background-color var(--transition-normal);
+}
+
+.stepConnectorActive {
+  background-color: var(--primary-color, #3b82f6);
+}
+
+/* Stepper States */
+.stepCompleted .stepIconWrapper {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.stepCompleted .stepLabel {
+  color: #10b981;
+}
+
+.stepActive .stepIconWrapper {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+  transform: scale(1.08);
+}
+
+.stepActive .stepLabel {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.stepLocked {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Step Content Card */
+.stepCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-xl);
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stepTitleSection {
+  margin-bottom: var(--spacing-lg);
+}
+
+.stepTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stepDescription {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Split Selection Mode */
+.splitContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+  align-items: stretch;
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .splitContainer {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+}
+
+.optionColumn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-xl);
+  border-radius: var(--border-radius-md);
+  border: 2px dashed var(--border-color);
+  background: var(--bg-secondary);
+  transition: all var(--transition-normal);
+}
+
+.optionColumnActive {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.02);
+}
+
+.optionColumnTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-primary);
+}
+
+.selectWrapper {
+  width: 100%;
+  max-width: 320px;
+}
+
+.selectInput {
+  width: 100%;
+  padding: 0.65rem;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color var(--transition-normal);
+}
+
+.selectInput:focus {
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.createButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 0.7rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: white;
+  background: var(--primary-color, #3b82f6);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-normal);
+}
+
+.createButton:hover {
+  background: #2563eb;
+}
+
+/* Selection Status Info */
+.selectionStatusInfo {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: #10b981;
+  font-size: 0.9rem;
+}
+
+/* Relationship step styling */
+.relationshipContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  flex: 1;
+}
+
+.relationshipActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-xs);
+}
+
+.relationshipList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+  background: var(--bg-secondary);
+}
+
+.relationshipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  font-size: 0.88rem;
+}
+
+.relationshipText {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.entityBadge {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.relTypeBadge {
+  color: var(--primary-color, #3b82f6);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.removeRelBtn {
+  background: transparent;
+  border: none;
+  color: var(--danger-color, #ef4444);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-normal);
+}
+
+.removeRelBtn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.noRelationshipsText {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: var(--spacing-lg);
+}
+
+/* Save step styling */
+.saveContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  flex: 1;
+  text-align: center;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.saveInputGroup {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  text-align: left;
+  margin-top: var(--spacing-md);
+}
+
+.saveInput {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.saveInput:focus {
+  border-color: var(--primary-color, #3b82f6);
+}
+
+/* Stepper Controls (Bottom buttons) */
+.stepperControls {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
+  padding-top: var(--spacing-lg);
+}
+
+.backBtn {
+  padding: 0.65rem 1.2rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.backBtn:hover {
+  background: var(--bg-secondary);
+}
+
+.nextBtn {
+  padding: 0.65rem 1.4rem;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.nextBtn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.nextBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

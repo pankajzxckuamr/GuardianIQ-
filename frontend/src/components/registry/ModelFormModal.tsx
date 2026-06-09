@@ -148,13 +148,17 @@ interface ModelFormModalProps {
   onClose: () => void;
   modelId?: string | null;
   onSuccess: () => void;
+  defaultDepartmentId?: string | null;
+  defaultUserId?: string | null;
 }
 
 export const ModelFormModal: React.FC<ModelFormModalProps> = ({
   isOpen,
   onClose,
   modelId,
-  onSuccess
+  onSuccess,
+  defaultDepartmentId,
+  defaultUserId
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
@@ -396,8 +400,8 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
           provider: "",
           version: "",
           purpose: "",
-          owner_user_id: "",
-          department_id: "",
+          owner_user_id: defaultUserId || "",
+          department_id: defaultDepartmentId || "",
           risk_level: "",
           deployment_environment: "",
           status: EntityStatus.DRAFT,
@@ -423,7 +427,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
         setCurrentWizardStep(0);
       }
     }
-  }, [isOpen, modelId]);
+  }, [isOpen, modelId, defaultDepartmentId, defaultUserId]);
 
   // Validate metadata_json
   useEffect(() => {

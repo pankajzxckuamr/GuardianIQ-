@@ -23,6 +23,7 @@ export const FoundationHealthPage: React.FC = () => {
   const [dbHealth, setDbHealth] = useState<DbHealthStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [secondsSinceFetch, setSecondsSinceFetch] = useState<number>(0);
 
   const loadHealth = async () => {
     setError(null);
@@ -40,6 +41,7 @@ export const FoundationHealthPage: React.FC = () => {
       ]);
       setApiHealth(api);
       setDbHealth(db);
+      setSecondsSinceFetch(0);
     } catch (e) {
       setError("An unexpected error occurred while polling platform services.");
     } finally {
@@ -51,11 +53,26 @@ export const FoundationHealthPage: React.FC = () => {
     loadHealth();
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsSinceFetch((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const getStatusVariant = (status?: string) => {
     if (status === "healthy" || status === "active" || status === "up") return "success";
     if (status === "degraded") return "warning";
     return "danger";
   };
+
+  const liveUptime = (apiHealth?.uptime !== undefined && apiHealth?.status === "healthy")
+    ? apiHealth.uptime + secondsSinceFetch
+    : apiHealth?.uptime;
+
+  const liveTimestamp = (apiHealth?.timestamp && apiHealth?.status === "healthy")
+    ? new Date(new Date(apiHealth.timestamp).getTime() + secondsSinceFetch * 1000).toISOString()
+    : apiHealth?.timestamp;
 
   return (
     <div className="health-page">
@@ -115,14 +132,18 @@ export const FoundationHealthPage: React.FC = () => {
                 <Clock size={16} className="detail-icon" />
                 <span className="detail-label">Service Uptime</span>
                 <span className="detail-value">
-                  {apiHealth?.uptime ? `${Math.floor(apiHealth.uptime / 60)} mins` : "N/A"}
+                  {liveUptime !== undefined ? (
+                    liveUptime < 60
+                      ? `${Math.round(liveUptime)} secs`
+                      : `${Math.floor(liveUptime / 60)} mins`
+                  ) : "N/A"}
                 </span>
               </div>
               <div className="detail-item">
                 <Clock size={16} className="detail-icon" />
                 <span className="detail-label">Report Timestamp</span>
                 <span className="detail-value">
-                  {apiHealth?.timestamp ? new Date(apiHealth.timestamp).toLocaleTimeString() : "N/A"}
+                  {liveTimestamp ? new Date(liveTimestamp).toLocaleTimeString() : "N/A"}
                 </span>
               </div>
             </div>

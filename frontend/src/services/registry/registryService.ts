@@ -402,3 +402,23 @@ export function getRolesLookup(): Promise<ApiResponse<{ id: string; role_name: s
     serverClient.get(`${BASE_PATH}/roles/lookup`)
   );
 }
+
+// Register All / Guided Onboarding Sessions
+export function listRegisterAll(params?: any): Promise<ApiResponse<ListResponse<any>>> {
+  return wrapResponse<ListResponse<any>>(
+    serverClient.get(`${BASE_PATH}/register-all`, { params })
+  );
+}
+
+export function createRegisterAll(payload: any): Promise<ApiResponse<any>> {
+  return wrapResponse<any>(
+    serverClient.post(`${BASE_PATH}/register-all`, payload)
+  );
+}
+
+export function deleteRegisterAll(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/register-all/${id}`)
+  );
+}
+

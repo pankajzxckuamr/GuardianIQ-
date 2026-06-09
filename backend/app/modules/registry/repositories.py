@@ -5,7 +5,8 @@ from sqlalchemy import select, asc, desc, or_
 from app.modules.registry.models import (
     RegistryAIModel, RegistryAIAgent, RegistryTool, RegistryWorkflow,
     GuardianUser, RegistryDepartment, RegistryDataSource, RegistryRole,
-    RegistryRelationship, RegistryAuditEvent, RegistryAIModelProvider
+    RegistryRelationship, RegistryAuditEvent, RegistryAIModelProvider,
+    RegistryRegisterAll
 )
 import math
 import sqlalchemy as sa
@@ -737,4 +738,100 @@ def check_active_references(db: Session, entity_type: str, entity_id: UUID) -> O
             return "This user is referenced as a business or escalation owner for departments."
 
     return None
+
+def create_register_all(db: Session, data: dict, created_by: UUID) -> RegistryRegisterAll:
+    created_by = resolve_user_uuid(db, created_by)
+    reg_all = RegistryRegisterAll(**data, created_by=created_by)
+    db.add(reg_all)
+    db.flush()
+    return reg_all
+
+def get_register_all_by_id(db: Session, reg_all_id: UUID) -> Optional[RegistryRegisterAll]:
+    query = (
+        select(
+            RegistryRegisterAll,
+            RegistryDepartment.department_name,
+            RegistryRole.role_name,
+            GuardianUser.full_name.label("user_name"),
+            RegistryDataSource.source_name.label("data_source_name"),
+            RegistryAIModel.model_name,
+            RegistryAIAgent.agent_name,
+            RegistryTool.tool_name,
+            RegistryWorkflow.workflow_name
+        )
+        .outerjoin(RegistryDepartment, RegistryRegisterAll.department_id == RegistryDepartment.id)
+        .outerjoin(RegistryRole, RegistryRegisterAll.role_id == RegistryRole.id)
+        .outerjoin(GuardianUser, RegistryRegisterAll.user_id == GuardianUser.id)
+        .outerjoin(RegistryDataSource, RegistryRegisterAll.data_source_id == RegistryDataSource.id)
+        .outerjoin(RegistryAIModel, RegistryRegisterAll.model_id == RegistryAIModel.id)
+        .outerjoin(RegistryAIAgent, RegistryRegisterAll.agent_id == RegistryAIAgent.id)
+        .outerjoin(RegistryTool, RegistryRegisterAll.tool_id == RegistryTool.id)
+        .outerjoin(RegistryWorkflow, RegistryRegisterAll.workflow_id == RegistryWorkflow.id)
+        .filter(RegistryRegisterAll.id == reg_all_id)
+    )
+    res = db.execute(query).first()
+    if res:
+        reg, dept, role, user, ds, model, agent, tool, wf = res
+        reg.department_name = dept
+        reg.role_name = role
+        reg.user_name = user
+        reg.data_source_name = ds
+        reg.model_name = model
+        reg.agent_name = agent
+        reg.tool_name = tool
+        reg.workflow_name = wf
+        return reg
+    return None
+
+def list_register_all(
+    db: Session, filters: dict, page: int, page_size: int, sort_by: str, sort_dir: str
+) -> Tuple[List[RegistryRegisterAll], int]:
+    query = (
+        select(
+            RegistryRegisterAll,
+            RegistryDepartment.department_name,
+            RegistryRole.role_name,
+            GuardianUser.full_name.label("user_name"),
+            RegistryDataSource.source_name.label("data_source_name"),
+            RegistryAIModel.model_name,
+            RegistryAIAgent.agent_name,
+            RegistryTool.tool_name,
+            RegistryWorkflow.workflow_name
+        )
+        .outerjoin(RegistryDepartment, RegistryRegisterAll.department_id == RegistryDepartment.id)
+        .outerjoin(RegistryRole, RegistryRegisterAll.role_id == RegistryRole.id)
+        .outerjoin(GuardianUser, RegistryRegisterAll.user_id == GuardianUser.id)
+        .outerjoin(RegistryDataSource, RegistryRegisterAll.data_source_id == RegistryDataSource.id)
+        .outerjoin(RegistryAIModel, RegistryRegisterAll.model_id == RegistryAIModel.id)
+        .outerjoin(RegistryAIAgent, RegistryRegisterAll.agent_id == RegistryAIAgent.id)
+        .outerjoin(RegistryTool, RegistryRegisterAll.tool_id == RegistryTool.id)
+        .outerjoin(RegistryWorkflow, RegistryRegisterAll.workflow_id == RegistryWorkflow.id)
+    )
+    
+    if filters.get("search"):
+        search_term = f"%{filters['search']}%"
+        query = query.filter(RegistryRegisterAll.name.ilike(search_term))
+
+    order_column = getattr(RegistryRegisterAll, sort_by, RegistryRegisterAll.created_at)
+    if sort_dir.lower() == "desc":
+        query = query.order_by(desc(order_column))
+    else:
+        query = query.order_by(asc(order_column))
+
+    total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()
+
+    results = db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
+    items = []
+    for reg, dept, role, user, ds, model, agent, tool, wf in results:
+        reg.department_name = dept
+        reg.role_name = role
+        reg.user_name = user
+        reg.data_source_name = ds
+        reg.model_name = model
+        reg.agent_name = agent
+        reg.tool_name = tool
+        reg.workflow_name = wf
+        items.append(reg)
+    return items, total
+
 

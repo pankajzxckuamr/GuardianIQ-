@@ -193,3 +193,29 @@ class RegistryAuditEvent(Base):
     before_json = Column(JSONB, nullable=True)
     after_json = Column(JSONB, nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+
+class RegistryRegisterAll(Base):
+    __tablename__ = "registry_register_all"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(String(200), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=True)
+    role_id = Column(UUID(as_uuid=True), ForeignKey("registry_roles.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
+    data_source_id = Column(UUID(as_uuid=True), ForeignKey("registry_data_sources.id"), nullable=True)
+    model_id = Column(UUID(as_uuid=True), ForeignKey("registry_ai_models.id"), nullable=True)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("registry_ai_agents.id"), nullable=True)
+    tool_id = Column(UUID(as_uuid=True), ForeignKey("registry_tools.id"), nullable=True)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("registry_workflows.id"), nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+
+    department = relationship("RegistryDepartment", foreign_keys=[department_id])
+    role = relationship("RegistryRole", foreign_keys=[role_id])
+    user = relationship("GuardianUser", foreign_keys=[user_id])
+    data_source = relationship("RegistryDataSource", foreign_keys=[data_source_id])
+    model = relationship("RegistryAIModel", foreign_keys=[model_id])
+    agent = relationship("RegistryAIAgent", foreign_keys=[agent_id])
+    tool = relationship("RegistryTool", foreign_keys=[tool_id])
+    workflow = relationship("RegistryWorkflow", foreign_keys=[workflow_id])
+
