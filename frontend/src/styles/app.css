@@ -23,7 +23,11 @@
   left: 0;
   top: 0;
   z-index: 100;
-  transition: transform var(--transition-speed) var(--transition-smooth);
+  transition: transform var(--transition-speed) var(--transition-smooth), width var(--transition-speed) var(--transition-smooth);
+}
+
+.sidebar-collapsed .app-sidebar {
+  transform: translateX(-100%);
 }
 
 .sidebar-logo {
@@ -141,6 +145,11 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: margin-left var(--transition-speed) var(--transition-smooth);
+}
+
+.sidebar-collapsed .app-main {
+  margin-left: 0;
 }
 
 .app-header {

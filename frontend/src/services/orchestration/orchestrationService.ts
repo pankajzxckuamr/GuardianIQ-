@@ -22,13 +22,13 @@ export const orchestrationService = {
     return response;
   },
 
-  rejectExecution: async (executionId: string): Promise<any> => {
-    const response = await api.post(`/api/orchestration/executions/${executionId}/reject`);
+  rejectExecution: async (executionId: string, reason: string): Promise<any> => {
+    const response = await api.post(`/api/orchestration/executions/${executionId}/reject`, { reason });
     return response;
   },
 
-  revokeExecution: async (executionId: string): Promise<any> => {
-    const response = await api.post(`/api/orchestration/executions/${executionId}/revoke`);
+  revokeExecution: async (executionId: string, reason: string): Promise<any> => {
+    const response = await api.post(`/api/orchestration/executions/${executionId}/revoke`, { reason });
     return response;
   }
 };

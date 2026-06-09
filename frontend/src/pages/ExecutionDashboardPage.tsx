@@ -276,6 +276,11 @@ export const ExecutionDashboardPage: React.FC = () => {
   const [isRejecting, setIsRejecting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
 
+  // Reason Modal State
+  const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
+  const [reasonActionType, setReasonActionType] = useState<'REJECT' | 'REVOKE' | null>(null);
+  const [reasonText, setReasonText] = useState('');
+
   // Load and poll all executions list
   useEffect(() => {
     const fetchExecutions = async () => {
@@ -360,11 +365,18 @@ export const ExecutionDashboardPage: React.FC = () => {
     }
   };
 
-  const handleReject = async () => {
+  const handleRejectClick = () => {
+    setReasonActionType('REJECT');
+    setReasonText('');
+    setIsReasonModalOpen(true);
+  };
+
+  const executeReject = async () => {
     if (!details) return;
     setIsRejecting(true);
+    setIsReasonModalOpen(false);
     try {
-      await orchestrationService.rejectExecution(details.id);
+      await orchestrationService.rejectExecution(details.id, reasonText);
       showToast("Execution rejected.", "success");
       
       // Refresh list and details
@@ -380,11 +392,18 @@ export const ExecutionDashboardPage: React.FC = () => {
     }
   };
 
-  const handleRevoke = async () => {
+  const handleRevokeClick = () => {
+    setReasonActionType('REVOKE');
+    setReasonText('');
+    setIsReasonModalOpen(true);
+  };
+
+  const executeRevoke = async () => {
     if (!details) return;
     setIsRevoking(true);
+    setIsReasonModalOpen(false);
     try {
-      await orchestrationService.revokeExecution(details.id);
+      await orchestrationService.revokeExecution(details.id, reasonText);
       showToast("Execution approval revoked successfully.", "success");
       
       // Refresh list and details
@@ -397,6 +416,14 @@ export const ExecutionDashboardPage: React.FC = () => {
       showToast(err.message || "Failed to revoke execution.", "error");
     } finally {
       setIsRevoking(false);
+    }
+  };
+
+  const handleReasonSubmit = () => {
+    if (reasonActionType === 'REJECT') {
+      executeReject();
+    } else if (reasonActionType === 'REVOKE') {
+      executeRevoke();
     }
   };
 
@@ -534,10 +561,56 @@ export const ExecutionDashboardPage: React.FC = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <header className={styles.header}>
-        <h1>Execution Dashboard</h1>
-        <p>Monitor live and past AI workflow executions and agent activities.</p>
-      </header>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+        <header className={styles.header} style={{ marginBottom: 0 }}>
+          <h1>Execution Dashboard</h1>
+          <p>Monitor live and past AI workflow executions and agent activities.</p>
+        </header>
+
+        {!isLoading && executions.length > 0 && (
+          <div style={{ display: 'flex', gap: '20px' }}>
+            {/* Needs Approval Tile */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8))',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '12px',
+              padding: '16px 20px',
+              minWidth: '200px',
+              boxShadow: '0 4px 20px rgba(245, 158, 11, 0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fbbf24', fontSize: '13px', fontWeight: 600, letterSpacing: '0.5px' }}>
+                <Clock size={16} />
+                NEEDS APPROVAL
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 700, color: '#fff', marginTop: '8px' }}>
+                {executions.filter(e => e.status === 'AWAITING_APPROVAL').length}
+              </div>
+            </div>
+
+            {/* Completed Tile */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8))',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '12px',
+              padding: '16px 20px',
+              minWidth: '200px',
+              boxShadow: '0 4px 20px rgba(16, 185, 129, 0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontSize: '13px', fontWeight: 600, letterSpacing: '0.5px' }}>
+                <CheckCircle2 size={16} />
+                COMPLETED
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: 700, color: '#fff', marginTop: '8px' }}>
+                {executions.filter(e => e.status === 'COMPLETED').length}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center p-12">
@@ -577,7 +650,11 @@ export const ExecutionDashboardPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className={styles.actions}>
+              
+              <div className={styles.actions} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                <div style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600, background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  {execution.completed_steps || 0} / {execution.total_steps || 0} Steps
+                </div>
                 <button className={styles.viewButton} onClick={() => handleOpenDetails(execution)}>
                   <Eye size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
                   View Details
@@ -660,7 +737,7 @@ export const ExecutionDashboardPage: React.FC = () => {
                     </button>
                     <button
                       className={styles.rejectBtn}
-                      onClick={handleReject}
+                      onClick={handleRejectClick}
                       disabled={isApproving || isRejecting}
                     >
                       {isRejecting ? 'Rejecting...' : 'Reject'}
@@ -678,7 +755,7 @@ export const ExecutionDashboardPage: React.FC = () => {
                   <div className={styles.approvalButtons}>
                     <button
                       className={styles.revokeBtn}
-                      onClick={handleRevoke}
+                      onClick={handleRevokeClick}
                       disabled={isRevoking}
                     >
                       {isRevoking ? 'Revoking...' : 'Revoke Human Approval'}
@@ -752,6 +829,68 @@ export const ExecutionDashboardPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Reason Modal for Reject/Revoke */}
+      <Modal
+        isOpen={isReasonModalOpen}
+        onClose={() => setIsReasonModalOpen(false)}
+        title={`Provide Reason for ${reasonActionType === 'REJECT' ? 'Rejection' : 'Revocation'}`}
+        size="md"
+      >
+        <div style={{ padding: '20px' }}>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '14px' }}>
+            Please enter a reason. This will be permanently recorded in the execution logs for audit purposes.
+          </p>
+          <textarea
+            value={reasonText}
+            onChange={(e) => setReasonText(e.target.value)}
+            placeholder="Enter reason here..."
+            style={{
+              width: '100%',
+              height: '100px',
+              backgroundColor: 'rgba(15, 23, 42, 0.6)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '8px',
+              padding: '12px',
+              color: '#fff',
+              fontSize: '14px',
+              resize: 'none',
+              marginBottom: '20px'
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              onClick={() => setIsReasonModalOpen(false)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                background: 'transparent',
+                color: '#94a3b8',
+                border: '1px solid rgba(255,255,255,0.1)',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleReasonSubmit}
+              disabled={!reasonText.trim()}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                background: reasonActionType === 'REJECT' ? '#ef4444' : '#f43f5e',
+                color: '#fff',
+                border: 'none',
+                cursor: reasonText.trim() ? 'pointer' : 'not-allowed',
+                opacity: reasonText.trim() ? 1 : 0.5,
+                fontWeight: 600
+              }}
+            >
+              Submit {reasonActionType === 'REJECT' ? 'Rejection' : 'Revocation'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

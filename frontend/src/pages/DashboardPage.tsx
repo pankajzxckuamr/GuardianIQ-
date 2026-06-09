@@ -50,8 +50,9 @@ export const DashboardPage: React.FC = () => {
   const [dbLatency, setDbLatency] = useState<number | null>(null);
   const [dbStatus, setDbStatus] = useState<string>("DOWN");
   const [tenantCount, setTenantCount] = useState<number>(1);
-  const [activeTenantDesc, setActiveTenantDesc] = useState<string>("Default Platform Tenant active");
+  const [activeTenantDesc, setActiveTenantDesc] = useState<string>("Active sessions on platform");
   const [auditCount, setAuditCount] = useState<number | null>(null);
+  const [activeLogins, setActiveLogins] = useState<any[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -75,31 +76,44 @@ export const DashboardPage: React.FC = () => {
         try {
           const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
           if (token) {
-            const response = await fetchTenants(token, 1, 20);
-            const tenantList = response.items || [];
-            const activeTenants = tenantList.filter(t => t.is_active);
-            if (active) {
-              setTenantCount(activeTenants.length);
-              if (activeTenants.length === 1) {
-                setActiveTenantDesc(`${activeTenants[0].name} active`);
-              } else if (activeTenants.length > 1) {
-                setActiveTenantDesc(`${activeTenants[0].name} & ${activeTenants.length - 1} more active`);
-              } else {
-                setActiveTenantDesc("No active tenants");
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            const response = await fetchAuditEvents(token, {
+              per_page: 50,
+              event_type: "auth.login_success",
+              created_after: startOfToday.toISOString(),
+            });
+            const loginEvents = response.items || [];
+            
+            // Deduplicate by user
+            const uniqueUsers = new Map();
+            loginEvents.forEach(ev => {
+              if (ev.actor_username && !uniqueUsers.has(ev.actor_username)) {
+                uniqueUsers.set(ev.actor_username, {
+                  id: ev.id,
+                  user: ev.actor_username,
+                  ip: ev.ip_address || "Unknown IP",
+                  device: ev.user_agent ? ev.user_agent.substring(0, 30) : "Unknown Device",
+                  status: "Active",
+                  time: new Date(ev.created_at).toLocaleTimeString()
+                });
               }
-            }
-          } else {
+            });
+            
+            const sessions = Array.from(uniqueUsers.values());
             if (active) {
-              setTenantCount(1);
-              setActiveTenantDesc("Default Platform Tenant active");
+              if (sessions.length > 0) {
+                setActiveLogins(sessions);
+                setTenantCount(sessions.length);
+                setActiveTenantDesc(`${sessions.length} active login${sessions.length > 1 ? 's' : ''}`);
+              } else {
+                setTenantCount(1);
+                setActiveTenantDesc("Only current session active");
+              }
             }
           }
         } catch (e) {
-          console.warn("Using local fallback tenants data:", e);
-          if (active) {
-            setTenantCount(1);
-            setActiveTenantDesc("Default Platform Tenant active");
-          }
+          console.warn("Using local fallback login data:", e);
         }
       })();
 
@@ -153,7 +167,7 @@ export const DashboardPage: React.FC = () => {
     return `${os} - ${browser}`;
   };
 
-  const recentSessions = currentUser ? [
+  const recentSessions = activeLogins.length > 0 ? activeLogins : (currentUser ? [
     { 
       id: "1", 
       user: currentUser.full_name || currentUser.name || currentUser.username || currentUser.email || "current_user", 
@@ -162,7 +176,7 @@ export const DashboardPage: React.FC = () => {
       status: "Active", 
       time: "Just now" 
     }
-  ] : [];
+  ] : []);
 
   const columns = [
     { key: "user", header: "Identity" },

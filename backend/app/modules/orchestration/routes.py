@@ -21,6 +21,11 @@ class WorkflowExecutionResponse(BaseModel):
     is_dry_run: bool
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    completed_steps: Optional[int] = 0
+    total_steps: Optional[int] = 0
+
+class ReasonRequest(BaseModel):
+    reason: str = ""
 
     class Config:
         from_attributes = True
@@ -44,7 +49,34 @@ def list_executions(db: Session = Depends(get_db)):
     List all workflow executions.
     """
     executions = db.query(WorkflowExecution).order_by(WorkflowExecution.started_at.desc()).all()
-    return executions
+    from app.modules.orchestration.models import ExecutionEventLog
+    result = []
+    for exec in executions:
+        total = 0
+        completed = 0
+        if exec.workflow and exec.workflow.steps_json:
+            steps = exec.workflow.steps_json
+            total = len(steps) if isinstance(steps, list) else 0
+        if total > 0:
+            completed = db.query(ExecutionEventLog).filter(
+                ExecutionEventLog.execution_id == exec.id,
+                ExecutionEventLog.event_type == "STEP_COMPLETE"
+            ).count()
+            if exec.status == "COMPLETED":
+                completed = total
+        
+        result.append({
+            "id": exec.id,
+            "workflow_id": exec.workflow_id,
+            "workflow_name": exec.workflow_name,
+            "status": exec.status,
+            "is_dry_run": exec.is_dry_run,
+            "started_at": exec.started_at,
+            "completed_at": exec.completed_at,
+            "completed_steps": completed,
+            "total_steps": total
+        })
+    return result
 
 @router.get("/executions/{execution_id}")
 def get_execution_details(execution_id: str, db: Session = Depends(get_db)):
@@ -126,7 +158,7 @@ def approve_execution(execution_id: str, db: Session = Depends(get_db)):
     return {"message": "Execution approved and completed successfully"}
 
 @router.post("/executions/{execution_id}/reject")
-def reject_execution(execution_id: str, db: Session = Depends(get_db)):
+def reject_execution(execution_id: str, request: ReasonRequest, db: Session = Depends(get_db)):
     """
     Reject an execution that is currently awaiting approval.
     """
@@ -139,12 +171,13 @@ def reject_execution(execution_id: str, db: Session = Depends(get_db)):
     
     from app.modules.orchestration.engine import WorkflowEngine
     engine = WorkflowEngine(db)
-    engine.log_event(execution.id, "HUMAN_REJECTION", "Human supervisor rejected the workflow execution checkpoint.")
+    reason_msg = f" Reason: {request.reason}" if request.reason else ""
+    engine.log_event(execution.id, "HUMAN_REJECTION", f"Human supervisor rejected the workflow execution checkpoint.{reason_msg}")
     engine.complete_execution(execution.id, status="REJECTED")
     return {"message": "Execution rejected successfully"}
 
 @router.post("/executions/{execution_id}/revoke")
-def revoke_execution(execution_id: str, db: Session = Depends(get_db)):
+def revoke_execution(execution_id: str, request: ReasonRequest, db: Session = Depends(get_db)):
     """
     Revoke a completed execution approval.
     """
@@ -157,7 +190,8 @@ def revoke_execution(execution_id: str, db: Session = Depends(get_db)):
     
     from app.modules.orchestration.engine import WorkflowEngine
     engine = WorkflowEngine(db)
-    engine.log_event(execution.id, "HUMAN_REVOCATION", "Human supervisor revoked the previously approved workflow execution.")
+    reason_msg = f" Reason: {request.reason}" if request.reason else ""
+    engine.log_event(execution.id, "HUMAN_REVOCATION", f"Human supervisor revoked the previously approved workflow execution.{reason_msg}")
     
     execution.status = "REVOKED"
     db.commit()

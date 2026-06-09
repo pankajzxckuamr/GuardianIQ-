@@ -23,6 +23,7 @@ import {
   Link2,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Search,
   Loader2,
   Sparkles
@@ -38,7 +39,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { currentUser, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer
+  const [isCollapsed, setIsCollapsed] = useState(false); // Desktop collapse
   const [registryOpen, setRegistryOpen] = useState(location.pathname.startsWith("/registry"));
 
   // Global Search State
@@ -173,7 +175,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* Desktop Sidebar Collapse Toggle */}
+      <button 
+        className="sidebar-collapse-toggle" 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+
       {/* Sidebar Navigation */}
       <aside className={`app-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-logo">

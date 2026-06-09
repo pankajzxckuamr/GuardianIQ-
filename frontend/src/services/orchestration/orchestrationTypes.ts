@@ -23,6 +23,8 @@ export interface WorkflowExecution {
   is_dry_run: boolean;
   started_at: string;
   completed_at?: string;
+  completed_steps?: number;
+  total_steps?: number;
 }
 
 export interface ExecutionDetails extends WorkflowExecution {

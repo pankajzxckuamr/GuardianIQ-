@@ -19,6 +19,36 @@
   justify-content: center;
 }
 
+/* Desktop Sidebar Toggle */
+.sidebar-collapse-toggle {
+  position: fixed;
+  top: 50%;
+  left: var(--sidebar-width);
+  transform: translateY(-50%) translateX(-50%);
+  width: 24px;
+  height: 48px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--card-border);
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 101;
+  color: var(--text-secondary);
+  transition: all var(--transition-speed) var(--transition-smooth);
+}
+
+.sidebar-collapsed .sidebar-collapse-toggle {
+  left: 0;
+  transform: translateY(-50%) translateX(0);
+}
+
+.sidebar-collapse-toggle:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .sidebar-logout-btn {
   display: flex;
   align-items: center;
@@ -73,6 +103,10 @@
   .sidebar-toggle-btn {
     display: flex;
     margin-right: var(--spacing-md);
+  }
+
+  .sidebar-collapse-toggle {
+    display: none;
   }
 
   .app-sidebar {
