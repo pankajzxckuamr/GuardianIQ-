@@ -26,7 +26,8 @@ import {
   ChevronLeft,
   Search,
   Loader2,
-  Sparkles
+  Sparkles,
+  HelpCircle
 } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import "./AppShell.css";
@@ -34,6 +35,55 @@ import "./AppShell.css";
 interface AppShellProps {
   children: React.ReactNode;
 }
+
+const getScreenHint = (pathname: string): string => {
+  if (pathname === "/dashboard" || pathname === "/") {
+    return "Overview of your foundation assets, execution metrics, and system health.";
+  }
+  if (pathname === "/register-all") {
+    return "Batch register multiple entities simultaneously. Select templates and fill in the required details.";
+  }
+  if (pathname === "/executions") {
+    return "Monitor ongoing and past workflow/agent execution results.";
+  }
+  if (pathname === "/audit") {
+    return "Review a chronological log of all system changes and user activities.";
+  }
+  if (pathname === "/health") {
+    return "Check the operational status and uptime of your platform's core services.";
+  }
+  if (pathname.startsWith("/registry/models")) {
+    return "Register and configure AI models, including credentials and endpoints.";
+  }
+  if (pathname.startsWith("/registry/agents")) {
+    return "Manage autonomous AI agents, their behaviors, and capabilities.";
+  }
+  if (pathname.startsWith("/registry/tools")) {
+    return "Configure external tools and APIs that your agents can use.";
+  }
+  if (pathname.startsWith("/registry/workflows")) {
+    return "Define and orchestrate complex multi-step AI execution paths.";
+  }
+  if (pathname.startsWith("/registry/data-sources")) {
+    return "Connect and manage external databases and document repositories.";
+  }
+  if (pathname.startsWith("/registry/departments")) {
+    return "Organize your enterprise structure and allocate resources.";
+  }
+  if (pathname.startsWith("/registry/users-roles")) {
+    return "Manage user access, identities, and RBAC governance policies.";
+  }
+  if (pathname.startsWith("/registry/relationships")) {
+    return "Define connections and dependencies between various registry assets.";
+  }
+  if (pathname === "/tenants") {
+    return "Manage multi-tenant environments and isolated workspaces.";
+  }
+  if (pathname.startsWith("/registry")) {
+    return "Centralized repository for all your AI assets and configurations.";
+  }
+  return "Enterprise Shield Platform - Secure and govern your AI operations.";
+};
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { currentUser, logout } = useAuth();
@@ -158,18 +208,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     }
   };
 
-  const navItems = [
+  const topNavItems = [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { label: "Foundation Health", path: "/health", icon: HeartPulse },
-    { label: "Audit Logs", path: "/audit", icon: History },
-    { label: "Executions", path: "/executions", icon: GitBranch },
+  ];
+
+  const bottomNavItems = [
     { label: "Register All", path: "/register-all", icon: Sparkles },
+    { label: "Executions", path: "/executions", icon: GitBranch },
+    { label: "Audit Logs", path: "/audit", icon: History },
+    { label: "Foundation Health", path: "/health", icon: HeartPulse },
   ];
 
   // Admin and Superuser items
   const isAdmin = currentUser?.roles?.includes("admin") || currentUser?.is_superuser;
   if (isAdmin) {
-    navItems.push({ label: "Tenants", path: "/tenants", icon: Users });
+    bottomNavItems.push({ label: "Tenants", path: "/tenants", icon: Users });
   }
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
@@ -196,7 +249,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map((item) => {
+          {topNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
@@ -262,6 +315,22 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </div>
             )}
           </div>
+
+          {bottomNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`sidebar-link ${isActive ? "active" : ""}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -292,7 +361,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <button className="sidebar-toggle-btn" onClick={toggleSidebar} aria-label="Toggle menu">
               <Menu size={24} />
             </button>
-            <span className="header-platform-label">Enterprise Shield Platform</span>
+            <div className="header-title-with-hint">
+              <span className="header-platform-label">Enterprise Shield Platform</span>
+              <div className="header-hint-container">
+                <HelpCircle size={16} className="header-hint-icon" />
+                <div className="header-hint-tooltip">
+                  {getScreenHint(location.pathname)}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Task D: Global Search Bar Component */}

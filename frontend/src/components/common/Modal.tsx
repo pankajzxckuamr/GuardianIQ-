@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef } from "react";
 import styles from "./Modal.module.css";
+import { FieldInfo } from "./FieldInfo";
+import { ScreenGuide } from "./ScreenGuide";
 
 interface ModalProps {
   isOpen: boolean;
@@ -9,6 +11,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
+  hintText?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -16,7 +19,8 @@ export const Modal: React.FC<ModalProps> = ({
   onClose,
   title,
   children,
-  size = "md"
+  size = "md",
+  hintText
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -91,9 +95,12 @@ export const Modal: React.FC<ModalProps> = ({
       >
         <div className={styles.header}>
           <h2 id="modal-title" className={styles.title}>{title}</h2>
-          <button className={styles.closeBtn} onClick={onClose} aria-label="Close modal">
-            &times;
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {hintText && <ScreenGuide content={hintText} />}
+            <button className={styles.closeBtn} onClick={onClose} aria-label="Close modal">
+              &times;
+            </button>
+          </div>
         </div>
         <div className={styles.body}>{children}</div>
       </div>

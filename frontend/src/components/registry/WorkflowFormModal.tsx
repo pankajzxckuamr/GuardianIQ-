@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
@@ -12,9 +13,7 @@ import WizardShell from "../common/WizardShell";
 import WorkflowNodeCanvas, { WorkflowStep } from "./WorkflowNodeCanvas";
 import styles from "./WorkflowFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface WorkflowFormModalProps {
   isOpen: boolean;
@@ -344,7 +343,42 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditMode ? `Edit Workflow: ${formData.workflow_name}` : "Register New Governance Workflow"}
+      title={isEditMode ? `Edit Workflow: ${formData.workflow_name}` : "Register New Workflow"}
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>This screen lets you build multi-step AI execution workflows.</p>
+          
+          {currentWizardStep === 0 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Workflow Identity</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Workflow Code & Name:</strong> E.g., <code>REFUND_WF</code>, <em>Refund Process</em>.</li>
+                <li><strong>Workflow Type:</strong> The business function (e.g., <em>APPROVAL</em> or <em>ENQUIRY</em>).</li>
+                <li><strong>Department & Criticality:</strong> Link it to a department and set business criticality (e.g., <em>HIGH</em>).</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 1 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Build Steps</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Workflow Canvas:</strong> Visually map out execution steps by adding nodes and connecting them.</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 2 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Properties & Metadata</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Ownership & Approval:</strong> Select the owner, and toggle if governance approval is required before execution.</li>
+                <li><strong>Description & Metadata:</strong> Summarize the workflow and provide any structured JSON config needed.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      }
       size="xl"
     >
       <div className={styles.container}>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
@@ -11,9 +12,7 @@ import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import styles from "./DataSourceFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface DataSourceFormModalProps {
   isOpen: boolean;
@@ -326,6 +325,36 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Data Source: ${formData.source_name}` : "Register New Data Source"}
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>Configure external data connections and integrations to register them securely.</p>
+          
+          {currentWizardStep === 0 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Identity & Classification</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Source Code & Name:</strong> Identifier and common name (e.g., <code>CRM_PROD</code>, <em>Sales CRM</em>).</li>
+                <li><strong>Source Type:</strong> Format or platform (e.g., <em>DATABASE</em>, <em>API</em>).</li>
+                <li><strong>Classification & Sensitivity:</strong> Data classification (e.g., <em>CONFIDENTIAL</em>) and sensitivity tier (e.g., <em>HIGH</em>).</li>
+                <li><strong>Department & Region:</strong> Owning department and geographic location (e.g., <em>us-east-1</em>).</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 1 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Connection Properties</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Connection Reference:</strong> Technical locator (e.g., <code>postgres://db.local:5432</code>). Do not include secrets!</li>
+                <li><strong>Technical Owner:</strong> The user responsible for this connection.</li>
+                <li><strong>Retention Policy:</strong> Data lifespan (e.g., <em>7 years</em>).</li>
+                <li><strong>Contains PII:</strong> Check if this source handles Personally Identifiable Information.</li>
+                <li><strong>Metadata JSON:</strong> Store custom structured configuration.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      }
       size="xl"
     >
       <div className={styles.container}>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
@@ -11,9 +12,7 @@ import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import styles from "./ToolFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface ToolFormModalProps {
   isOpen: boolean;
@@ -326,6 +325,43 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Tool: ${formData.tool_name}` : "Register New Tool"}
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>Register external tools, databases, or APIs that AI agents can connect to.</p>
+          
+          {currentWizardStep === 0 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Category & Details</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Tool Code & Name:</strong> Identifiers for the tool (e.g., <code>JIRA_CONN</code>, <em>Jira API</em>).</li>
+                <li><strong>Tool Category:</strong> Select the functional group (e.g., <em>TICKETING</em>, <em>CRM</em>, <em>DATABASE</em>).</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 1 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Access & Operations</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Access Mode:</strong> Privilege level granted (e.g., <em>READ_ONLY</em> vs. <em>ADMIN</em>).</li>
+                <li><strong>Sensitivity Level:</strong> Risk profile of the data this tool handles (e.g., <em>HIGH</em>).</li>
+                <li><strong>Endpoint Reference:</strong> System locator or internal URL (no secrets).</li>
+                <li><strong>Allowed Operations:</strong> Exact actions permitted (e.g., <code>read_records, update_ticket</code>).</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 2 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Ownership & Tags</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Owner User:</strong> The person responsible for the tool connection.</li>
+                <li><strong>Metadata JSON:</strong> Store custom tag bindings or extra config.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      }
       size="xl"
     >
       <div className={styles.container}>

@@ -2,15 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./RoleFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface RoleFormModalProps {
   isOpen: boolean;
@@ -223,8 +222,27 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditMode ? `Edit Role: ${formData.role_name}` : "Register New Role"}
-      size="xl"
+      title={isEditMode ? `Edit Role: ${formData.role_name}` : "Create New Role"}
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>Create and manage governance roles mapping specific system permissions (RBAC).</p>
+          <div>
+            <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Role Identity</h4>
+            <ul style={{ margin: 0, paddingLeft: "16px" }}>
+              <li><strong>Role Code & Name:</strong> Unique identifier and display name (e.g., <code>COMP_OFFICER</code>, <em>Compliance Officer</em>).</li>
+              <li><strong>Role Type:</strong> Categorize as <em>SYSTEM</em>, <em>BUSINESS</em>, or <em>GOVERNANCE</em>.</li>
+              <li><strong>Entity Status:</strong> Toggle whether the role is active or inactive.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Permissions Mapping</h4>
+            <ul style={{ margin: 0, paddingLeft: "16px" }}>
+              <li><strong>Permissions Specifications (JSON):</strong> Define granular system permissions granted by this role. Must be valid JSON (e.g., <code>{"{"}"can_approve_workflows": true{"}"}</code>). Coordinate with an admin before altering.</li>
+            </ul>
+          </div>
+        </div>
+      }
+      size="lg"
     >
       <div className={styles.container}>
         {generalError && <div className={styles.generalAlert}>{generalError}</div>}

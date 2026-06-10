@@ -2,15 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./UserFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface UserFormModalProps {
   isOpen: boolean;
@@ -230,7 +229,27 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit User: ${formData.full_name}` : "Register New User"}
-      size="xl"
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>Manage user identities, their associated departments, and access clearances.</p>
+          <div>
+            <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Identity Details</h4>
+            <ul style={{ margin: 0, paddingLeft: "16px" }}>
+              <li><strong>Email Address & Full Name:</strong> Primary contact and legal/preferred name.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Assignments & Clearances</h4>
+            <ul style={{ margin: 0, paddingLeft: "16px" }}>
+              <li><strong>Department:</strong> Link the user to their respective department.</li>
+              <li><strong>Governance Role:</strong> Assign an RBAC role governing their platform access.</li>
+              <li><strong>Approval Limit Clearance:</strong> Financial/Operational bounds (e.g., <em>LEVEL 1 (Up to $10,000)</em>).</li>
+              <li><strong>Entity Status:</strong> Toggle whether the user's access is active, suspended, or retired.</li>
+            </ul>
+          </div>
+        </div>
+      }
+      size="lg"
     >
       <div className={styles.container}>
         {generalError && <div className={styles.generalAlert}>{generalError}</div>}

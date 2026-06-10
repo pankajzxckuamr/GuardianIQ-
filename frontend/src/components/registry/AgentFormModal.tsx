@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
@@ -11,9 +12,7 @@ import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import styles from "./AgentFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface AgentFormModalProps {
   isOpen: boolean;
@@ -328,6 +327,45 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Agent: ${formData.agent_name}` : "Register New AI Agent"}
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>This screen allows you to register an AI Agent and define its operational bounds.</p>
+          
+          {currentWizardStep === 0 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Agent Identification</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Agent Code:</strong> A unique string identifier (e.g., <code>REFUND_AGENT_V1</code>).</li>
+                <li><strong>Agent Name:</strong> A human-readable name (e.g., <em>Customer Support Refund Agent</em>).</li>
+                <li><strong>Agent Type:</strong> Choose the classification (e.g., <em>Autonomous</em>, <em>Copilot</em>, or <em>Workflow</em>).</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 1 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Execution & Governance</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Execution Mode:</strong> How the agent runs (e.g., <em>Fully Autonomous</em> vs. <em>Human in the loop</em>).</li>
+                <li><strong>Risk Level:</strong> The potential business impact (e.g., <em>High</em> means strict oversight).</li>
+                <li><strong>Confidence Threshold:</strong> Minimum % confidence required to take action.</li>
+                <li><strong>Status:</strong> Draft, Active, or Archived.</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 2 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Details & Capabilities</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Purpose:</strong> What the agent is built to do (e.g., <em>Processes refund requests up to $50</em>).</li>
+                <li><strong>Capabilities (JSON):</strong> Specific tool bindings or parameters.</li>
+                <li><strong>Owner / Department:</strong> The user and department responsible for this agent.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      }
       size="xl"
     >
       <div className={styles.container}>

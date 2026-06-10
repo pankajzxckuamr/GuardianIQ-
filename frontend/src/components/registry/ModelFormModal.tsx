@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
@@ -139,9 +140,7 @@ const PROVIDER_MODELS: Record<string, Record<string, string[]>> = {
   }
 };
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface ModelFormModalProps {
   isOpen: boolean;
@@ -607,6 +606,53 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Model: ${formData.model_name}` : "Register New Model"}
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>Register and configure core parameters, provider details, and governance alignments for AI models.</p>
+          
+          {currentWizardStep === 0 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Core Parameters</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Provider Type & Name:</strong> Select the source of the model (e.g., <em>Enterprise Vendor</em> &gt; <em>OpenAI Enterprise</em> or <em>Custom</em>).</li>
+                <li><strong>Model Type:</strong> The architectural category (e.g., <em>LLM</em>, <em>EMBEDDING</em>).</li>
+                <li><strong>Model / Model Name:</strong> The specific model version (e.g., <code>gpt-4o</code>).</li>
+                <li><strong>Model Code:</strong> A unique identifier (auto-generated or custom).</li>
+                
+                {formData.provider_type === "Internal Custom" && (
+                  <>
+                    <li><strong>Version:</strong> The version of your custom model (e.g., <code>1.0.1</code>).</li>
+                    <li><strong>Hosting Environment & Dept:</strong> Where it runs and which department owns it.</li>
+                    <li><strong>Security & Usage:</strong> Classification (e.g., <em>High</em>) and approved usage scenario.</li>
+                    <li><strong>Evaluation & Responsibility:</strong> Track if eval is done and who the responsible person is.</li>
+                  </>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 1 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Governance & Alignment</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Risk Level:</strong> Set the risk tier (e.g., <em>High</em>, <em>Medium</em>, <em>Low</em>) for oversight.</li>
+                <li><strong>Deployment Environment:</strong> Where the model operates (e.g., <em>Production</em>, <em>Staging</em>).</li>
+                <li><strong>Status:</strong> The operational state (e.g., <em>Active</em>, <em>Deprecated</em>).</li>
+              </ul>
+            </div>
+          )}
+
+          {currentWizardStep === 2 && (
+            <div>
+              <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Description & Metadata</h4>
+              <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                <li><strong>Purpose:</strong> A clear description of what the model is used for.</li>
+                <li><strong>Metadata (JSON):</strong> Optional technical details like context window or hosting specs.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      }
       size="xl"
     >
       <div className={styles.container}>

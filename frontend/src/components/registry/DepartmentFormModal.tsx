@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
+import { FieldInfo } from "../common/FieldInfo";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import { EntityStatus } from "../../services/registry/registryTypes";
@@ -10,9 +11,7 @@ import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import styles from "./DepartmentFormModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+
 
 interface DepartmentFormModalProps {
   isOpen: boolean;
@@ -271,7 +270,27 @@ export const DepartmentFormModal: React.FC<DepartmentFormModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditMode ? `Edit Department: ${formData.department_name}` : "Register New Department"}
-      size="xl"
+      hintText={
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+          <p style={{ margin: 0 }}>Organize your enterprise structure by defining departments and assigning leaders.</p>
+          <div>
+            <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Department Details</h4>
+            <ul style={{ margin: 0, paddingLeft: "16px" }}>
+              <li><strong>Department Code & Name:</strong> Identifiers for the department (e.g., <code>LEGAL_01</code>, <em>Legal & Compliance</em>).</li>
+              <li><strong>Parent Department:</strong> Link to a parent for hierarchical org structures.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Leadership & Tags</h4>
+            <ul style={{ margin: 0, paddingLeft: "16px" }}>
+              <li><strong>Business Owner:</strong> Primary leader/owner of this department's assets.</li>
+              <li><strong>Escalation Owner:</strong> Contact person for critical escalations.</li>
+              <li><strong>Metadata JSON:</strong> Additional structured fields or external IDs.</li>
+            </ul>
+          </div>
+        </div>
+      }
+      size="lg"
     >
       <div className={styles.container}>
         {/* Tab Headers */}

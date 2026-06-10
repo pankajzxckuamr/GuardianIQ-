@@ -1,0 +1,121 @@
+.container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.iconBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #fbbf24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.iconBtn:hover {
+  background-color: rgba(251, 191, 36, 0.15);
+  color: #f59e0b;
+}
+
+.icon {
+  display: block;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -10px;
+  width: max-content;
+  max-width: 500px;
+  background-color: var(--bg-tertiary, #1f2937);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0, 0, 0, 0.5));
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.popover::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 18px;
+  transform: rotate(45deg);
+  width: 10px;
+  height: 10px;
+  background-color: var(--bg-tertiary, #1f2937);
+  border-left: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  border-top: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+}
+
+.popoverHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--card-border, rgba(255, 255, 255, 0.05));
+  background-color: rgba(255, 255, 255, 0.02);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.titleWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.headerIcon {
+  color: #fbbf24;
+}
+
+.popoverTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.closeBtn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #fff);
+}
+
+.popoverContent {
+  padding: 14px;
+  font-size: 0.85rem;
+  color: var(--text-primary, #fff);
+  white-space: normal;
+  line-height: 1.6;
+  font-weight: normal;
+  text-transform: none;
+  text-align: left;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
