@@ -301,7 +301,10 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
             {/* Department */}
             <div className={styles.formGroup}>
-              <label htmlFor="department_id" className={styles.label}>Department <FieldInfo tooltip="The department this user belongs to." /></label>
+              <label htmlFor="department_id" className={styles.label}>
+                Department <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The department this user belongs to." />
+              </label>
               <select
                 id="department_id"
                 name="department_id"
@@ -309,6 +312,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 onChange={handleChange}
                 disabled={loading || loadingLookups}
                 className={styles.select}
+                required
               >
                 {loadingLookups ? (
                   <option value="">Loading departments...</option>
@@ -327,7 +331,10 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
             {/* Role */}
             <div className={styles.formGroup}>
-              <label htmlFor="role_id" className={styles.label}>Governance Role <FieldInfo tooltip="The governance role assigned to this user." /></label>
+              <label htmlFor="role_id" className={styles.label}>
+                Governance Role <span className={styles.required}>*</span>
+                <FieldInfo tooltip="The governance role assigned to this user." />
+              </label>
               <select
                 id="role_id"
                 name="role_id"
@@ -335,6 +342,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 onChange={handleChange}
                 disabled={loading || loadingLookups}
                 className={styles.select}
+                required
               >
                 {loadingLookups ? (
                   <option value="">Loading roles...</option>

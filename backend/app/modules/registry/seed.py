@@ -45,11 +45,15 @@ def seed_registry_data(db: Session):
         existing = db.execute(select(GuardianUser).filter_by(email=user_info["email"])).scalar_one_or_none()
         if not existing:
             role = db.execute(select(RegistryRole).filter_by(role_code=user_info["role_code"])).scalar_one_or_none()
-            if role:
+            dept = db.execute(select(RegistryDepartment).filter_by(department_code="COMPLIANCE")).scalar_one_or_none()
+            if not dept:
+                dept = db.execute(select(RegistryDepartment)).scalars().first()
+            if role and dept:
                 new_user = GuardianUser(
                     email=user_info["email"],
                     full_name=user_info["full_name"],
-                    role_id=role.id
+                    role_id=role.id,
+                    department_id=dept.id
                 )
                 db.add(new_user)
     db.commit()

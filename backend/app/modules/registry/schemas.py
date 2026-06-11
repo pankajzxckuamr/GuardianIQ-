@@ -366,8 +366,8 @@ class RoleLookup(BaseModel):
 
 class GuardianUserBase(BaseModel):
     full_name: str
-    department_id: Optional[UUID] = None
-    role_id: Optional[UUID] = None
+    department_id: UUID
+    role_id: UUID
     approval_limit_level: Optional[str] = None
     status: EntityStatus = EntityStatus.ACTIVE
 
@@ -580,5 +580,10 @@ class RegisterAllListResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+
+class ConnectionTestPayload(BaseModel):
+    connection_reference: str
+
 
 

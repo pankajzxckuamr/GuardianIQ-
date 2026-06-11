@@ -636,7 +636,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
               <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Governance & Alignment</h4>
               <ul style={{ margin: 0, paddingLeft: "16px" }}>
                 <li><strong>Risk Level:</strong> Set the risk tier (e.g., <em>High</em>, <em>Medium</em>, <em>Low</em>) for oversight.</li>
-                <li><strong>Deployment Environment:</strong> Where the model operates (e.g., <em>Production</em>, <em>Staging</em>).</li>
+                <li><strong>Deployment Status:</strong> Where the model operates (e.g., <em>Production</em>, <em>Staging</em>).</li>
                 <li><strong>Status:</strong> The operational state (e.g., <em>Active</em>, <em>Deprecated</em>).</li>
               </ul>
             </div>
@@ -1036,9 +1036,9 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
                         </select>
                       </div>
 
-                      {/* Deployment Environment */}
+                      {/* Deployment Status */}
                       <div className={styles.formGroup}>
-                        <label htmlFor="deployment_environment" className={styles.label}>Deployment Environment <FieldInfo tooltip="Where this model is currently deployed." /></label>
+                        <label htmlFor="deployment_environment" className={styles.label}>Deployment Status <FieldInfo tooltip="Where this model is currently deployed." /></label>
                         <select
                           id="deployment_environment"
                           name="deployment_environment"
@@ -1047,7 +1047,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
                           disabled={loading}
                           className={styles.select}
                         >
-                          <option value="">-- Select Env --</option>
+                          <option value="">-- Select Status --</option>
                           <option value="DEV">DEV</option>
                           <option value="TEST">TEST</option>
                           <option value="PROD">PROD</option>

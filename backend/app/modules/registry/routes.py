@@ -869,6 +869,24 @@ def change_data_source_status(request: Request, id: UUID, payload: schemas.Statu
     db.commit()
     return ResponseHelper.success(data=schemas.DataSourceResponse.model_validate(source).model_dump(), message="Status updated", request_id=request_id)
 
+
+@data_sources_router.post("/data-sources/test-connection", summary="Test Connection Reference")
+def test_data_source_connection(
+    request: Request,
+    payload: schemas.ConnectionTestPayload,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    require_write_roles(current_user, request_id)
+    
+    result = services.test_connection_reference(payload.connection_reference)
+    return ResponseHelper.success(
+        data=result,
+        message="Connection testing completed",
+        request_id=request_id
+    )
+
 # ---------------------------------------------------------
 # Relationships Endpoints
 # ---------------------------------------------------------

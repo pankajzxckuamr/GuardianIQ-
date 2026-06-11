@@ -7,7 +7,6 @@ import { Badge } from "../components/common/Badge";
 import { Table } from "../components/common/Table";
 import { useAuth } from "../hooks/useAuth";
 import { fetchDbHealth } from "../services/health/healthService";
-import { fetchTenants } from "../services/tenants/tenantService";
 import { fetchAuditEvents } from "../services/audit/auditService";
 import { 
   ShieldCheck, 

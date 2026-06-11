@@ -11,8 +11,8 @@ class GuardianUser(Base):
     email = Column(String(255), unique=True, nullable=False)
     
     full_name = Column(String(200), nullable=False)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=True)
-    role_id = Column(UUID(as_uuid=True), ForeignKey("registry_roles.id"), nullable=True)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=False)
+    role_id = Column(UUID(as_uuid=True), ForeignKey("registry_roles.id"), nullable=False)
     approval_limit_level = Column(String(50), nullable=True)
     status = Column(String(30), default='ACTIVE')
     last_login_at = Column(TIMESTAMP, nullable=True)

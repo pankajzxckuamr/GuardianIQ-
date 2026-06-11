@@ -240,6 +240,12 @@ export function deleteDataSource(id: string): Promise<ApiResponse<void>> {
   );
 }
 
+export function testDataSourceConnection(connectionReference: string): Promise<ApiResponse<{ success: boolean; message: string; details?: any }>> {
+  return wrapResponse<{ success: boolean; message: string; details?: any }>(
+    serverClient.post(`${BASE_PATH}/data-sources/test-connection`, { connection_reference: connectionReference })
+  );
+}
+
 // Departments
 export function listDepartments(params?: any): Promise<ApiResponse<ListResponse<RegistryDepartment>>> {
   return wrapResponse<ListResponse<RegistryDepartment>>(

@@ -63,6 +63,8 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
   const [loadingLookups, setLoadingLookups] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const isEditMode = !!sourceId;
 
@@ -111,6 +113,8 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       setGeneralError(null);
       setActiveTab("details");
       setCurrentWizardStep(0);
+      setTestingConnection(false);
+      setConnectionTestResult(null);
     }
   }, [isOpen]);
 
@@ -221,6 +225,10 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
     const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
     setFormData((prev) => ({ ...prev, [name]: val }));
 
+    if (name === "connection_reference") {
+      setConnectionTestResult(null);
+    }
+
     if (fieldErrors[name]) {
       setFieldErrors((prev) => {
         const copy = { ...prev };
@@ -267,6 +275,33 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
       });
     }
     setFieldErrors(newFieldErrors);
+  };
+
+  const handleTestConnection = async () => {
+    if (!formData.connection_reference || !formData.connection_reference.trim()) return;
+    setTestingConnection(true);
+    setConnectionTestResult(null);
+    try {
+      const res = await registryService.testDataSourceConnection(formData.connection_reference);
+      if (res.data) {
+        setConnectionTestResult({
+          success: res.data.success,
+          message: res.data.message
+        });
+      } else {
+        setConnectionTestResult({
+          success: false,
+          message: res.message || "Failed to receive response from connection tester."
+        });
+      }
+    } catch (err: any) {
+      setConnectionTestResult({
+        success: false,
+        message: err.message || "An error occurred while testing connection."
+      });
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -580,22 +615,37 @@ export const DataSourceFormModal: React.FC<DataSourceFormModalProps> = ({
                 {/* STEP 2: Connection properties */}
                 {currentWizardStep === 1 && (
                   <div>
-                    {/* Connection Reference */}
                     <div className={styles.formGroupFull}>
                       <label htmlFor="connection_reference" className={styles.label}>Connection Reference <FieldInfo tooltip="A technical reference string for connecting to this source (no secrets)." /></label>
-                      <input
-                        type="text"
-                        id="connection_reference"
-                        name="connection_reference"
-                        value={formData.connection_reference}
-                        onChange={handleChange}
-                        disabled={loading}
-                        placeholder="e.g. postgres://db.local:5432/analytics"
-                        className={styles.input}
-                      />
+                      <div className={styles.connectionInputGroup}>
+                        <input
+                          type="text"
+                          id="connection_reference"
+                          name="connection_reference"
+                          value={formData.connection_reference}
+                          onChange={handleChange}
+                          disabled={loading || testingConnection}
+                          placeholder="e.g. postgres://db.local:5432/analytics"
+                          className={styles.input}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleTestConnection}
+                          disabled={loading || testingConnection || !formData.connection_reference.trim()}
+                          className={styles.testConnectionBtn}
+                        >
+                          {testingConnection ? "Testing..." : "Test Connection"}
+                        </button>
+                      </div>
                       <span className={styles.helperText}>
                         System reference only — no tokens or passwords
                       </span>
+                      {connectionTestResult && (
+                        <div className={`${styles.testResultAlert} ${connectionTestResult.success ? styles.testSuccessAlert : styles.testErrorAlert}`}>
+                          {connectionTestResult.success ? "✅ " : "❌ "}
+                          {connectionTestResult.message}
+                        </div>
+                      )}
                     </div>
 
                     <div className={styles.formGrid}>

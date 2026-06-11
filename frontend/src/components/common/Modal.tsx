@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef } from "react";
 import styles from "./Modal.module.css";
-import { FieldInfo } from "./FieldInfo";
 import { ScreenGuide } from "./ScreenGuide";
 
 interface ModalProps {

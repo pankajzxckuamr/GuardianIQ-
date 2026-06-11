@@ -262,5 +262,94 @@ class RegistryIntegrationTests(unittest.TestCase):
         self.assertIn("FILTER-MODEL-A", codes)
         self.assertIn("FILTER-MODEL-B", codes)
 
+    def test_user_validation_department_and_role_mandatory(self):
+        # 1. Create a user without department_id (should fail validation)
+        user_payload_no_dept = {
+            "email": "test.no.dept@guardianiq.com",
+            "full_name": "No Dept User",
+            "role_id": "82b9ee67-2349-4120-91eb-ea19e84e841d",
+            "status": "ACTIVE"
+        }
+        res = self.client.post("/api/registry/users", json=user_payload_no_dept, headers=self.headers)
+        self.assertEqual(res.status_code, 422)
+
+        # 2. Create a user without role_id (should fail validation)
+        user_payload_no_role = {
+            "email": "test.no.role@guardianiq.com",
+            "full_name": "No Role User",
+            "department_id": self.department_id,
+            "status": "ACTIVE"
+        }
+        res = self.client.post("/api/registry/users", json=user_payload_no_role, headers=self.headers)
+        self.assertEqual(res.status_code, 422)
+
+        # 3. Create a user with both (should succeed)
+        user_payload_valid = {
+            "email": "test.valid@guardianiq.com",
+            "full_name": "Valid User",
+            "department_id": self.department_id,
+            "role_id": "82b9ee67-2349-4120-91eb-ea19e84e841d",
+            "status": "ACTIVE"
+        }
+        res = self.client.post("/api/registry/users", json=user_payload_valid, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        user_id = res.json()["data"]["id"]
+
+        # 4. Attempt to update the user setting department_id to None (should fail)
+        update_payload_null_dept = {
+            "department_id": None
+        }
+        res = self.client.put(f"/api/registry/users/{user_id}", json=update_payload_null_dept, headers=self.headers)
+        self.assertEqual(res.status_code, 422)
+
+        # 5. Attempt to update the user setting role_id to None (should fail)
+        update_payload_null_role = {
+            "role_id": None
+        }
+        res = self.client.put(f"/api/registry/users/{user_id}", json=update_payload_null_role, headers=self.headers)
+        self.assertEqual(res.status_code, 422)
+
+        # Cleanup created user directly in DB
+        from app.modules.registry.models import GuardianUser
+        user = self.db.query(GuardianUser).filter(GuardianUser.id == user_id).first()
+        if user:
+            self.db.delete(user)
+            self.db.commit()
+
+    def test_data_source_connection_test(self):
+        # 1. Test mock HTTP connection
+        payload = {"connection_reference": "https://ehr-stream.careshield.internal/v1/notes"}
+        res = self.client.post("/api/registry/data-sources/test-connection", json=payload, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertTrue(data["success"])
+        self.assertIn("Mock", data["message"])
+        self.assertTrue(data["details"]["mock"])
+
+        # 2. Test mock DB connection
+        payload = {"connection_reference": "postgresql://db-replica.careshield.internal:5432/patient_records"}
+        res = self.client.post("/api/registry/data-sources/test-connection", json=payload, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertTrue(data["success"])
+        self.assertIn("Mock", data["message"])
+        self.assertTrue(data["details"]["mock"])
+
+        # 3. Test empty connection reference
+        payload = {"connection_reference": "   "}
+        res = self.client.post("/api/registry/data-sources/test-connection", json=payload, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertFalse(data["success"])
+        self.assertIn("cannot be empty", data["message"])
+
+        # 4. Test connection reference without scheme
+        payload = {"connection_reference": "hostname:port"}
+        res = self.client.post("/api/registry/data-sources/test-connection", json=payload, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertFalse(data["success"])
+        self.assertIn("Missing URI scheme", data["message"])
+
 if __name__ == "__main__":
     unittest.main()
