@@ -263,11 +263,18 @@ class RegistryIntegrationTests(unittest.TestCase):
         self.assertIn("FILTER-MODEL-B", codes)
 
     def test_user_validation_department_and_role_mandatory(self):
+        # Retrieve a valid role ID dynamically
+        role_res = self.client.get("/api/registry/roles/lookup", headers=self.headers)
+        self.assertEqual(role_res.status_code, 200)
+        role_data = role_res.json()
+        self.assertTrue(len(role_data["data"]) > 0, "No roles found in test database lookup")
+        valid_role_id = role_data["data"][0]["id"]
+
         # 1. Create a user without department_id (should fail validation)
         user_payload_no_dept = {
             "email": "test.no.dept@guardianiq.com",
             "full_name": "No Dept User",
-            "role_id": "82b9ee67-2349-4120-91eb-ea19e84e841d",
+            "role_id": valid_role_id,
             "status": "ACTIVE"
         }
         res = self.client.post("/api/registry/users", json=user_payload_no_dept, headers=self.headers)
@@ -288,7 +295,7 @@ class RegistryIntegrationTests(unittest.TestCase):
             "email": "test.valid@guardianiq.com",
             "full_name": "Valid User",
             "department_id": self.department_id,
-            "role_id": "82b9ee67-2349-4120-91eb-ea19e84e841d",
+            "role_id": valid_role_id,
             "status": "ACTIVE"
         }
         res = self.client.post("/api/registry/users", json=user_payload_valid, headers=self.headers)

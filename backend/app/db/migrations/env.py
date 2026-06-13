@@ -9,6 +9,85 @@ from app.db.session import Base
 
 from app.db.base import *
 
+# Safe Migration Monkeypatching
+from alembic.operations import Operations
+import sqlalchemy as sa
+
+orig_drop_index = Operations.drop_index
+def safe_drop_index(self, *args, **kwargs):
+    try:
+        index_name = args[0] if len(args) > 0 else kwargs.get('index_name')
+        table_name = args[1] if len(args) > 1 else kwargs.get('table_name')
+        conn = self.get_bind()
+        exists = conn.execute(sa.text(
+            "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE c.relname = :name AND c.relkind = 'i'"
+        ), {"name": str(index_name)}).scalar()
+        if exists:
+            return orig_drop_index(self, *args, **kwargs)
+        else:
+            print(f"[Safe Migrations] Index {index_name} does not exist. Skipping drop.")
+    except Exception as e:
+        print(f"[Safe Migrations] Error dropping index (args={args}, kwargs={kwargs}): {e}")
+Operations.drop_index = safe_drop_index
+
+orig_drop_column = Operations.drop_column
+def safe_drop_column(self, *args, **kwargs):
+    try:
+        table_name = args[0] if len(args) > 0 else kwargs.get('table_name')
+        column_name = args[1] if len(args) > 1 else kwargs.get('column_name')
+        conn = self.get_bind()
+        exists = conn.execute(sa.text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = :table AND column_name = :col"
+        ), {"table": str(table_name), "col": str(column_name)}).scalar()
+        if exists:
+            return orig_drop_column(self, *args, **kwargs)
+        else:
+            print(f"[Safe Migrations] Column {column_name} on table {table_name} does not exist. Skipping drop.")
+    except Exception as e:
+        print(f"[Safe Migrations] Error dropping column (args={args}, kwargs={kwargs}): {e}")
+Operations.drop_column = safe_drop_column
+
+orig_drop_constraint = Operations.drop_constraint
+def safe_drop_constraint(self, *args, **kwargs):
+    try:
+        name = args[0] if len(args) > 0 else kwargs.get('name')
+        table_name = args[1] if len(args) > 1 else kwargs.get('table_name')
+        if name is None:
+            print(f"[Safe Migrations] Skipping drop_constraint on {table_name} because name is None.")
+            return
+        conn = self.get_bind()
+        exists = conn.execute(sa.text(
+            "SELECT 1 FROM information_schema.table_constraints "
+            "WHERE table_name = :table AND constraint_name = :name"
+        ), {"table": str(table_name), "name": str(name)}).scalar()
+        if exists:
+            return orig_drop_constraint(self, *args, **kwargs)
+        else:
+            print(f"[Safe Migrations] Constraint {name} on table {table_name} does not exist. Skipping drop.")
+    except Exception as e:
+        print(f"[Safe Migrations] Error dropping constraint (args={args}, kwargs={kwargs}): {e}")
+Operations.drop_constraint = safe_drop_constraint
+
+orig_drop_table = Operations.drop_table
+def safe_drop_table(self, *args, **kwargs):
+    try:
+        table_name = args[0] if len(args) > 0 else kwargs.get('table_name')
+        conn = self.get_bind()
+        exists = conn.execute(sa.text(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_name = :table"
+        ), {"table": str(table_name)}).scalar()
+        if exists:
+            return orig_drop_table(self, *args, **kwargs)
+        else:
+            print(f"[Safe Migrations] Table {table_name} does not exist. Skipping drop.")
+    except Exception as e:
+        print(f"[Safe Migrations] Error dropping table (args={args}, kwargs={kwargs}): {e}")
+Operations.drop_table = safe_drop_table
+
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
