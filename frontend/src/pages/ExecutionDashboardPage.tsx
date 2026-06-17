@@ -746,7 +746,7 @@ export const ExecutionDashboardPage: React.FC = () => {
                 </div>
               )}
 
-              {details?.status === 'COMPLETED' && (
+              {details?.status === 'COMPLETED' && (workflowSteps.some(step => step.type === 'APPROVAL') || details?.logs?.some(log => log.event_type.includes('APPROVAL'))) && (
                 <div className={styles.approvalActions} style={{ borderColor: 'rgba(244, 63, 94, 0.45)', background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.08), rgba(244, 63, 94, 0.02))', animation: 'none' }}>
                   <div className={styles.approvalTitle} style={{ color: '#fda4af' }}>Approved Execution Actions</div>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>

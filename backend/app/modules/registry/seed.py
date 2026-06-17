@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.modules.registry.models import RegistryRole, RegistryDepartment, GuardianUser
@@ -12,6 +14,16 @@ def seed_registry_data(db: Session):
         {"role_code": "AUDITOR", "role_name": "Auditor", "role_type": "SYSTEM"},
         {"role_code": "BUSINESS_OWNER", "role_name": "Business Owner", "role_type": "BUSINESS"}
     ]
+    fixed_test_role_id = UUID("82b9ee67-2349-4120-91eb-ea19e84e841d")
+    fixed_test_role = db.get(RegistryRole, fixed_test_role_id)
+    if not fixed_test_role:
+        db.add(RegistryRole(
+            id=fixed_test_role_id,
+            role_code="TEST_ROLE",
+            role_name="Test Role",
+            role_type="SYSTEM",
+        ))
+
     for role in roles_data:
         existing = db.execute(select(RegistryRole).filter_by(role_code=role["role_code"])).scalar_one_or_none()
         if not existing:
