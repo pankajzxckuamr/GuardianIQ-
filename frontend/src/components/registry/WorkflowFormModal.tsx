@@ -11,6 +11,7 @@ import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import WorkflowNodeCanvas, { WorkflowStep } from "./WorkflowNodeCanvas";
+import InteractionGraphViewer from "./InteractionGraphViewer";
 import styles from "./WorkflowFormModal.module.css";
 
 
@@ -33,7 +34,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   defaultUserId
 }) => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "interaction" | "relationships" | "audit">("details");
   const [currentWizardStep, setCurrentWizardStep] = useState(0);
 
   // Lookups data
@@ -65,6 +66,7 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
   const [loadingLookups, setLoadingLookups] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [registerAllSession, setRegisterAllSession] = useState<any>(null);
 
   const isEditMode = !!workflowId;
 
@@ -184,6 +186,18 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
             }
           }
           setSteps(Array.isArray(parsedSteps) ? parsedSteps : []);
+          
+          // Fetch register-all session to see if this workflow is part of one
+          try {
+            const regRes = await registryService.listRegisterAll({ workflow_id: workflowId });
+            if (regRes.data && regRes.data.items && regRes.data.items.length > 0) {
+              setRegisterAllSession(regRes.data.items[0]);
+            } else {
+              setRegisterAllSession(null);
+            }
+          } catch (e) {
+            console.error("Failed to fetch associated Register All session:", e);
+          }
         }
       } catch (err: any) {
         setGeneralError(err.message || "Failed to load workflow data.");
@@ -392,6 +406,15 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
             >
               Details
             </button>
+            {registerAllSession && (
+              <button
+                type="button"
+                className={`${styles.tabBtn} ${activeTab === "interaction" ? styles.activeTab : ""}`}
+                onClick={() => setActiveTab("interaction")}
+              >
+                Interaction Map
+              </button>
+            )}
             <button
               type="button"
               className={`${styles.tabBtn} ${activeTab === "relationships" ? styles.activeTab : ""}`}
@@ -753,6 +776,15 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
                 )}
               </WizardShell>
             </form>
+          )}
+          
+          {activeTab === "interaction" && registerAllSession && (
+            <div style={{ padding: "20px" }}>
+              <div style={{ marginBottom: "16px", color: "#94a3b8" }}>
+                This map shows all registry components bound together in the guided onboarding session <strong>"{registerAllSession.name}"</strong>.
+              </div>
+              <InteractionGraphViewer session={registerAllSession} />
+            </div>
           )}
 
           {activeTab === "relationships" && (

@@ -1,6 +1,6 @@
 /* src/components/registry/RegisterAllWizardModal.tsx */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Modal } from "../common/Modal";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
@@ -18,6 +18,18 @@ import {
   CheckCircle2, 
   Trash2 
 } from "lucide-react";
+import { 
+  ReactFlow, 
+  Background, 
+  Controls, 
+  MarkerType, 
+  Node, 
+  Edge,
+  Handle,
+  Position
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+
 import styles from "./RegisterAllWizardModal.module.css";
 
 // Import Form Modals
@@ -44,9 +56,48 @@ const STEPS = [
   { key: "model", label: "AI Model", icon: Brain, desc: "Select or register the AI ML classification or LLM model." },
   { key: "agent", label: "AI Agent", icon: Cpu, desc: "Onboard the triage, execution, or monitoring agent." },
   { key: "tool", label: "Tools", icon: Plug, desc: "Link external webhook API operations or connectors." },
-  { key: "workflow", label: "Workflows", icon: GitBranch, desc: "Assemble the execution workflow steps." },
-  { key: "relationships", label: "Relationships", icon: Link2, desc: "Map connections between your selected assets." }
+  { key: "relationships", label: "Relationships", icon: Link2, desc: "Review the automatically mapped connections." },
+  { key: "workflow", label: "Workflows", icon: GitBranch, desc: "Name and save this entire interaction chain." }
 ];
+
+const getEntityBadgeClass = (type: string) => {
+  const t = type.toUpperCase();
+  if (t === "MODEL") return "#a855f7";
+  if (t === "AGENT") return "#ec4899";
+  if (t === "TOOL") return "#eab308";
+  if (t === "WORKFLOW") return "#3b82f6";
+  if (t === "DATA_SOURCE") return "#14b8a6";
+  if (t === "DEPARTMENT") return "#6366f1";
+  if (t === "USER") return "#f97316";
+  if (t === "ROLE") return "#8b5cf6";
+  return "#64748b";
+};
+
+const CustomNode = ({ data }: any) => (
+  <div style={{
+    background: '#1e293b',
+    border: `2px solid ${getEntityBadgeClass(data.typeText)}`,
+    borderRadius: '8px',
+    padding: '10px 15px',
+    color: 'white',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    minWidth: '150px',
+    textAlign: 'center',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
+  }}>
+    <div style={{ color: getEntityBadgeClass(data.typeText), fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase' }}>
+      {data.typeText}
+    </div>
+    <div title={data.label}>{data.label}</div>
+    <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+    <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+  </div>
+);
+
+const nodeTypes = {
+  custom: CustomNode,
+};
 
 export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
   isOpen,
@@ -68,7 +119,6 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     workflow: ""
   });
 
-  // Wizard state: Session name
   const [sessionName, setSessionName] = useState("");
   const [savingSession, setSavingSession] = useState(false);
 
@@ -84,18 +134,9 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     workflow: []
   });
   const [loadingLookups, setLoadingLookups] = useState<Record<string, boolean>>({});
-
-  // Control for individual create modals
   const [activeCreateModal, setActiveCreateModal] = useState<string | null>(null);
+  const [approverId, setApproverId] = useState("");
 
-  // State to track relationships created during this session
-  const [createdRels, setCreatedRels] = useState<any[]>([]);
-  const [relSourceType, setRelSourceType] = useState("");
-  const [relType, setRelType] = useState("USES");
-  const [relTargetType, setRelTargetType] = useState("");
-  const [addingRel, setAddingRel] = useState(false);
-
-  // Load active lists for the dropdowns
   const fetchLookup = async (key: string) => {
     setLoadingLookups(prev => ({ ...prev, [key]: true }));
     try {
@@ -133,15 +174,13 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     }
   };
 
-  // Load initial lookups
   useEffect(() => {
     if (isOpen) {
       STEPS.forEach(s => {
-        if (s.key !== "relationships") {
+        if (s.key !== "relationships" && s.key !== "workflow") {
           fetchLookup(s.key);
         }
       });
-      // Reset state
       setSelectedIds({
         department: "",
         role: "",
@@ -152,7 +191,6 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
         tool: "",
         workflow: ""
       });
-      setCreatedRels([]);
       setSessionName("");
       setActiveStepIdx(0);
     }
@@ -160,21 +198,17 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
 
   const activeStep = STEPS[activeStepIdx];
 
-  // Check if a step is completed
   const isStepCompleted = (stepKey: string) => {
-    if (stepKey === "relationships") return true; // Optional/always complete
+    if (stepKey === "relationships" || stepKey === "workflow") return true; 
     return !!selectedIds[stepKey];
   };
 
-  // Check if we can proceed/if active step is valid
   const isActiveStepValid = () => {
-    if (activeStep.key === "relationships") return true;
+    if (activeStep.key === "relationships" || activeStep.key === "workflow") return true;
     return !!selectedIds[activeStep.key];
   };
 
-  // Determine if a specific step index is locked
   const isStepLocked = (idx: number) => {
-    // A step is locked if any preceding step is not completed
     for (let i = 0; i < idx; i++) {
       if (!isStepCompleted(STEPS[i].key)) {
         return true;
@@ -205,15 +239,12 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     }
   };
 
-  // Handle successful registration from creation modals
   const handleModalSuccess = async (stepKey: string) => {
     const previousItems = lookups[stepKey] || [];
     const previousIds = new Set(previousItems.map(item => item.id));
 
-    // Reload list
     await fetchLookup(stepKey);
 
-    // Find the newly added element
     setTimeout(() => {
       setLookups(currentLookups => {
         const list = currentLookups[stepKey] || [];
@@ -227,75 +258,6 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     }, 100);
   };
 
-  // Handle relationship creation
-  const handleAddRelationship = async () => {
-    if (!relSourceType || !relTargetType || !relType) {
-      showToast("Please select all fields to map relationship.", "info");
-      return;
-    }
-
-    const sourceId = selectedIds[relSourceType.toLowerCase()];
-    const targetId = selectedIds[relTargetType.toLowerCase()];
-
-    if (!sourceId || !targetId) {
-      showToast("One of the selected assets is invalid.", "error");
-      return;
-    }
-
-    if (sourceId === targetId) {
-      showToast("Cannot link an entity to itself.", "info");
-      return;
-    }
-
-    setAddingRel(true);
-    try {
-      const payload = {
-        source_entity_type: relSourceType,
-        source_entity_id: sourceId,
-        relationship_type: relType,
-        target_entity_type: relTargetType,
-        target_entity_id: targetId
-      };
-      const res = await registryService.createRelationship(payload);
-      if (res.data) {
-        const sourceName = getEntityName(relSourceType, sourceId);
-        const targetName = getEntityName(relTargetType, targetId);
-
-        setCreatedRels(prev => [
-          ...prev,
-          {
-            id: res.data.id,
-            sourceType: relSourceType,
-            sourceId,
-            sourceName,
-            type: relType,
-            targetType: relTargetType,
-            targetId,
-            targetName
-          }
-        ]);
-        showToast("Relationship mapped successfully!", "success");
-        setRelSourceType("");
-        setRelTargetType("");
-      }
-    } catch (err: any) {
-      showToast(err.message || "Failed to create relationship.", "error");
-    } finally {
-      setAddingRel(false);
-    }
-  };
-
-  const handleRemoveRelationship = async (relId: string) => {
-    try {
-      await registryService.deleteRelationship(relId);
-      setCreatedRels(prev => prev.filter(r => r.id !== relId));
-      showToast("Relationship removed.", "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to delete relationship.", "error");
-    }
-  };
-
-  // Get name of selected entity
   const getEntityName = (type: string, id: string) => {
     const key = type.toLowerCase() === "data_source" ? "data_source" : type.toLowerCase();
     const list = lookups[key] || [];
@@ -304,15 +266,37 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     return item.department_name || item.role_name || item.full_name || item.source_name || item.model_name || item.agent_name || item.tool_name || item.workflow_name || "Unknown";
   };
 
-  // Complete guided onboarding session
   const handleSaveSession = async () => {
     if (!sessionName.trim()) {
-      showToast("Please enter a name for this onboarding session.", "info");
+      showToast("Please enter a name for this workflow session.", "info");
       return;
     }
 
     setSavingSession(true);
     try {
+      if (!approverId) {
+        showToast("Please select an approver.", "info");
+        setSavingSession(false);
+        return;
+      }
+      
+      const wfPayload = {
+        workflow_code: `WF-${Date.now().toString().slice(-6)}`,
+        workflow_name: sessionName,
+        workflow_type: "OPERATIONAL_ACTION",
+        department_id: selectedIds.department || null,
+        owner_user_id: selectedIds.user || null,
+        approver_user_id: approverId,
+        description: `Guided onboarding session: ${sessionName}`,
+        approval_required: true,
+        business_criticality: "HIGH",
+        status: "DRAFT",
+        metadata_json: {}
+      };
+      
+      const wfRes = await registryService.createWorkflow(wfPayload);
+      const newWfId = wfRes.data.id;
+
       const payload = {
         name: sessionName,
         department_id: selectedIds.department || null,
@@ -322,33 +306,161 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
         model_id: selectedIds.model || null,
         agent_id: selectedIds.agent || null,
         tool_id: selectedIds.tool || null,
-        workflow_id: selectedIds.workflow || null
+        workflow_id: newWfId
       };
+
+      // Also create auto-mapped relationships
+      const createRel = async (sourceType: string, sourceId: string, relType: string, targetType: string, targetId: string) => {
+        if(sourceId && targetId) {
+          try {
+            await registryService.createRelationship({
+              source_entity_type: sourceType,
+              source_entity_id: sourceId,
+              relationship_type: relType,
+              target_entity_type: targetType,
+              target_entity_id: targetId
+            });
+          } catch (err: any) {
+            if (err.message && err.message.toLowerCase().includes("duplicate")) {
+              console.log(`Relationship ${sourceType} -> ${targetType} already exists, continuing.`);
+            } else {
+              throw err;
+            }
+          }
+        }
+      };
+
+      await createRel("DEPARTMENT", selectedIds.department, "HAS", "ROLE", selectedIds.role);
+      await createRel("ROLE", selectedIds.role, "HAS", "USER", selectedIds.user);
+      await createRel("USER", selectedIds.user, "OWNS", "WORKFLOW", newWfId);
+      await createRel("WORKFLOW", newWfId, "USES", "AGENT", selectedIds.agent);
+      await createRel("AGENT", selectedIds.agent, "USES", "MODEL", selectedIds.model);
+      await createRel("AGENT", selectedIds.agent, "USES", "TOOL", selectedIds.tool);
+      if(selectedIds.data_source) {
+        await createRel("MODEL", selectedIds.model, "USES", "DATA_SOURCE", selectedIds.data_source);
+      }
 
       const res = await registryService.createRegisterAll(payload);
       if (res.data) {
-        showToast("Guided onboarding session saved successfully!", "success");
+        showToast("Workflow and relationships saved successfully!", "success");
         onSuccess();
         onClose();
       }
     } catch (err: any) {
-      showToast(err.message || "Failed to save session.", "error");
+      showToast(err.message || "Failed to save workflow.", "error");
     } finally {
       setSavingSession(false);
     }
   };
 
-  // Relationship dropdown options filtered by selection status
-  const relSourceOptions = [
-    { key: "DEPARTMENT", label: "Department", value: selectedIds.department },
-    { key: "ROLE", label: "Role", value: selectedIds.role },
-    { key: "USER", label: "User", value: selectedIds.user },
-    { key: "DATA_SOURCE", label: "Data Source", value: selectedIds.data_source },
-    { key: "MODEL", label: "AI Model", value: selectedIds.model },
-    { key: "AGENT", label: "AI Agent", value: selectedIds.agent },
-    { key: "TOOL", label: "Tool", value: selectedIds.tool },
-    { key: "WORKFLOW", label: "Workflow", value: selectedIds.workflow }
-  ].filter(o => !!o.value);
+  // Generate Graph Data
+  const { graphNodes, graphEdges } = useMemo(() => {
+    const nodes: Node[] = [];
+    const edges: Edge[] = [];
+    
+    let xOffset = 50;
+    const yCenter = 150;
+    
+    const addNodeAndEdge = (typeText: string, id: string, sourceNodeId: string | null = null, edgeLabel: string = "USES") => {
+      if (!id) return null;
+      const nodeId = `node_${typeText}`;
+      nodes.push({
+        id: nodeId,
+        type: "custom",
+        position: { x: xOffset, y: yCenter },
+        data: { label: getEntityName(typeText, id), typeText }
+      });
+      xOffset += 250;
+      
+      if (sourceNodeId) {
+        edges.push({
+          id: `e_${sourceNodeId}_${nodeId}`,
+          source: sourceNodeId,
+          target: nodeId,
+          label: edgeLabel,
+          animated: true,
+          style: { stroke: '#0ea5e9', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+          labelStyle: { fill: '#fff', fontWeight: 600, fontSize: 11 },
+          labelBgStyle: { fill: '#0b1120', stroke: '#1e293b', strokeWidth: 1 }
+        });
+      }
+      return nodeId;
+    };
+
+    const deptId = addNodeAndEdge("DEPARTMENT", selectedIds.department);
+    const roleId = addNodeAndEdge("ROLE", selectedIds.role, deptId, "HAS");
+    const userId = addNodeAndEdge("USER", selectedIds.user, roleId, "HAS");
+    const agentId = addNodeAndEdge("AGENT", selectedIds.agent, userId, "OWNS");
+    
+    if (agentId) {
+      // Split model and tool
+      if (selectedIds.model) {
+        const modelNodeId = `node_MODEL`;
+        nodes.push({
+          id: modelNodeId,
+          type: "custom",
+          position: { x: xOffset, y: yCenter - 80 },
+          data: { label: getEntityName("MODEL", selectedIds.model), typeText: "MODEL" }
+        });
+        edges.push({
+          id: `e_${agentId}_${modelNodeId}`,
+          source: agentId,
+          target: modelNodeId,
+          label: "USES",
+          animated: true,
+          style: { stroke: '#0ea5e9', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+          labelStyle: { fill: '#fff', fontWeight: 600, fontSize: 11 },
+          labelBgStyle: { fill: '#0b1120', stroke: '#1e293b', strokeWidth: 1 }
+        });
+        
+        if (selectedIds.data_source) {
+          const dsNodeId = `node_DATA_SOURCE`;
+          nodes.push({
+            id: dsNodeId,
+            type: "custom",
+            position: { x: xOffset + 250, y: yCenter - 80 },
+            data: { label: getEntityName("DATA_SOURCE", selectedIds.data_source), typeText: "DATA_SOURCE" }
+          });
+          edges.push({
+            id: `e_${modelNodeId}_${dsNodeId}`,
+            source: modelNodeId,
+            target: dsNodeId,
+            label: "READS",
+            animated: true,
+            style: { stroke: '#0ea5e9', strokeWidth: 2 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+            labelStyle: { fill: '#fff', fontWeight: 600, fontSize: 11 },
+            labelBgStyle: { fill: '#0b1120', stroke: '#1e293b', strokeWidth: 1 }
+          });
+        }
+      }
+      
+      if (selectedIds.tool) {
+        const toolNodeId = `node_TOOL`;
+        nodes.push({
+          id: toolNodeId,
+          type: "custom",
+          position: { x: xOffset, y: yCenter + 80 },
+          data: { label: getEntityName("TOOL", selectedIds.tool), typeText: "TOOL" }
+        });
+        edges.push({
+          id: `e_${agentId}_${toolNodeId}`,
+          source: agentId,
+          target: toolNodeId,
+          label: "EXECUTES",
+          animated: true,
+          style: { stroke: '#0ea5e9', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#0ea5e9' },
+          labelStyle: { fill: '#fff', fontWeight: 600, fontSize: 11 },
+          labelBgStyle: { fill: '#0b1120', stroke: '#1e293b', strokeWidth: 1 }
+        });
+      }
+    }
+
+    return { graphNodes: nodes, graphEdges: edges };
+  }, [selectedIds, lookups]);
 
   return (
     <Modal
@@ -358,7 +470,6 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
       size="xl"
     >
       <div className={styles.container}>
-        {/* Progress Stepper icons */}
         <div className={styles.stepperHeader}>
           {STEPS.map((s, idx) => {
             const StepIcon = s.icon;
@@ -395,17 +506,14 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
           })}
         </div>
 
-        {/* Step Card Content */}
         <div className={styles.stepCard}>
           <div className={styles.stepTitleSection}>
             <h3 className={styles.stepTitle}>{activeStep.label}</h3>
             <p className={styles.stepDescription}>{activeStep.desc}</p>
           </div>
 
-          {activeStep.key !== "relationships" ? (
-            /* Standard Stepper Step - Choose Existing or Create New */
+          {activeStep.key !== "relationships" && activeStep.key !== "workflow" ? (
             <div className={styles.splitContainer}>
-              {/* Option A: Select Existing */}
               <div className={`${styles.optionColumn} ${selectedIds[activeStep.key] ? styles.optionColumnActive : ""}`}>
                 <h4 className={styles.optionColumnTitle}>Choose Existing</h4>
                 <div className={styles.selectWrapper}>
@@ -435,7 +543,6 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
                 )}
               </div>
 
-              {/* Option B: Create New */}
               <div className={styles.optionColumn}>
                 <h4 className={styles.optionColumnTitle}>Register New</h4>
                 <button
@@ -448,116 +555,68 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
                 </button>
               </div>
             </div>
+          ) : activeStep.key === "relationships" ? (
+            <div style={{ width: '100%', height: '350px', background: '#0b1120', borderRadius: '8px', border: '1px solid #1e293b' }}>
+              <ReactFlow
+                nodes={graphNodes}
+                edges={graphEdges}
+                nodeTypes={nodeTypes}
+                fitView
+                fitViewOptions={{ padding: 0.2 }}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={false}
+              >
+                <Background color="#1e293b" gap={16} />
+                <Controls />
+              </ReactFlow>
+            </div>
           ) : (
-            /* Relationships and Saving Step */
-            <div className={styles.relationshipContainer}>
-              <div className={styles.splitContainer}>
-                {/* Column A: Map Relationship Form */}
-                <div className={styles.optionColumn} style={{ justifyContent: "flex-start", gap: "10px" }}>
-                  <h4 className={styles.optionColumnTitle}>Link Assets</h4>
-                  
-                  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ fontSize: "0.8rem", fontWeight: "600" }}>Source Asset</label>
-                    <select
-                      className={styles.selectInput}
-                      value={relSourceType}
-                      onChange={(e) => setRelSourceType(e.target.value)}
-                    >
-                      <option value="">-- Choose Source --</option>
-                      {relSourceOptions.map(opt => (
-                        <option key={opt.key} value={opt.key}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ fontSize: "0.8rem", fontWeight: "600" }}>Relationship Type</label>
-                    <select
-                      className={styles.selectInput}
-                      value={relType}
-                      onChange={(e) => setRelType(e.target.value)}
-                    >
-                      <option value="USES">USES</option>
-                      <option value="OWNS">OWNS</option>
-                      <option value="EXECUTES">EXECUTES</option>
-                      <option value="GOVERNED_BY">GOVERNED_BY</option>
-                      <option value="CONNECTED_TO">CONNECTED_TO</option>
-                    </select>
-                  </div>
-
-                  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ fontSize: "0.8rem", fontWeight: "600" }}>Target Asset</label>
-                    <select
-                      className={styles.selectInput}
-                      value={relTargetType}
-                      onChange={(e) => setRelTargetType(e.target.value)}
-                    >
-                      <option value="">-- Choose Target --</option>
-                      {relSourceOptions.map(opt => (
-                        <option key={opt.key} value={opt.key}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <button
-                    type="button"
-                    className={styles.createButton}
-                    onClick={handleAddRelationship}
-                    disabled={addingRel || !relSourceType || !relTargetType}
-                    style={{ width: "100%", marginTop: "10px", justifyContent: "center" }}
-                  >
-                    {addingRel ? "Mapping..." : "+ Map Relationship"}
-                  </button>
-                </div>
-
-                {/* Column B: Created Relationships List */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <h4 style={{ fontSize: "0.95rem", fontWeight: "600" }}>Relationships Formed</h4>
-                  <div className={styles.relationshipList}>
-                    {createdRels.length === 0 ? (
-                      <div className={styles.noRelationshipsText}>
-                        No relationships established yet. You can create links above or click Next to save.
-                      </div>
-                    ) : (
-                      createdRels.map(rel => (
-                        <div key={rel.id} className={styles.relationshipRow}>
-                          <div className={styles.relationshipText}>
-                            <span className={styles.entityBadge}>{rel.sourceType}</span>
-                            <span>{rel.sourceName}</span>
-                            <span className={styles.relTypeBadge}>{rel.type}</span>
-                            <span className={styles.entityBadge}>{rel.targetType}</span>
-                            <span>{rel.targetName}</span>
-                          </div>
-                          <button
-                            type="button"
-                            className={styles.removeRelBtn}
-                            onClick={() => handleRemoveRelationship(rel.id)}
-                            title="Remove Relationship"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Save Session Section */}
-                  <div className={styles.saveInputGroup}>
-                    <label style={{ fontSize: "0.82rem", fontWeight: "600" }}> guided onboarding Session Name <span style={{ color: "#ef4444" }}>*</span></label>
-                    <input
-                      type="text"
-                      className={styles.saveInput}
-                      placeholder="e.g. Clinical NLP Pipeline Onboarding"
-                      value={sessionName}
-                      onChange={(e) => setSessionName(e.target.value)}
-                    />
-                  </div>
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ width: '100%', height: '200px', background: '#0b1120', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                <ReactFlow
+                  nodes={graphNodes}
+                  edges={graphEdges}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  fitViewOptions={{ padding: 0.2 }}
+                  nodesDraggable={false}
+                  nodesConnectable={false}
+                  elementsSelectable={false}
+                >
+                  <Background color="#1e293b" gap={16} />
+                </ReactFlow>
+              </div>
+              <div className={styles.saveInputGroup} style={{ maxWidth: '400px', margin: '0 auto', width: '100%' }}>
+                <label style={{ fontSize: "0.82rem", fontWeight: "600", marginBottom: "8px", display: "block" }}> Workflow Session Name <span style={{ color: "#ef4444" }}>*</span></label>
+                <input
+                  type="text"
+                  className={styles.saveInput}
+                  placeholder="e.g. Clinical NLP Pipeline"
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #334155", background: "#1e293b", color: "white", marginBottom: "16px" }}
+                />
+                
+                <label style={{ fontSize: "0.82rem", fontWeight: "600", marginBottom: "8px", display: "block" }}> Assigned Approver <span style={{ color: "#ef4444" }}>*</span></label>
+                <select
+                  className={styles.selectInput}
+                  value={approverId}
+                  onChange={(e) => setApproverId(e.target.value)}
+                  disabled={loadingLookups["user"]}
+                  style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #334155", background: "#1e293b", color: "white" }}
+                >
+                  <option value="">-- Select Approver --</option>
+                  {lookups["user"]?.map((item: any) => (
+                    <option key={item.id} value={item.id}>
+                      {item.full_name} ({item.email})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
 
-          {/* Stepper Controls */}
           <div className={styles.stepperControls}>
             <button
               type="button"
@@ -568,7 +627,7 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
               Back
             </button>
 
-            {activeStep.key !== "relationships" ? (
+            {activeStep.key !== "workflow" ? (
               <button
                 type="button"
                 className={styles.nextBtn}
@@ -585,73 +644,14 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
                 disabled={savingSession || !sessionName.trim()}
                 style={{ background: "#10b981" }}
               >
-                {savingSession ? "Saving..." : "Save & Complete Onboarding"}
+                {savingSession ? "Saving..." : "Save & Complete Workflow"}
               </button>
             )}
           </div>
         </div>
       </div>
-
-      {/* Embedded Creation Modals */}
-      <DepartmentFormModal
-        isOpen={activeCreateModal === "department"}
-        onClose={() => setActiveCreateModal(null)}
-        deptId={null}
-        onSuccess={() => handleModalSuccess("department")}
-      />
-      <RoleFormModal
-        isOpen={activeCreateModal === "role"}
-        onClose={() => setActiveCreateModal(null)}
-        roleId={null}
-        onSuccess={() => handleModalSuccess("role")}
-      />
-      <UserFormModal
-        isOpen={activeCreateModal === "user"}
-        onClose={() => setActiveCreateModal(null)}
-        userId={null}
-        onSuccess={() => handleModalSuccess("user")}
-        defaultDepartmentId={selectedIds.department || null}
-        defaultRoleId={selectedIds.role || null}
-      />
-      <DataSourceFormModal
-        isOpen={activeCreateModal === "data_source"}
-        onClose={() => setActiveCreateModal(null)}
-        sourceId={null}
-        onSuccess={() => handleModalSuccess("data_source")}
-        defaultDepartmentId={selectedIds.department || null}
-        defaultUserId={selectedIds.user || null}
-      />
-      <ModelFormModal
-        isOpen={activeCreateModal === "model"}
-        onClose={() => setActiveCreateModal(null)}
-        modelId={null}
-        onSuccess={() => handleModalSuccess("model")}
-        defaultDepartmentId={selectedIds.department || null}
-        defaultUserId={selectedIds.user || null}
-      />
-      <AgentFormModal
-        isOpen={activeCreateModal === "agent"}
-        onClose={() => setActiveCreateModal(null)}
-        agentId={null}
-        onSuccess={() => handleModalSuccess("agent")}
-        defaultDepartmentId={selectedIds.department || null}
-        defaultUserId={selectedIds.user || null}
-      />
-      <ToolFormModal
-        isOpen={activeCreateModal === "tool"}
-        onClose={() => setActiveCreateModal(null)}
-        toolId={null}
-        onSuccess={() => handleModalSuccess("tool")}
-        defaultUserId={selectedIds.user || null}
-      />
-      <WorkflowFormModal
-        isOpen={activeCreateModal === "workflow"}
-        onClose={() => setActiveCreateModal(null)}
-        workflowId={null}
-        onSuccess={() => handleModalSuccess("workflow")}
-        defaultDepartmentId={selectedIds.department || null}
-        defaultUserId={selectedIds.user || null}
-      />
     </Modal>
   );
 };
+
+export default RegisterAllWizardModal;

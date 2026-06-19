@@ -1059,6 +1059,7 @@ def list_register_all_sessions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
+    workflow_id: Optional[UUID] = None,
     sort_by: str = Query("created_at"),
     sort_dir: str = Query("desc"),
     db: Session = Depends(get_db),
@@ -1067,7 +1068,11 @@ def list_register_all_sessions(
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     
-    items, total = services.list_register_all(db, {"search": search}, page, page_size, sort_by, sort_dir)
+    filters = {"search": search}
+    if workflow_id:
+        filters["workflow_id"] = workflow_id
+        
+    items, total = services.list_register_all(db, filters, page, page_size, sort_by, sort_dir)
     total_pages = math.ceil(total / page_size) if total > 0 else 0
     
     response_data = schemas.RegisterAllListResponse(

@@ -741,7 +741,12 @@ ALLOWED_RELATIONSHIPS = {
     ("WORKFLOW", "USES", "TOOL"),
     ("WORKFLOW", "GOVERNED_BY", "DEPARTMENT"),
     ("USER", "OWNS", "ROLE"),
-    ("DEPARTMENT", "GOVERNED_BY", "USER")
+    ("DEPARTMENT", "GOVERNED_BY", "USER"),
+    ("DEPARTMENT", "HAS", "ROLE"),
+    ("ROLE", "HAS", "USER"),
+    ("USER", "OWNS", "WORKFLOW"),
+    ("WORKFLOW", "USES", "AGENT"),
+    ("WORKFLOW", "USES", "MODEL")
 }
 
 def create_relationship(db: Session, payload: schemas.RelationshipCreate, current_user):

@@ -811,6 +811,9 @@ def list_register_all(
     if filters.get("search"):
         search_term = f"%{filters['search']}%"
         query = query.filter(RegistryRegisterAll.name.ilike(search_term))
+        
+    if filters.get("workflow_id"):
+        query = query.filter(RegistryRegisterAll.workflow_id == filters["workflow_id"])
 
     order_column = getattr(RegistryRegisterAll, sort_by, RegistryRegisterAll.created_at)
     if sort_dir.lower() == "desc":

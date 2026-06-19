@@ -10,7 +10,7 @@
   "data": {}                     // the actual response data
 }
 ```
-
+ 
 ## Common Response Patterns
 
 ### List Endpoint
