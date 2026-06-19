@@ -17,3 +17,24 @@ from app.modules.registry.models import (
 from app.modules.orchestration.models import (
     WorkflowExecution, WorkflowSchedule, ExecutionFinding, ExecutionEventLog
 )
+from app.modules.workflow_scheduler.models import (
+    ApprovalGroup,
+    Phase2WorkflowSchedule,
+    WorkflowScheduleAgentAssignment,
+    WorkflowScheduleApproval,
+    WorkflowScheduleHistory,
+    ApprovalGroupMember
+)
+from app.modules.workflow_execution.models import (
+    WorkflowRun,
+    WorkflowRunStep,
+    WorkflowRunOutput,
+    WorkflowRunFailure
+)
+from app.modules.workflow_notifications.models import (
+    WorkflowNotification
+)
+from app.modules.authorization.models import (
+    WorkflowAuthorizationDecision,
+    WorkflowDelegation
+)

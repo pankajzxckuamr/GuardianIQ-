@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.db.session import engine
+import app.db.base
 from app.modules.auth.routes import router as auth_router
 
 from app.core.middleware import RequestIDMiddleware, LoggingMiddleware, ResponseStandardizationMiddleware, get_request_id
@@ -55,6 +56,9 @@ add_exception_handlers(app)
 from app.modules.foundation.routes import router as foundation_router
 from app.modules.registry.routes import router as registry_router
 from app.modules.orchestration.routes import router as orchestration_router
+from app.api.phase2_authorization_routes import router as phase2_auth_router
+from app.api.phase2_scheduler_routes import router as phase2_scheduler_router
+from app.api.phase2_run_routes import router as phase2_run_router
 
 app.include_router(auth_router)
 app.include_router(department_router)
@@ -68,6 +72,9 @@ app.include_router(approval_router)
 app.include_router(foundation_router)
 app.include_router(registry_router)
 app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
+app.include_router(phase2_auth_router)
+app.include_router(phase2_scheduler_router)
+app.include_router(phase2_run_router)
 
 @app.get("/api/health", response_model=StandardResponse[dict])
 def health_check():

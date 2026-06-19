@@ -1,0 +1,71 @@
+from enum import Enum
+
+class ScheduleStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    FAILED = "FAILED"
+    RETIRED = "RETIRED"
+
+class ScheduleType(str, Enum):
+    MANUAL = "MANUAL"
+    ONE_TIME = "ONE_TIME"
+    INTERVAL = "INTERVAL"
+    DAILY = "DAILY"
+    WEEKLY = "WEEKLY"
+    MONTHLY = "MONTHLY"
+    CRON = "CRON"
+
+class RunStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    SKIPPED = "SKIPPED"
+    RETRY_QUEUED = "RETRY_QUEUED"
+
+class TriggerType(str, Enum):
+    SCHEDULED = "SCHEDULED"
+    MANUAL = "MANUAL"
+    EVENT = "EVENT"
+    API = "API"
+
+class ExecutionMode(str, Enum):
+    READ_ONLY = "READ_ONLY"
+    RECOMMEND_ONLY = "RECOMMEND_ONLY"
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    LIMITED_EXECUTION = "LIMITED_EXECUTION"
+
+class AssignmentRole(str, Enum):
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    REVIEWER = "REVIEWER"
+
+class RiskLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+class ConcurrencyPolicy(str, Enum):
+    SKIP_IF_RUNNING = "SKIP_IF_RUNNING"
+    QUEUE = "QUEUE"
+    ALLOW_PARALLEL = "ALLOW_PARALLEL"
+
+class ApprovalStatus(str, Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
+    ESCALATED = "ESCALATED"
+
+class NotificationType(str, Enum):
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    ACTIVATION_APPROVED = "ACTIVATION_APPROVED"
+    ACTIVATION_REJECTED = "ACTIVATION_REJECTED"
+    RUN_FAILED = "RUN_FAILED"
+    SLA_BREACHED = "SLA_BREACHED"
+    HIGH_RISK_OUTPUT = "HIGH_RISK_OUTPUT"
+    AUTHORIZATION_DENIED = "AUTHORIZATION_DENIED"
