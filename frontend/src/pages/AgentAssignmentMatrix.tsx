@@ -3,7 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { BoundaryRuleEditor } from '../components/phase2/BoundaryRuleEditor';
 import { AgentAssignmentPanel } from '../components/phase2/AgentAssignmentPanel';
-import { Shield, Filter, Search, Plus, X, AlertCircle, Edit2, Play, CheckCircle, RefreshCw } from 'lucide-react';
+import { Shield, Filter, Search, Plus, X, AlertCircle, Edit2, Play, CheckCircle, RefreshCw, XCircle } from 'lucide-react';
+import { storage } from '../utils/storage';
 
 // A basic drawer component to overlay on the right
 const Drawer = ({ open, onClose, title, children }: any) => {
@@ -57,7 +58,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
   const [models, setModels] = useState<any[]>([]);
 
   const fetchWithAuth = async (url: string) => {
-    const token = localStorage.getItem('guardianiq_access_token');
+    const token = storage.get<string>('guardianiq_access_token');
     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
     const json = await res.json();
     return json.data?.items || json.data || [];
@@ -128,7 +129,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
   const handleValidateBoundary = async () => {
     setValidating(true);
     try {
-      const token = localStorage.getItem('guardianiq_access_token');
+      const token = storage.get<string>('guardianiq_access_token');
       const res = await fetch('/api/v1/authorization/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -152,7 +153,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      const token = localStorage.getItem('guardianiq_access_token');
+      const token = storage.get<string>('guardianiq_access_token');
       const method = drawerMode === 'CREATE' ? 'POST' : 'PUT';
       const url = drawerMode === 'CREATE' 
         ? `/api/v1/workflow-scheduler/schedules/${formData.schedule_id}/agent-assignments`
@@ -178,7 +179,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
     e.stopPropagation();
     if (!window.confirm('Are you sure you want to disable this assignment?')) return;
     try {
-      const token = localStorage.getItem('guardianiq_access_token');
+      const token = storage.get<string>('guardianiq_access_token');
       const res = await fetch(`/api/v1/workflow-scheduler/schedules/${item.schedule_id}/agent-assignments/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

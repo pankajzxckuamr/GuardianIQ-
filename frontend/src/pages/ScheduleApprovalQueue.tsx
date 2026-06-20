@@ -5,6 +5,7 @@ import { useToast } from '../hooks/useToast';
 import { scheduleApi } from '../api/phase2Client';
 import { RiskLevelBadge } from '../components/phase2/RiskLevelBadge';
 import { Clock, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { storage } from '../utils/storage';
 
 export const ScheduleApprovalQueue: React.FC = () => {
   const { currentUser } = useAuth();
@@ -52,7 +53,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
     // For this UI we'll just show the toast and refresh.
     
     try {
-      const token = localStorage.getItem('guardianiq_access_token');
+      const token = storage.get<string>('guardianiq_access_token');
       // Mocking the approval id as schedule.id for demo
       const approvalId = selectedSchedule.id; 
       

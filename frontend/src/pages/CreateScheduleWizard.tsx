@@ -8,6 +8,7 @@ import { ApprovalRequirementBanner } from '../components/phase2/ApprovalRequirem
 import { CronExpressionBuilder } from '../components/phase2/CronExpressionBuilder';
 import { BoundaryRuleEditor } from '../components/phase2/BoundaryRuleEditor';
 import { AlertCircle } from 'lucide-react';
+import { storage } from '../utils/storage';
 
 const steps = [
   { label: 'Select Workflow' },
@@ -75,7 +76,7 @@ export const CreateScheduleWizard: React.FC = () => {
   const [isDirty, setIsDirty] = useState(false);
 
   const fetchWithAuth = async (url: string) => {
-    const token = localStorage.getItem('guardianiq_access_token');
+    const token = storage.get<string>('guardianiq_access_token');
     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
     const json = await res.json();
     return json.data?.items || json.data || [];
@@ -118,7 +119,7 @@ export const CreateScheduleWizard: React.FC = () => {
   const handleCronBlur = async () => {
     if (!formData.cron_expression) return;
     try {
-      const token = localStorage.getItem('guardianiq_access_token');
+      const token = storage.get<string>('guardianiq_access_token');
       const res = await fetch('/api/v1/workflow-scheduler/validate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

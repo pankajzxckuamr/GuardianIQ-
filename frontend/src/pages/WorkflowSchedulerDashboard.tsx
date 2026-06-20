@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Eye,
   Calendar,
-  Filter
+  Filter,
+  PlayCircle
 } from 'lucide-react';
 
 export const WorkflowSchedulerDashboard: React.FC = () => {

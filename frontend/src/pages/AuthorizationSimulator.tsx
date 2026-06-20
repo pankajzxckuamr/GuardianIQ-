@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { Shield, AlertTriangle, CheckCircle, XCircle, Search, RefreshCw } from 'lucide-react';
+import { storage } from '../utils/storage';
 
 export const AuthorizationSimulator: React.FC = () => {
   const { showToast } = useToast();
@@ -34,7 +35,7 @@ export const AuthorizationSimulator: React.FC = () => {
     
     setLoading(true);
     try {
-      const token = localStorage.getItem('guardianiq_access_token');
+      const token = storage.get<string>('guardianiq_access_token');
       const res = await fetch('/api/v1/authorization/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

@@ -1,3 +1,5 @@
+import { storage } from '../utils/storage';
+
 const envelope = async <T>(res: Response): Promise<T> => {
   const json = await res.json();
   if (!json.success) throw new Error(json.error ?? 'API error');
@@ -5,7 +7,7 @@ const envelope = async <T>(res: Response): Promise<T> => {
 };
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('guardianiq_access_token');
+  const token = storage.get<string>('guardianiq_access_token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {})
