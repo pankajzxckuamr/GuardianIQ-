@@ -27,6 +27,7 @@ from app.modules.workflow_execution.models import WorkflowRun, WorkflowRunStep, 
 from app.modules.workflow_execution.service import WorkflowRunService, WorkflowRunStateError
 from app.modules.agent_runtime.boundary_checker import BoundaryChecker
 from app.modules.agent_runtime.service import AgentRuntimeService
+from app.modules.audit.models import AuditEvent
 
 class WorkflowRunTests(unittest.TestCase):
     def setUp(self):
@@ -332,6 +333,12 @@ class WorkflowRunTests(unittest.TestCase):
         # Verify output parsed successfully
         self.assertTrue(len(run.outputs) == 1)
         self.assertEqual(run.outputs[0].parse_status, "PARSED")
+
+        # Verify Audit Events (QUEUED -> RUNNING -> COMPLETED)
+        audit_events = self.db.query(AuditEvent).filter(AuditEvent.entity_id == run.id).order_by(AuditEvent.created_at).all()
+        event_codes = [e.event_code for e in audit_events]
+        self.assertIn("WORKFLOW_RUN_QUEUED", event_codes)
+        self.assertIn("WORKFLOW_RUN_COMPLETED", event_codes)
 
         # Test SLA Breach
         run_sla = asyncio.run(WorkflowRunService.create_run(self.db, self.schedule.id, "MANUAL", self.admin_uuid))

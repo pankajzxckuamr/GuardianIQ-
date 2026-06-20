@@ -73,7 +73,7 @@ def login(
             AuditEventCreate(
                 event_type="auth.login_failure",
                 entity_type="user",
-                entity_id=user.id,
+                entity_id=str(user.id),
                 actor_user_id=user.id,
                 action="login",
                 event_metadata={
@@ -134,7 +134,7 @@ def login(
         AuditEventCreate(
             event_type="auth.login_success",
             entity_type="user",
-            entity_id=user.id,
+            entity_id=str(user.id),
             actor_user_id=user.id,
             action="login",
             event_metadata={

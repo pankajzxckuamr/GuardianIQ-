@@ -21,7 +21,7 @@ class AuditEvent(Base):
         nullable=False
     )
 
-    entity_id = Column(Integer)
+    entity_id = Column(String(100), nullable=True)
 
     actor_user_id = Column(Integer)
 

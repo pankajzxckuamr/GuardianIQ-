@@ -9,7 +9,7 @@ class AuditEventCreate(BaseModel):
 
     entity_type: str
 
-    entity_id: Optional[int] = None
+    entity_id: Optional[str] = None
 
     actor_user_id: Optional[int] = None
 
@@ -22,7 +22,7 @@ class AuditEventResponse(BaseModel):
     id: int
     event_type: str
     entity_type: str
-    entity_id: Optional[int] = None
+    entity_id: Optional[str] = None
     actor_user_id: Optional[int] = None
     actor_username: Optional[str] = None
     ip_address: Optional[str] = None

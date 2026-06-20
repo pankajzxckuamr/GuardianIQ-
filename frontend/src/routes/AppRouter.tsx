@@ -22,6 +22,16 @@ import { RegistryRelationshipsPage } from "../pages/RegistryRelationshipsPage";
 import { ExecutionDashboardPage } from "../pages/ExecutionDashboardPage";
 import { RegisterAllPage } from "../pages/RegisterAllPage";
 
+const WorkflowSchedulerDashboard = React.lazy(() => import('../pages/WorkflowSchedulerDashboard'));
+const CreateScheduleWizard = React.lazy(() => import('../pages/CreateScheduleWizard'));
+const ScheduleDetailPage = React.lazy(() => import('../pages/ScheduleDetailPage'));
+const RunHistoryPage = React.lazy(() => import('../pages/RunHistoryPage'));
+const RunDetailPage = React.lazy(() => import('../pages/RunDetailPage'));
+const AgentAssignmentMatrix = React.lazy(() => import('../pages/AgentAssignmentMatrix'));
+const AuthorizationSimulator = React.lazy(() => import('../pages/AuthorizationSimulator'));
+const ScheduleApprovalQueue = React.lazy(() => import('../pages/ScheduleApprovalQueue'));
+const NotificationsCenter = React.lazy(() => import('../pages/NotificationsCenter'));
+
 export const AppRouter: React.FC = () => {
   return (
     <BrowserRouter>
@@ -186,6 +196,17 @@ export const AppRouter: React.FC = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* Phase 2 Routes */}
+        <Route path="/workflow-scheduler" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><WorkflowSchedulerDashboard /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/workflow-scheduler/new" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><CreateScheduleWizard /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/workflow-scheduler/:id" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><ScheduleDetailPage /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/workflow-runs" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><RunHistoryPage /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/workflow-runs/:runId" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><RunDetailPage /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/agent-assignments" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><AgentAssignmentMatrix /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/authorization-simulator" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><AuthorizationSimulator /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/schedule-approvals" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><ScheduleApprovalQueue /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/workflow-notifications" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><NotificationsCenter /></React.Suspense></AppShell></ProtectedRoute>} />
 
         {/* Root Redirects */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -27,7 +27,11 @@ import {
   Search,
   Loader2,
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  Calendar,
+  CheckSquare,
+  Settings,
+  Bell
 } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import "./AppShell.css";
@@ -225,6 +229,26 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     bottomNavItems.push({ label: "Tenants", path: "/tenants", icon: Users });
   }
 
+  const hasPerm = (p: string) => currentUser?.is_superuser || currentUser?.permissions?.includes(p);
+
+  const phase2ExecutionItems = [
+    { label: "Workflow Scheduler", path: "/workflow-scheduler", icon: Calendar, show: hasPerm("VIEW_WORKFLOW_SCHEDULE") },
+    { label: "Run History", path: "/workflow-runs", icon: GitBranch, show: hasPerm("VIEW_WORKFLOW_RUN") },
+    { label: "Schedule Approvals", path: "/schedule-approvals", icon: CheckSquare, show: hasPerm("ACTIVATE_WORKFLOW_SCHEDULE") },
+  ].filter(i => i.show);
+
+  const phase2ConfigItems = [
+    { label: "Agent Assignments", path: "/agent-assignments", icon: Plug, show: hasPerm("ASSIGN_AI_AGENT_TO_WORKFLOW") },
+  ].filter(i => i.show);
+
+  const phase2ToolsItems = [
+    { label: "Authorization Simulator", path: "/authorization-simulator", icon: Settings, show: hasPerm("EVALUATE_AUTHORIZATION") },
+  ].filter(i => i.show);
+
+  const phase2AlertItems = [
+    { label: "Workflow Notifications", path: "/workflow-notifications", icon: Bell, show: true },
+  ].filter(i => i.show);
+
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   return (
@@ -315,6 +339,60 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </div>
             )}
           </div>
+
+          {phase2ExecutionItems.length > 0 && (
+            <div className="sidebar-group-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', padding: '0.5rem 1rem 0.25rem' }}>Governance Execution</div>
+          )}
+          {phase2ExecutionItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname.startsWith(item.path);
+            return (
+              <Link key={item.path} to={item.path} className={`sidebar-link ${isActive ? "active" : ""}`} onClick={() => setSidebarOpen(false)}>
+                <Icon size={18} /><span>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          {phase2ConfigItems.length > 0 && (
+            <div className="sidebar-group-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', padding: '0.5rem 1rem 0.25rem' }}>Governance Configuration</div>
+          )}
+          {phase2ConfigItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname.startsWith(item.path);
+            return (
+              <Link key={item.path} to={item.path} className={`sidebar-link ${isActive ? "active" : ""}`} onClick={() => setSidebarOpen(false)}>
+                <Icon size={18} /><span>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          {phase2ToolsItems.length > 0 && (
+            <div className="sidebar-group-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', padding: '0.5rem 1rem 0.25rem' }}>Governance Tools</div>
+          )}
+          {phase2ToolsItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname.startsWith(item.path);
+            return (
+              <Link key={item.path} to={item.path} className={`sidebar-link ${isActive ? "active" : ""}`} onClick={() => setSidebarOpen(false)}>
+                <Icon size={18} /><span>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          {phase2AlertItems.length > 0 && (
+            <div className="sidebar-group-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', padding: '0.5rem 1rem 0.25rem' }}>Alerts</div>
+          )}
+          {phase2AlertItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname.startsWith(item.path);
+            return (
+              <Link key={item.path} to={item.path} className={`sidebar-link ${isActive ? "active" : ""}`} onClick={() => setSidebarOpen(false)}>
+                <Icon size={18} /><span>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          <div style={{ marginTop: 'auto' }}></div>
 
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
