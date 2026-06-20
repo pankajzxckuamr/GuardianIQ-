@@ -76,7 +76,7 @@ def get_audit_events_api(
                 id=event.id,
                 event_type=event.event_type,
                 entity_type=event.entity_type,
-                entity_id=event.entity_id,
+                entity_id=str(event.entity_id) if event.entity_id is not None else None,
                 actor_user_id=event.actor_user_id,
                 actor_username=actor_username or "system",
                 ip_address=ip_address,

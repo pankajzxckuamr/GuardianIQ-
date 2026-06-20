@@ -6,10 +6,12 @@ class ModelType(str, Enum):
     LLM = "LLM"
     ML = "ML"
     CLASSIFIER = "CLASSIFIER"
+    CLASSIFICATION = "CLASSIFICATION"
     EMBEDDING = "EMBEDDING"
     RULE_BASED = "RULE_BASED"
     FORECASTING = "FORECASTING"
     OPTIMIZATION = "OPTIMIZATION"
+    TEST = "TEST"
 
 class AgentType(str, Enum):
     RECOMMENDATION = "RECOMMENDATION"
@@ -17,6 +19,7 @@ class AgentType(str, Enum):
     EXTRACTION = "EXTRACTION"
     EXECUTION = "EXECUTION"
     MONITORING = "MONITORING"
+    REVIEW = "REVIEW"
 
 class AgentExecutionMode(str, Enum):
     READ_ONLY = "READ_ONLY"
@@ -34,6 +37,7 @@ class ToolCategory(str, Enum):
     LLM = "LLM"
     FILE = "FILE"
     WEBHOOK = "WEBHOOK"
+    TEST = "TEST"
 
 class AccessMode(str, Enum):
     READ_ONLY = "READ_ONLY"
@@ -48,6 +52,8 @@ class WorkflowType(str, Enum):
     RISK_REVIEW = "RISK_REVIEW"
     OPERATIONAL_ACTION = "OPERATIONAL_ACTION"
     AI_AGENT_PIPELINE = "AI_AGENT_PIPELINE"
+    ASSESSMENT = "ASSESSMENT"
+    TEST = "TEST"
 
 class SourceType(str, Enum):
     DATABASE = "DATABASE"
