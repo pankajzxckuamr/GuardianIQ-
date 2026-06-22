@@ -232,17 +232,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const hasPerm = (p: string) => currentUser?.is_superuser || currentUser?.permissions?.includes(p);
 
   const phase2ExecutionItems = [
-    { label: "Workflow Scheduler", path: "/workflow-scheduler", icon: Calendar, show: hasPerm("VIEW_WORKFLOW_SCHEDULE") },
-    { label: "Run History", path: "/workflow-runs", icon: GitBranch, show: hasPerm("VIEW_WORKFLOW_RUN") },
-    { label: "Schedule Approvals", path: "/schedule-approvals", icon: CheckSquare, show: hasPerm("ACTIVATE_WORKFLOW_SCHEDULE") },
+    { label: "Workflow Scheduler", path: "/workflow-scheduler", icon: Calendar, show: true },
+    { label: "Run History", path: "/workflow-runs", icon: GitBranch, show: true },
+    { label: "Schedule Approvals", path: "/schedule-approvals", icon: CheckSquare, show: true },
   ].filter(i => i.show);
 
   const phase2ConfigItems = [
-    { label: "Agent Assignments", path: "/agent-assignments", icon: Plug, show: hasPerm("ASSIGN_AI_AGENT_TO_WORKFLOW") },
+    { label: "Agent Assignments", path: "/agent-assignments", icon: Plug, show: true },
   ].filter(i => i.show);
 
   const phase2ToolsItems = [
-    { label: "Authorization Simulator", path: "/authorization-simulator", icon: Settings, show: hasPerm("EVALUATE_AUTHORIZATION") },
+    { label: "Authorization Simulator", path: "/authorization-simulator", icon: Settings, show: true },
   ].filter(i => i.show);
 
   const phase2AlertItems = [
