@@ -8,6 +8,7 @@ from app.shared.db_compat import execute_statement
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
 from app.modules.workflow_notifications.models import WorkflowNotification
+from app.modules.registry.repositories import resolve_user_uuid
 
 router = APIRouter()
 
@@ -34,8 +35,9 @@ async def list_notifications(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
+        recipient_uuid = resolve_user_uuid(db, current_user.id)
         query = sa.select(WorkflowNotification).where(
-            WorkflowNotification.recipient_user_id == current_user.id,
+            WorkflowNotification.recipient_user_id == recipient_uuid,
             WorkflowNotification.is_deleted == False
         )
         
@@ -94,9 +96,10 @@ async def mark_notification_read(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
+        recipient_uuid = resolve_user_uuid(db, current_user.id)
         stmt = sa.select(WorkflowNotification).where(
             WorkflowNotification.id == id,
-            WorkflowNotification.recipient_user_id == current_user.id,
+            WorkflowNotification.recipient_user_id == recipient_uuid,
             WorkflowNotification.is_deleted == False
         )
         res = await execute_statement(db, stmt)
@@ -132,9 +135,10 @@ async def acknowledge_notification(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
+        recipient_uuid = resolve_user_uuid(db, current_user.id)
         stmt = sa.select(WorkflowNotification).where(
             WorkflowNotification.id == id,
-            WorkflowNotification.recipient_user_id == current_user.id,
+            WorkflowNotification.recipient_user_id == recipient_uuid,
             WorkflowNotification.is_deleted == False
         )
         res = await execute_statement(db, stmt)

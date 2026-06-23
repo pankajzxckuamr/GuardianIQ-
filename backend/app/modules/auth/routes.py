@@ -182,14 +182,16 @@ def me(
 ):
     set_user_context(str(current_user.id), current_user.email)
     
+    role_codes = [role.role_code for role in current_user.roles]
+    is_superuser = any(rc in ("SUPER_ADMIN", "ADMIN") for rc in role_codes)
+
     return ResponseHelper.success(
         data={
             "id": current_user.id,
             "name": current_user.name,
             "email": current_user.email,
-            "roles": [
-                role.role_code for role in current_user.roles
-            ],
+            "is_superuser": is_superuser,
+            "roles": role_codes,
             "permissions": list(set([
                 perm.permission_code 
                 for role in current_user.roles 

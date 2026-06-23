@@ -59,6 +59,7 @@ from app.modules.orchestration.routes import router as orchestration_router
 from app.api.phase2_authorization_routes import router as phase2_auth_router
 from app.api.phase2_scheduler_routes import router as phase2_scheduler_router
 from app.api.phase2_run_routes import router as phase2_run_router
+from app.api.phase2_notification_routes import router as phase2_notification_router
 
 app.include_router(auth_router)
 app.include_router(department_router)
@@ -75,6 +76,7 @@ app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orc
 app.include_router(phase2_auth_router)
 app.include_router(phase2_scheduler_router)
 app.include_router(phase2_run_router)
+app.include_router(phase2_notification_router)
 
 @app.get("/api/health", response_model=StandardResponse[dict])
 def health_check():

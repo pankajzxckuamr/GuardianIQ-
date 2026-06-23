@@ -20,10 +20,13 @@ from app.modules.workflow_scheduler.schemas import (
 from app.modules.workflow_execution.service import WorkflowRunService
 from app.modules.workflow_scheduler.models import (
     WorkflowScheduleApproval,
-    WorkflowScheduleHistory
+    WorkflowScheduleHistory,
+    WorkflowScheduleAgentAssignment,
+    Phase2WorkflowSchedule
 )
 from app.modules.workflow_execution.models import WorkflowRun
 import sqlalchemy as sa
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 schedule_service = WorkflowScheduleService()
@@ -76,6 +79,54 @@ async def list_schedules(
             "page_size": page_size
         }
         return make_envelope(True, data, None, request_id)
+    except Exception as e:
+        return make_envelope(False, None, str(e), request_id)
+
+
+@router.get("/api/v1/workflow-scheduler/agent-assignments")
+async def list_agent_assignments(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        query = (
+            sa.select(WorkflowScheduleAgentAssignment)
+            .where(WorkflowScheduleAgentAssignment.is_deleted == False)
+            .options(
+                selectinload(WorkflowScheduleAgentAssignment.agent),
+                selectinload(WorkflowScheduleAgentAssignment.model),
+                selectinload(WorkflowScheduleAgentAssignment.schedule).selectinload(Phase2WorkflowSchedule.workflow),
+            )
+            .order_by(WorkflowScheduleAgentAssignment.created_at.desc())
+        )
+        res = await execute_statement(db, query)
+        items = res.scalars().all()
+
+        data = []
+        for a in items:
+            sched = a.schedule
+            wf = sched.workflow if sched else None
+            data.append({
+                "id": str(a.id),
+                "schedule_id": str(a.schedule_id),
+                "schedule_name": sched.schedule_name if sched else None,
+                "workflow_id": str(sched.workflow_id) if sched else None,
+                "workflow_name": wf.workflow_name if wf else None,
+                "agent_id": str(a.agent_id),
+                "agent_name": a.agent.agent_name if a.agent else None,
+                "model_id": str(a.model_id) if a.model_id else None,
+                "execution_mode": a.execution_mode,
+                "confidence_threshold": float(a.confidence_threshold) if a.confidence_threshold is not None else None,
+                "allowed_tools_json": a.allowed_tools_json or [],
+                "allowed_data_sources_json": a.allowed_data_sources_json or [],
+                "blocked_operations_json": a.blocked_operations_json or [],
+                "approval_required": sched.approval_required if sched else False,
+                "status": a.status,
+            })
+
+        return make_envelope(True, {"items": data, "total": len(data)}, None, request_id)
     except Exception as e:
         return make_envelope(False, None, str(e), request_id)
 
