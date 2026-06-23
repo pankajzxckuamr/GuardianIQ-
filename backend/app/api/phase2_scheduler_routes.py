@@ -484,3 +484,60 @@ async def decide_approval(
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
+
+
+@router.get("/api/v1/approval-groups")
+async def list_approval_groups(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        from app.modules.workflow_scheduler.models import ApprovalGroup
+        stmt = sa.select(ApprovalGroup).order_by(ApprovalGroup.name.asc())
+        res = await execute_statement(db, stmt)
+        groups = res.scalars().all()
+        
+        data = [
+            {
+                "id": str(g.id),
+                "name": g.name,
+                "tenant_id": str(g.tenant_id) if g.tenant_id else None,
+                "created_at": g.created_at.isoformat() if g.created_at else None,
+            }
+            for g in groups
+        ]
+        return make_envelope(True, data, None, request_id)
+    except Exception as e:
+        return make_envelope(False, None, str(e), request_id)
+
+
+@router.get("/api/v1/audit/events")
+async def get_audit_events_timeline(
+    request: Request,
+    entity_type: str = Query(...),
+    entity_id: UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        from app.modules.audit.event_service import GovernanceEventService
+        service = GovernanceEventService()
+        events = await service.get_timeline(entity_type, entity_id, db)
+        
+        data = [
+            {
+                "id": str(ev.id),
+                "action_type": ev.action,
+                "event_summary": ev.event_metadata.get("event_summary") if ev.event_metadata else f"Action {ev.action} on {ev.entity_type}",
+                "created_at": ev.created_at.isoformat() if ev.created_at else None
+            }
+            for ev in events
+        ]
+        return make_envelope(True, {"items": data, "total": len(data)}, None, request_id)
+    except Exception as e:
+        return make_envelope(False, None, str(e), request_id)
+
+

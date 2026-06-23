@@ -59,7 +59,7 @@ export const ScheduleDetailPage: React.FC = () => {
         scheduleApi.getHistory(id).catch(() => []),
         runApi.list({ schedule_id: id, per_page: 5 }).catch(() => ({ items: [] })),
       ]);
-      setSchedule(schedRes as WorkflowScheduleResponse);
+      setSchedule(((schedRes as any).schedule || schedRes) as WorkflowScheduleResponse);
       setApprovals(appRes as any);
       setHistory(histRes as any);
       setRuns((runsRes as any).items || []);

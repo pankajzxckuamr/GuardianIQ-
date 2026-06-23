@@ -335,8 +335,9 @@ class WorkflowRunTests(unittest.TestCase):
         self.assertEqual(run.outputs[0].parse_status, "PARSED")
 
         # Verify Audit Events (QUEUED -> RUNNING -> COMPLETED)
-        audit_events = self.db.query(AuditEvent).filter(AuditEvent.entity_id == run.id).order_by(AuditEvent.created_at).all()
-        event_codes = [e.event_code for e in audit_events]
+        from app.modules.audit.event_service import GovernanceEventService
+        audit_events = asyncio.run(GovernanceEventService().get_timeline("workflow_runs", run.id, self.db))
+        event_codes = [e.event_type for e in audit_events]
         self.assertIn("WORKFLOW_RUN_QUEUED", event_codes)
         self.assertIn("WORKFLOW_RUN_COMPLETED", event_codes)
 

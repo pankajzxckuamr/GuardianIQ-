@@ -522,9 +522,13 @@ class WorkflowSchedulerTests(unittest.TestCase):
                 self.assertEqual(r5.status_code, 403)
                 
                 # Check AUTHORIZATION_DENIED event logged
-                audit_event = self.db.query(AuditEvent).filter(
-                    AuditEvent.entity_id == schedule_id,
-                    AuditEvent.event_code == "AUTHORIZATION_DENIED"
+                from app.modules.registry.models import RegistryAuditEvent, GuardianUser
+                auditor_guardian = self.db.query(GuardianUser).filter(GuardianUser.email == "auditor@guardianiq.com").first()
+                self.assertIsNotNone(auditor_guardian)
+                
+                audit_event = self.db.query(RegistryAuditEvent).filter(
+                    RegistryAuditEvent.changed_by == auditor_guardian.id,
+                    RegistryAuditEvent.event_type == "AUTHORIZATION_DENIED"
                 ).first()
                 self.assertIsNotNone(audit_event)
                 
@@ -577,15 +581,19 @@ class WorkflowSchedulerTests(unittest.TestCase):
 
         # Test 9: WORKFLOW_SCHEDULE_CREATED audit event exists
         create_audit_event = self.db.query(AuditEvent).filter(
-            AuditEvent.entity_id == UUID(schedule_id),
-            AuditEvent.event_code == "WORKFLOW_SCHEDULE_CREATED"
+            AuditEvent.event_type == "WORKFLOW_SCHEDULE_CREATED"
+        ).filter(
+            sa.or_(
+                AuditEvent.entity_id == str(schedule_id),
+                sa.func.json_extract_path_text(AuditEvent.event_metadata, 'entity_id') == str(schedule_id)
+            )
         ).first()
         self.assertIsNotNone(create_audit_event)
         print("PASS: WORKFLOW_SCHEDULE_CREATED audit event logged")
 
         # Test 10: workflow_schedule_history written on update
         app_record = self.db.query(WorkflowScheduleApproval).filter(WorkflowScheduleApproval.schedule_id == schedule_id_hr).first()
-        r10_reject = self.client.post(f"/api/v1/workflow-scheduler/approvals/{app_record.id}/decide", json={"decision": "REJECTED", "reason": "Test reject"}, headers=self.headers)
+        r10_reject = self.client.post(f"/api/v1/schedule-approvals/{app_record.id}/decide", json={"decision": "REJECTED", "reason": "Test reject"}, headers=self.headers)
         self.assertTrue(r10_reject.json().get("success"))
 
         r10_hr = self.client.put(f"/api/v1/workflow-scheduler/schedules/{schedule_id_hr}", json={"schedule_name": "Updated Name HR"}, headers=self.headers)

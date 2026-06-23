@@ -33,6 +33,28 @@ export const AuthorizationSimulator: React.FC = () => {
     document.title = 'Authorization Simulator — GuardianIQ';
   }, []);
 
+  const getPayload = () => {
+    const mappedObjectType =
+      objectType === 'SCHEDULE' ? 'workflow_schedules' :
+      objectType === 'RUN' ? 'workflow_runs' :
+      objectType === 'OUTPUT' ? 'workflow_run_outputs' :
+      objectType === 'ASSIGNMENT' ? 'agent_assignments' :
+      objectType;
+
+    return {
+      subject_user_id: subjectType === 'USER' ? (subjectId || null) : null,
+      subject_agent_id: subjectType === 'AGENT' ? (subjectId || null) : null,
+      subject_type: subjectType,
+      object_type: mappedObjectType,
+      object_id: objectId || null,
+      action: actionId,
+      context_json: {
+        emergency_flag: envEmergency,
+        delegation_active: envDelegation,
+      },
+    };
+  };
+
   const handleEvaluate = async () => {
     if (!subjectId || !objectId || !actionId) {
       showToast('Please fill out Subject, Object, and Action', 'error');
@@ -41,21 +63,23 @@ export const AuthorizationSimulator: React.FC = () => {
     setLoading(true);
     try {
       const token = storage.get<string>('guardianiq_access_token');
+      const payload = getPayload();
       const res = await fetch('/api/v1/authorization/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          subject_type: subjectType,
-          subject_id: subjectId,
-          object_type: objectType,
-          object_id: objectId,
-          action: actionId,
-          environment: { emergency_flag: envEmergency, delegation_active: envDelegation },
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      setResult(json.data);
+      
+      // Map backend response structure to UI state
+      setResult({
+        allowed: json.data.allowed,
+        rbac_passed: json.data.rbac_result?.allowed,
+        abac_passed: json.data.abac_result?.allowed,
+        relationship_passed: json.data.relationship_result?.allowed,
+        failed_conditions: json.data.abac_result?.failed_conditions || json.data.deny_reasons || [],
+      });
     } catch (e: any) {
       showToast(e.message || 'Simulation failed', 'error');
     } finally {
@@ -64,12 +88,7 @@ export const AuthorizationSimulator: React.FC = () => {
   };
 
   const copyPayload = () => {
-    const payload = {
-      subject_type: subjectType, subject_id: subjectId,
-      object_type: objectType, object_id: objectId,
-      action: actionId,
-      environment: { emergency_flag: envEmergency, delegation_active: envDelegation },
-    };
+    const payload = getPayload();
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     showToast('Payload copied to clipboard', 'success');
   };

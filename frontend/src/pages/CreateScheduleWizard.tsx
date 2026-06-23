@@ -137,21 +137,79 @@ export const CreateScheduleWizard: React.FC = () => {
 
   const canSaveDraft = formData.workflow_id && formData.schedule_name && formData.owner_user_id;
 
-  const buildPayload = (status: string) => ({
-    ...formData,
-    approval_required: isApprovalRequired,
-    schedule_status: status,
-    agent_assignments: [{
-      agent_id: formData.agent_id,
-      model_id: formData.model_id,
-      assignment_role: 'PRIMARY',
-      execution_mode: formData.execution_mode,
-      confidence_threshold: formData.confidence_threshold,
-      allowed_tools_json: formData.allowed_tools_json,
-      allowed_data_sources_json: formData.allowed_data_sources_json,
-      blocked_operations_json: formData.blocked_operations_json,
-    }],
-  });
+  const buildPayload = (status: string) => {
+    const boundary_rules = {
+      max_records: formData.max_records || 100,
+      allow_write_tools: hasWriteTool,
+      requires_human_approval_for_high_risk: formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL'
+    };
+
+    const payload: any = {
+      workflow_id: formData.workflow_id || null,
+      schedule_code: formData.schedule_code || null,
+      schedule_name: formData.schedule_name || null,
+      schedule_type: formData.schedule_type,
+      timezone: formData.timezone || "Asia/Kolkata",
+      concurrency_policy: formData.concurrency_policy || "SKIP_IF_RUNNING",
+      max_runtime_seconds: formData.max_runtime_seconds || 1800,
+      retry_policy: formData.retry_policy_json || { max_retries: 0, retry_delay_seconds: 60 },
+      owner_user_id: formData.owner_user_id || null,
+      approval_required: isApprovalRequired,
+      schedule_status: status,
+    };
+
+    if (formData.cron_expression && formData.cron_expression.trim() !== '') {
+      payload.cron_expression = formData.cron_expression;
+    } else {
+      payload.cron_expression = null;
+    }
+
+    if (formData.start_at && formData.start_at.trim() !== '') {
+      payload.start_at = new Date(formData.start_at).toISOString();
+    } else {
+      payload.start_at = null;
+    }
+
+    if (formData.end_at && formData.end_at.trim() !== '') {
+      payload.end_at = new Date(formData.end_at).toISOString();
+    } else {
+      payload.end_at = null;
+    }
+
+    if (formData.owner_department_id && formData.owner_department_id.trim() !== '') {
+      payload.owner_department_id = formData.owner_department_id;
+    } else {
+      payload.owner_department_id = null;
+    }
+
+    if (formData.approval_group_id && formData.approval_group_id.trim() !== '') {
+      payload.approval_group_id = formData.approval_group_id;
+    } else {
+      payload.approval_group_id = null;
+    }
+
+    if (formData.risk_level) {
+      payload.risk_level = formData.risk_level;
+    }
+
+    if (formData.agent_id && formData.agent_id.trim() !== '') {
+      payload.agent_assignments = [{
+        agent_id: formData.agent_id,
+        model_id: (formData.model_id && formData.model_id.trim() !== '') ? formData.model_id : null,
+        assignment_role: 'PRIMARY',
+        execution_mode: formData.execution_mode || 'RECOMMEND_ONLY',
+        confidence_threshold: formData.confidence_threshold !== undefined ? formData.confidence_threshold : null,
+        allowed_tools: formData.allowed_tools_json || [],
+        allowed_data_sources: formData.allowed_data_sources_json || [],
+        blocked_operations: formData.blocked_operations_json || [],
+        boundary_rules: boundary_rules
+      }];
+    } else {
+      payload.agent_assignments = [];
+    }
+
+    return payload;
+  };
 
   const handleSaveDraft = async () => {
     try {

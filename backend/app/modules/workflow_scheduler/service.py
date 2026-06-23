@@ -668,6 +668,15 @@ class WorkflowScheduleService:
         # Load approval record
         approval = await db_get(db, WorkflowScheduleApproval, approval_id)
         if not approval:
+            # Fallback: check if the approval_id matches a schedule_id with a PENDING approval
+            stmt = select(WorkflowScheduleApproval).where(
+                WorkflowScheduleApproval.schedule_id == approval_id,
+                WorkflowScheduleApproval.approval_status == "PENDING"
+            ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
+            res = await execute_statement(db, stmt)
+            approval = res.scalar()
+
+        if not approval:
             raise HTTPException(
                 status_code=404,
                 detail=ResponseHelper.error(message="Approval record not found", error_code="NOT_FOUND").model_dump()
