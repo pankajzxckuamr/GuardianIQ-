@@ -20,6 +20,7 @@ class AgentType(str, Enum):
     EXECUTION = "EXECUTION"
     MONITORING = "MONITORING"
     REVIEW = "REVIEW"
+    TEST = "TEST"
 
 class AgentExecutionMode(str, Enum):
     READ_ONLY = "READ_ONLY"
