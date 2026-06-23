@@ -1194,3 +1194,52 @@
 .auditContent { display: flex; flex: 1; justify-content: space-between; gap: var(--spacing-md, 1rem); padding-top: 4px; flex-wrap: wrap; }
 .auditSummary { font-size: var(--font-size-sm, 0.875rem); color: var(--text-secondary, #94a3b8); }
 .auditTime { font-size: var(--font-size-xs, 0.75rem); color: var(--text-muted, #64748b); white-space: nowrap; }
+
+/* ── Create Schedule wizard ─────────────────────────────────── */
+.wizardLayout {
+  display: flex;
+  gap: var(--spacing-lg, 1.5rem);
+  align-items: flex-start;
+}
+
+.wizardMain { flex: 1; min-width: 0; }
+
+.wizardSide { width: 300px; flex-shrink: 0; }
+
+.wizardSideCard {
+  position: sticky;
+  top: var(--spacing-lg, 1.5rem);
+  background: var(--card-bg, rgba(30, 41, 59, 0.3));
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-md, 12px);
+  padding: var(--spacing-lg, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+}
+
+@media (max-width: 1024px) {
+  .wizardSide { display: none; }
+}
+
+.navRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm, 0.5rem);
+  margin-top: var(--spacing-xl, 2rem);
+  padding-top: var(--spacing-lg, 1.5rem);
+  border-top: 1px solid var(--card-border, #334155);
+}
+
+.radioGroup { display: flex; flex-direction: column; gap: var(--spacing-sm, 0.5rem); }
+.radioOption { display: flex; align-items: center; gap: 0.5rem; font-size: var(--font-size-sm, 0.875rem); color: var(--text-secondary, #94a3b8); cursor: pointer; }
+.radioOption input { accent-color: var(--accent-primary, #6366f1); }
+
+.infoLine { font-size: var(--font-size-sm, 0.875rem); color: var(--text-secondary, #94a3b8); margin: 0 0 var(--spacing-xs, 0.4rem) 0; }
+.infoLine strong { color: var(--text-primary, #f8fafc); font-weight: var(--font-weight-semibold, 600); }
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-md, 1rem);
+}

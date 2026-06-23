@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
+import styles from '../../pages/phase2Shared.module.css';
 
 interface Props {
   approvalRequired: boolean;
@@ -11,24 +12,15 @@ export const ApprovalRequirementBanner: React.FC<Props> = ({ approvalRequired, r
   if (!approvalRequired) return null;
 
   return (
-    <div className="bg-amber-50 border-l-4 border-amber-400 p-4 my-4">
-      <div className="flex items-start">
-        <div className="flex-shrink-0">
-          <AlertCircle className="h-5 w-5 text-amber-400" aria-hidden="true" />
-        </div>
-        <div className="ml-3">
-          <h3 className="text-sm font-medium text-amber-800">
-            Approval Required {approverGroupName && `from ${approverGroupName}`}
-          </h3>
-          <div className="mt-2 text-sm text-amber-700">
-            <ul className="list-disc pl-5 space-y-1">
-              {reasons.map((reason, idx) => (
-                <li key={idx}>{reason}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
+    <div className={styles.noticeBox}>
+      <h3 className={styles.noticeTitle}>
+        <AlertCircle size={15} /> Approval Required {approverGroupName && `from ${approverGroupName}`}
+      </h3>
+      <ul className={styles.bulletList} style={{ marginTop: 8 }}>
+        {reasons.map((reason, idx) => (
+          <li key={idx}>{reason}</li>
+        ))}
+      </ul>
     </div>
   );
 };
