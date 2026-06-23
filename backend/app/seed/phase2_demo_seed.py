@@ -112,7 +112,7 @@ def seed():
             db, RegistryWorkflow, workflow_code="DEMO_COMPLIANCE_WF",
             defaults={
                 "workflow_name": "Compliance Audit Pipeline",
-                "workflow_type": "AUDIT",
+                "workflow_type": "RISK_REVIEW",
                 "business_criticality": "MEDIUM",
                 "owner_user_id": admin_user.id,
                 "status": "ACTIVE",

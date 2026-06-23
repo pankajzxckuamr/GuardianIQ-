@@ -10,6 +10,9 @@ import { Shield, Plus, X, AlertCircle, CheckCircle, RefreshCw, XCircle } from 'l
 import { storage } from '../utils/storage';
 import styles from './phase2Shared.module.css';
 
+const getAgentLabel = (agent: any) => agent?.agent_name || agent?.name || agent?.agent_code || 'Unknown agent';
+const getModelLabel = (model: any) => model?.model_name || model?.name || model?.model_code || 'Unknown model';
+
 const Drawer = ({ open, onClose, title, children }: any) => {
   if (!open) return null;
   return (
@@ -79,9 +82,9 @@ export const AgentAssignmentMatrix: React.FC = () => {
 
   useEffect(() => {
     fetchAssignments();
-    fetchWithAuth('/api/registry/tools').then(setTools).catch(() => {});
-    fetchWithAuth('/api/registry/agents?status=ACTIVE').then(setAgents).catch(() => {});
-    fetchWithAuth('/api/registry/models').then(setModels).catch(() => {});
+    fetchWithAuth('/api/registry/tools?per_page=100').then(setTools).catch(() => {});
+    fetchWithAuth('/api/registry/agents?per_page=100').then(setAgents).catch(() => {});
+    fetchWithAuth('/api/registry/models?per_page=100').then(setModels).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -206,7 +209,12 @@ export const AgentAssignmentMatrix: React.FC = () => {
   const inactiveAssignments = filtered.filter(a => a.status === 'INACTIVE');
   const displayList = [...activeAssignments, ...inactiveAssignments];
 
-  const hasWriteTool = tools.some(t => (formData.allowed_tools_json || []).includes(t.id) && (t.capability === 'WRITE' || t.capability === 'EXECUTE'));
+  const hasWriteTool = tools.some(t => {
+    const code = t.tool_code || t.id;
+    const mode = t.access_mode || t.capability || '';
+    return (formData.allowed_tools_json || []).some((entry: string) => entry === code || entry === t.id)
+      && ['WRITE', 'EXECUTE', 'ADMIN'].includes(mode);
+  });
 
   const columns = [
     { key: 'workflow_name', label: 'Workflow', render: (a: any) => <span>{a.workflow_name || a.workflow_id}</span> },
@@ -250,7 +258,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
           <div className={styles.filtersGroup}>
             <select className={styles.filterSelect} value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
               <option value="">All Agents</option>
-              {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {agents.map(a => <option key={a.id} value={a.id}>{getAgentLabel(a)}</option>)}
             </select>
             <select className={styles.filterSelect} value={filterMode} onChange={e => setFilterMode(e.target.value)}>
               <option value="">All Modes</option>
@@ -316,14 +324,14 @@ export const AgentAssignmentMatrix: React.FC = () => {
                 <label className={styles.fieldLabel}>Agent</label>
                 <select className={styles.formControl} value={formData.agent_id} onChange={e => handleFormChange('agent_id', e.target.value)}>
                   <option value="">Select Agent</option>
-                  {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {agents.map(a => <option key={a.id} value={a.id}>{getAgentLabel(a)}</option>)}
                 </select>
               </div>
               <div>
                 <label className={styles.fieldLabel}>Model</label>
                 <select className={styles.formControl} value={formData.model_id} onChange={e => handleFormChange('model_id', e.target.value)}>
                   <option value="">Select Model</option>
-                  {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  {models.map(m => <option key={m.id} value={m.id}>{getModelLabel(m)}</option>)}
                 </select>
               </div>
             </div>

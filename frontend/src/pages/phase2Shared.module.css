@@ -648,6 +648,28 @@
 .formControl::placeholder { color: var(--text-muted, #64748b); }
 .formControl:focus { border-color: var(--accent-primary, #6366f1); }
 
+.multiSelect {
+  min-height: 9rem;
+  padding: 0.35rem;
+}
+
+.multiSelect option {
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.multiSelect option:checked {
+  background: linear-gradient(0deg, rgba(99, 102, 241, 0.35), rgba(99, 102, 241, 0.35));
+  color: var(--text-primary, #f8fafc);
+}
+
+.selectedChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm, 0.5rem);
+  margin-top: var(--spacing-sm, 0.5rem);
+}
+
 .smallLabel {
   display: block;
   font-size: var(--font-size-xs, 0.75rem);

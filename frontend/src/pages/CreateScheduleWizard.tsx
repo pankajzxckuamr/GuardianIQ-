@@ -13,6 +13,9 @@ import { ArrowLeft } from 'lucide-react';
 import { storage } from '../utils/storage';
 import styles from './phase2Shared.module.css';
 
+const getAgentLabel = (agent: any) => agent?.agent_name || agent?.name || agent?.agent_code || 'Unknown agent';
+const getModelLabel = (model: any) => model?.model_name || model?.name || model?.model_code || 'Unknown model';
+
 const steps = [
   { label: 'Select Workflow' },
   { label: 'Agent & Model' },
@@ -66,7 +69,12 @@ export const CreateScheduleWizard: React.FC = () => {
   const selectedWorkflow = workflows.find(w => w.id === formData.workflow_id);
   const selectedAgent = agents.find(a => a.id === formData.agent_id);
 
-  const hasWriteTool = tools.some(t => formData.allowed_tools_json.includes(t.id) && (t.capability === 'WRITE' || t.capability === 'EXECUTE'));
+  const hasWriteTool = tools.some(t => {
+    const code = t.tool_code || t.id;
+    const mode = t.access_mode || t.capability || '';
+    return formData.allowed_tools_json.some((entry: string) => entry === code || entry === t.id)
+      && ['WRITE', 'EXECUTE', 'ADMIN'].includes(mode);
+  });
   const isApprovalRequired = formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL' || hasWriteTool;
 
   const approvalReasons: string[] = [];
@@ -96,19 +104,14 @@ export const CreateScheduleWizard: React.FC = () => {
   }, [isDirty]);
 
   useEffect(() => {
-    fetchWithAuth('/api/registry/workflows?status=ACTIVE').then(setWorkflows).catch(() => {});
-    fetchWithAuth('/api/registry/agents?status=ACTIVE').then(setAgents).catch(() => {});
-    fetchWithAuth('/api/registry/tools').then(setTools).catch(() => {});
-    fetchWithAuth('/api/registry/data-sources').then(setDataSources).catch(() => {});
+    fetchWithAuth('/api/registry/workflows?per_page=100').then(setWorkflows).catch(() => {});
+    fetchWithAuth('/api/registry/agents?per_page=100').then(setAgents).catch(() => {});
+    fetchWithAuth('/api/registry/models?per_page=100').then(setModels).catch(() => {});
+    fetchWithAuth('/api/registry/tools?per_page=100').then(setTools).catch(() => {});
+    fetchWithAuth('/api/registry/data-sources?per_page=100').then(setDataSources).catch(() => {});
     fetchWithAuth('/api/registry/users/lookup').then(setUsers).catch(() => {});
     fetchWithAuth('/api/v1/approval-groups').then(setApprovalGroups).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (formData.agent_id) {
-      fetchWithAuth(`/api/registry/models`).then(setModels).catch(() => {});
-    }
-  }, [formData.agent_id]);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
@@ -211,21 +214,21 @@ export const CreateScheduleWizard: React.FC = () => {
               <label className={styles.fieldLabel}>Agent</label>
               <select className={styles.formControl} value={formData.agent_id} onChange={e => handleChange('agent_id', e.target.value)}>
                 <option value="">Select an agent</option>
-                {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {agents.map(a => <option key={a.id} value={a.id}>{getAgentLabel(a)}</option>)}
               </select>
             </div>
             {selectedAgent && (
               <div className={styles.section}>
                 <p className={styles.infoLine}><strong>Owner:</strong> {selectedAgent.owner_name}</p>
                 <p className={styles.infoLine}><strong>Description:</strong> {selectedAgent.description}</p>
-                <p className={styles.infoLine}><strong>Max Execution Mode:</strong> {selectedAgent.max_execution_mode}</p>
+                <p className={styles.infoLine}><strong>Max Execution Mode:</strong> {selectedAgent.execution_mode || selectedAgent.max_execution_mode}</p>
               </div>
             )}
             <div>
               <label className={styles.fieldLabel}>Model</label>
               <select className={styles.formControl} value={formData.model_id} onChange={e => handleChange('model_id', e.target.value)}>
                 <option value="">Select a model</option>
-                {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {models.map(m => <option key={m.id} value={m.id}>{getModelLabel(m)}</option>)}
               </select>
             </div>
             <div>
@@ -378,7 +381,7 @@ export const CreateScheduleWizard: React.FC = () => {
               </div>
               <div className={styles.section}>
                 <h4 className={styles.subHeading}>Agent</h4>
-                <p className={styles.infoLine}>{selectedAgent?.name || 'Not selected'}</p>
+                <p className={styles.infoLine}>{selectedAgent ? getAgentLabel(selectedAgent) : 'Not selected'}</p>
                 <p className={styles.subText}>Mode: {formData.execution_mode}</p>
               </div>
               <div className={styles.section}>
@@ -441,7 +444,7 @@ export const CreateScheduleWizard: React.FC = () => {
               <span className={styles.metaValue} style={isApprovalRequired ? { color: 'var(--color-warning)' } : undefined}>{isApprovalRequired ? 'Yes' : 'No'}</span>
             </div>
             <div className={styles.metaItem}><span className={styles.metaLabel}>Workflow</span><span className={styles.metaValue}>{selectedWorkflow?.name || selectedWorkflow?.workflow_name || 'Not selected'}</span></div>
-            <div className={styles.metaItem}><span className={styles.metaLabel}>Agent</span><span className={styles.metaValue}>{selectedAgent?.name || 'Not selected'}</span></div>
+            <div className={styles.metaItem}><span className={styles.metaLabel}>Agent</span><span className={styles.metaValue}>{selectedAgent ? getAgentLabel(selectedAgent) : 'Not selected'}</span></div>
             <div className={styles.metaItem}><span className={styles.metaLabel}>Execution Mode</span><span className={styles.metaValue}>{formData.execution_mode}</span></div>
           </div>
         </div>
