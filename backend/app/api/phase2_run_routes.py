@@ -122,7 +122,10 @@ async def get_run_detail(
             .options(
                 selectinload(WorkflowRun.steps),
                 selectinload(WorkflowRun.outputs),
-                selectinload(WorkflowRun.failures)
+                selectinload(WorkflowRun.failures),
+                selectinload(WorkflowRun.schedule),
+                selectinload(WorkflowRun.workflow),
+                selectinload(WorkflowRun.triggered_by_user)
             )
             .where(WorkflowRun.id == run_id, WorkflowRun.is_deleted == False)
         )
@@ -217,14 +220,21 @@ async def get_run_detail(
             for f in run.failures
         ]
         
+        schedule_name = run.schedule.schedule_name if run.schedule else "Unknown"
+        workflow_name = run.workflow.workflow_name if run.workflow else "Unknown"
+        triggered_by_name = run.triggered_by_user.full_name if run.triggered_by_user else "System"
+
         data = {
             "id": str(run.id),
             "schedule_id": str(run.schedule_id),
             "workflow_id": str(run.workflow_id),
+            "schedule_name": schedule_name,
+            "workflow_name": workflow_name,
             "run_code": run.run_code,
             "trigger_type": run.trigger_type,
             "triggered_by_user_id": str(run.triggered_by_user_id) if run.triggered_by_user_id else None,
             "triggered_by_actor_type": run.triggered_by_actor_type,
+            "triggered_by_name": triggered_by_name,
             "run_status": run.run_status,
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,

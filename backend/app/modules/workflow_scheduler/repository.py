@@ -45,7 +45,9 @@ class WorkflowScheduleRepository:
             .options(
                 selectinload(Phase2WorkflowSchedule.agent_assignments),
                 selectinload(Phase2WorkflowSchedule.approvals),
-                selectinload(Phase2WorkflowSchedule.runs)
+                selectinload(Phase2WorkflowSchedule.runs),
+                selectinload(Phase2WorkflowSchedule.workflow),
+                selectinload(Phase2WorkflowSchedule.owner_user)
             )
             .where(Phase2WorkflowSchedule.id == id, Phase2WorkflowSchedule.is_deleted == False)
         )

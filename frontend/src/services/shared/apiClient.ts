@@ -88,8 +88,11 @@ class ApiClient {
     }
 
     const body = JSON.parse(text);
+    if (body.success === false) {
+      throw new Error(body.error || body.message || 'API request failed');
+    }
     // Mimicking the old logic: return body.data ?? body
-    return body.data ?? body;
+    return body.data !== undefined ? body.data : body;
   }
 
   get<T = any>(url: string, config?: RequestConfig): Promise<T> {

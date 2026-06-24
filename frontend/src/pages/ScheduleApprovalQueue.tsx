@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { scheduleApi } from '../api/phase2Client';
+import apiClient from '../services/shared/apiClient';
 import { PageHeader } from '../components/common/PageHeader';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
@@ -64,8 +65,8 @@ export const ScheduleApprovalQueue: React.FC = () => {
   const handleDecision = async () => {
     if (!selectedSchedule || !decision) return;
     try {
-      const token = storage.get<string>('guardianiq_access_token');
       const approvalId = selectedSchedule.id;
+<<<<<<< HEAD
       const res = await fetch(`/api/v1/schedule-approvals/${approvalId}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -73,6 +74,9 @@ export const ScheduleApprovalQueue: React.FC = () => {
       });
       const json = await res.json();
       if (json.status !== 'success') throw new Error(json.message || 'Request failed');
+=======
+      await apiClient.post(`/api/v1/schedule-approvals/${approvalId}/decide`, { decision, reason });
+>>>>>>> 1a84385 (Update Phase 2 workflow scheduling and approval queue)
       showToast(`Decision ${decision} recorded`, 'success');
       setSelectedSchedule(null);
       setDecision(null);
@@ -136,7 +140,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
                     <span className={styles.listItemName}>{s.schedule_name}</span>
                     <RiskBadge level={s.risk_level} />
                   </div>
-                  <div className={styles.subText}>Owner: {s.owner_user_id}</div>
+                  <div className={styles.subText}>Owner: {s.owner_name || 'Unknown'}</div>
                   <div className={styles.listItemMeta}>
                     <span className={styles.metaTime}>
                       <Clock size={12} /> {new Date(s.created_at || Date.now()).toLocaleDateString()}
@@ -166,7 +170,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
               <div className={styles.dlGrid}>
                 <div>
                   <div className={styles.dlLabel}>Workflow</div>
-                  <div className={styles.dlValue}>{selectedSchedule.workflow_id}</div>
+                  <div className={styles.dlValue}>{selectedSchedule.workflow_name || 'Unknown Workflow'}</div>
                 </div>
                 <div>
                   <div className={styles.dlLabel}>Risk Level</div>

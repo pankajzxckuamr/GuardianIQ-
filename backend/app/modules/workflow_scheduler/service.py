@@ -199,10 +199,14 @@ def format_schedule_response(item: Phase2WorkflowSchedule) -> dict:
         sorted_runs = sorted(item.runs, key=lambda r: r.created_at or datetime.min, reverse=True)
         if sorted_runs and sorted_runs[0].run_status == "FAILED":
             health_status = "UNHEALTHY"
-            
+
+    workflow_name = item.workflow.workflow_name if hasattr(item, "workflow") and item.workflow else "Unknown"
+    owner_name = item.owner_user.full_name if hasattr(item, "owner_user") and item.owner_user else "Unknown"
+
     return {
         "id": item.id,
         "workflow_id": item.workflow_id,
+        "workflow_name": workflow_name,
         "schedule_code": item.schedule_code,
         "schedule_name": item.schedule_name,
         "schedule_type": item.schedule_type.value if hasattr(item.schedule_type, "value") else str(item.schedule_type),
@@ -216,6 +220,7 @@ def format_schedule_response(item: Phase2WorkflowSchedule) -> dict:
         "max_runtime_seconds": item.max_runtime_seconds,
         "retry_policy_json": item.retry_policy_json or {},
         "owner_user_id": item.owner_user_id,
+        "owner_name": owner_name,
         "owner_department_id": item.owner_department_id,
         "approval_required": item.approval_required,
         "approval_group_id": item.approval_group_id,
@@ -498,7 +503,7 @@ class WorkflowScheduleService:
 
         return schedule
 
-    async def activate_schedule(self, id: UUID, current_user, db) -> Phase2WorkflowSchedule:
+    async def activate_schedule(self, id: UUID, current_user, db, bypass_abac: bool = False) -> Phase2WorkflowSchedule:
         schedule = await self.repo.get_by_id(db, id)
         if not schedule:
             raise HTTPException(
@@ -508,24 +513,25 @@ class WorkflowScheduleService:
 
         actor_uuid = resolve_user_uuid(db, current_user.id)
 
-        # Authorization + ABAC check
-        auth_service = AuthorizationDecisionService()
-        auth_req = AuthorizationRequest(
-            subject_user_id=actor_uuid,
-            subject_type="USER",
-            object_type="workflow_schedules",
-            object_id=id,
-            action="ACTIVATE_WORKFLOW_SCHEDULE"
-        )
-        auth_res = await auth_service.evaluate(auth_req, db, persist=False)
-        if not auth_res.allowed:
-            raise HTTPException(
-                status_code=403,
-                detail=ResponseHelper.error(
-                    message="Access denied: missing ACTIVATE_WORKFLOW_SCHEDULE permission or ABAC validation failed",
-                    error_code="FORBIDDEN"
-                ).model_dump()
+        if not bypass_abac:
+            # Authorization + ABAC check
+            auth_service = AuthorizationDecisionService()
+            auth_req = AuthorizationRequest(
+                subject_user_id=actor_uuid,
+                subject_type="USER",
+                object_type="workflow_schedules",
+                object_id=id,
+                action="ACTIVATE_WORKFLOW_SCHEDULE"
             )
+            auth_res = await auth_service.evaluate(auth_req, db, persist=False)
+            if not auth_res.allowed:
+                raise HTTPException(
+                    status_code=403,
+                    detail=ResponseHelper.error(
+                        message="Access denied: missing ACTIVATE_WORKFLOW_SCHEDULE permission or ABAC validation failed",
+                        error_code="FORBIDDEN"
+                    ).model_dump()
+                )
 
         # Verify state transition rules
         validate_transition(schedule.schedule_status, "ACTIVE", schedule.approval_required)
@@ -668,18 +674,43 @@ class WorkflowScheduleService:
         # Load approval record
         approval = await db_get(db, WorkflowScheduleApproval, approval_id)
         if not approval:
-            # Fallback: check if the approval_id matches a schedule_id with a PENDING approval
+            # Fallback: check if the approval_id matches a schedule_id
             stmt = select(WorkflowScheduleApproval).where(
-                WorkflowScheduleApproval.schedule_id == approval_id,
-                WorkflowScheduleApproval.approval_status == "PENDING"
+                WorkflowScheduleApproval.schedule_id == approval_id
             ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
             res = await execute_statement(db, stmt)
             approval = res.scalar()
 
         if not approval:
+            # Self-healing: if the schedule is in PENDING_APPROVAL but has no record, auto-create it
+            schedule = await self.repo.get_by_id(db, approval_id)
+            sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
+            if schedule and sched_status_str == "PENDING_APPROVAL":
+                approval = WorkflowScheduleApproval(
+                    id=uuid4(),
+                    tenant_id=schedule.tenant_id,
+                    schedule_id=schedule.id,
+                    approval_type="ACTIVATION",
+                    approval_status="PENDING",
+                    approval_group_id=schedule.approval_group_id,
+                    submitted_by=resolve_user_uuid(db, current_user.id),
+                    created_by=resolve_user_uuid(db, current_user.id),
+                    updated_by=resolve_user_uuid(db, current_user.id)
+                )
+                db.add(approval)
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=ResponseHelper.error(message="Approval record not found", error_code="NOT_FOUND").model_dump()
+                )
+
+        if approval.approval_status not in ["PENDING", "ESCALATED"]:
             raise HTTPException(
-                status_code=404,
-                detail=ResponseHelper.error(message="Approval record not found", error_code="NOT_FOUND").model_dump()
+                status_code=400,
+                detail=ResponseHelper.error(
+                    message=f"Schedule has already been decided (Status: {approval.approval_status})",
+                    error_code="ALREADY_DECIDED"
+                ).model_dump()
             )
 
         schedule = await self.repo.get_by_id(db, approval.schedule_id)
@@ -692,15 +723,20 @@ class WorkflowScheduleService:
         actor_uuid = resolve_user_uuid(db, current_user.id)
 
         # Verify decider permissions and group association
-        member_stmt = select(ApprovalGroupMember).where(
-            ApprovalGroupMember.approval_group_id == approval.approval_group_id,
-            ApprovalGroupMember.user_id == actor_uuid
-        )
-        member_res = await execute_statement(db, member_stmt)
-        is_member = member_res.scalar() is not None
+        is_member = False
+        if approval.approval_group_id is not None:
+            member_stmt = select(ApprovalGroupMember).where(
+                ApprovalGroupMember.approval_group_id == approval.approval_group_id,
+                ApprovalGroupMember.user_id == actor_uuid
+            )
+            member_res = await execute_statement(db, member_stmt)
+            is_member = member_res.scalar() is not None
 
-        is_admin = getattr(current_user, "role_code", None) in ["ADMIN", "GOVERNANCE_MANAGER"]
-        if not is_member and not is_admin:
+        role_code = getattr(current_user, "role_code", None)
+        is_admin = role_code in ["ADMIN", "GOVERNANCE_MANAGER"]
+        is_general_approver = role_code in ["APPROVER", "REVIEWER"]
+
+        if not is_member and not is_admin and not is_general_approver:
             raise HTTPException(
                 status_code=403,
                 detail=ResponseHelper.error(
@@ -718,7 +754,7 @@ class WorkflowScheduleService:
 
         if decision == "APPROVED":
             # Transition status and activate
-            schedule = await self.activate_schedule(schedule.id, current_user, db)
+            schedule = await self.activate_schedule(schedule.id, current_user, db, bypass_abac=True)
             
             await self.event_service.publish_event(
                 event_code=WorkflowEventCode.WORKFLOW_SCHEDULE_APPROVED,
@@ -731,10 +767,10 @@ class WorkflowScheduleService:
                 event_payload={"approval_id": str(approval.id), "reason": reason},
                 db=db
             )
-        elif decision == "REJECTED":
+        elif decision in ["REJECTED", "CHANGES_REQUESTED"]:
             # Transition PENDING_APPROVAL -> DRAFT
-            validate_transition(schedule.schedule_status, "DRAFT", schedule.approval_required)
-            await self.repo.update_status(db, schedule, "DRAFT")
+            validate_transition(schedule.schedule_status, ScheduleStatus.DRAFT, schedule.approval_required)
+            await self.repo.update_status(db, schedule, ScheduleStatus.DRAFT)
             schedule.updated_by = actor_uuid
             
             await self.event_service.publish_event(
@@ -743,15 +779,23 @@ class WorkflowScheduleService:
                 entity_id=schedule.id,
                 actor_type="USER",
                 actor_id=actor_uuid,
-                action_type="REJECT",
-                event_summary=f"Approval decision: REJECTED for schedule {schedule.schedule_name}",
+                action_type="REJECT" if decision == "REJECTED" else "CHANGES_REQUESTED",
+                event_summary=f"Approval decision: {decision} for schedule {schedule.schedule_name}",
                 event_payload={"approval_id": str(approval.id), "reason": reason},
                 db=db
             )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=ResponseHelper.error(message="Invalid approval decision", error_code="VALIDATION_ERROR").model_dump()
+        elif decision == "ESCALATED":
+            # Leaves the schedule in PENDING_APPROVAL, but logs the escalation
+            await self.event_service.publish_event(
+                event_code=WorkflowEventCode.WORKFLOW_SCHEDULE_UPDATED,
+                entity_type="workflow_schedules",
+                entity_id=schedule.id,
+                actor_type="USER",
+                actor_id=actor_uuid,
+                action_type="ESCALATE",
+                event_summary=f"Approval decision: ESCALATED for schedule {schedule.schedule_name}",
+                event_payload={"approval_id": str(approval.id), "reason": reason},
+                db=db
             )
 
         await db_flush(db)

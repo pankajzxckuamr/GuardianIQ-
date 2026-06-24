@@ -168,8 +168,8 @@ export const RunDetailPage: React.FC = () => {
         <div className={styles.tabBody}>
           {activeTab === 'SUMMARY' && (
             <div className={styles.dlGrid}>
-              <div><div className={styles.dlLabel}>Workflow ID</div><div className={styles.dlValue}>{run.workflow_id}</div></div>
-              <div><div className={styles.dlLabel}>Triggered By</div><div className={styles.dlValue}>{run.triggered_by_actor_type} - {run.triggered_by_user_id || 'System'}</div></div>
+              <div><div className={styles.dlLabel}>Workflow</div><div className={styles.dlValue}>{(run as any).workflow_name || run.workflow_id}</div></div>
+              <div><div className={styles.dlLabel}>Triggered By</div><div className={styles.dlValue}>{run.triggered_by_actor_type} - {(run as any).triggered_by_name || run.triggered_by_user_id || 'System'}</div></div>
               <div className={styles.dlFull}>
                 <div className={styles.dlLabel}>Context JSON</div>
                 <pre className={styles.codeBlock}>{run.context_json ? JSON.stringify(run.context_json, null, 2) : '{}'}</pre>
