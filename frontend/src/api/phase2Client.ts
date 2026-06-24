@@ -2,7 +2,7 @@ import { storage } from '../utils/storage';
 
 const envelope = async <T>(res: Response): Promise<T> => {
   const json = await res.json();
-  if (!json.success) throw new Error(json.error ?? 'API error');
+  if (json.status !== 'success') throw new Error(json.message ?? 'API error');
   return json.data;
 };
 

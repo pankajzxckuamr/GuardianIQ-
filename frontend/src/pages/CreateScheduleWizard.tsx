@@ -128,7 +128,7 @@ export const CreateScheduleWizard: React.FC = () => {
         body: JSON.stringify({ cron_expression: formData.cron_expression }),
       });
       const json = await res.json();
-      if (!json.success || !json.data.valid) setCronError(json.error || 'Invalid cron expression');
+      if (json.status !== 'success' || !json.data.valid) setCronError(json.message || 'Invalid cron expression');
       else setCronError('');
     } catch (e) {
       setCronError('Could not validate cron');

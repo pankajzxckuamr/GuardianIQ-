@@ -165,7 +165,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
         body: JSON.stringify(formData),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      if (json.status !== 'success') throw new Error(json.message || 'Save failed');
       showToast('Assignment saved successfully', 'success');
       closeDrawer();
       fetchAssignments();
@@ -185,7 +185,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
         body: JSON.stringify({ ...item, status: 'INACTIVE' }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      if (json.status !== 'success') throw new Error(json.message || 'Disable failed');
       showToast('Assignment disabled', 'success');
       fetchAssignments();
     } catch (e: any) {

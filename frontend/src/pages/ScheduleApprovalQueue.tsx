@@ -72,7 +72,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
         body: JSON.stringify({ decision, reason }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      if (json.status !== 'success') throw new Error(json.message || 'Request failed');
       showToast(`Decision ${decision} recorded`, 'success');
       setSelectedSchedule(null);
       setDecision(null);

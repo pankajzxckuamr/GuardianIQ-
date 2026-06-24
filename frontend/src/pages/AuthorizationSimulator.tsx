@@ -70,7 +70,7 @@ export const AuthorizationSimulator: React.FC = () => {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      if (json.status !== 'success') throw new Error(json.message || 'Evaluation failed');
       
       // Map backend response structure to UI state
       setResult({
