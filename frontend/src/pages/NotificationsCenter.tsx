@@ -4,8 +4,10 @@ import { notificationApi } from '../api/phase2Client';
 import { NotificationResponse } from '../types/phase2';
 import { useToast } from '../hooks/useToast';
 import { PageHeader } from '../components/common/PageHeader';
+import { Button } from '../components/common/Button';
 import { Bell, Check, ExternalLink } from 'lucide-react';
 import styles from './phase2Shared.module.css';
+import '../components/common/RegistryDataTable.css';
 
 type Tab = 'UNREAD' | 'ACTION_REQUIRED' | 'FAILURES' | 'HIGH_RISK' | 'ALL';
 
@@ -26,6 +28,9 @@ export const NotificationsCenter: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
     document.title = 'Notifications — GuardianIQ';
@@ -34,7 +39,10 @@ export const NotificationsCenter: React.FC = () => {
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        page,
+        per_page: pageSize
+      };
       if (activeTab === 'UNREAD') params.status = 'UNREAD';
       if (activeTab === 'ACTION_REQUIRED') params.notification_type = 'APPROVAL_REQUIRED,RUN_FAILED,HIGH_RISK_OUTPUT';
       if (activeTab === 'FAILURES') params.notification_type = 'RUN_FAILED';
@@ -49,7 +57,14 @@ export const NotificationsCenter: React.FC = () => {
       if (activeTab === 'FAILURES') items = items.filter((i: any) => i.notification_type === 'RUN_FAILED');
       if (activeTab === 'HIGH_RISK') items = items.filter((i: any) => ['CRITICAL', 'HIGH'].includes(i.severity));
 
+      // Handle safety fallback if user action emptied current page but items still exist
+      if (items.length === 0 && page > 1 && res.total > 0) {
+        setPage(Math.ceil(res.total / pageSize) || 1);
+        return;
+      }
+
       setNotifications(items);
+      setTotalCount(res.total || items.length);
 
       if (activeTab === 'UNREAD') {
         setUnreadCount(res.total || items.length);
@@ -66,7 +81,12 @@ export const NotificationsCenter: React.FC = () => {
   useEffect(() => {
     fetchNotifications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, page]);
+
+  const handleTabChange = (tabId: Tab) => {
+    setActiveTab(tabId);
+    setPage(1);
+  };
 
   const handleMarkRead = async (id: string) => {
     try {
@@ -137,7 +157,7 @@ export const NotificationsCenter: React.FC = () => {
               <button
                 key={tab.id}
                 className={`${styles.tabLink} ${activeTab === tab.id ? styles.activeTab : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
               >
                 {tab.label}
               </button>
@@ -161,38 +181,71 @@ export const NotificationsCenter: React.FC = () => {
             <div className={styles.stateDesc}>You're all caught up.</div>
           </div>
         ) : (
-          <div className={styles.notifList}>
-            {notifications.map(n => (
-              <div key={n.id} className={`${styles.notifCard} ${n.status === 'UNREAD' ? styles.notifUnread : styles.notifRead}`}>
-                <div className={styles.notifHeader}>
-                  <div className={styles.notifMeta}>
-                    <span className={styles.tagChipNeutral}>{n.notification_type}</span>
-                    <span className={`${styles.pill} ${severityPillClass(n.severity)}`}>{n.severity}</span>
-                    <span className={styles.notifTime}>{getTimeAgo(n.created_at)}</span>
+          <>
+            <div className={styles.notifList}>
+              {notifications.map(n => (
+                <div key={n.id} className={`${styles.notifCard} ${n.status === 'UNREAD' ? styles.notifUnread : styles.notifRead}`}>
+                  <div className={styles.notifHeader}>
+                    <div className={styles.notifMeta}>
+                      <span className={styles.tagChipNeutral}>{n.notification_type}</span>
+                      <span className={`${styles.pill} ${severityPillClass(n.severity)}`}>{n.severity}</span>
+                      <span className={styles.notifTime}>{getTimeAgo(n.created_at)}</span>
+                    </div>
+                    <div className={styles.notifActions}>
+                      {n.status === 'UNREAD' && (
+                        <button className={styles.textBtn} onClick={() => handleMarkRead(n.id)}>Mark Read</button>
+                      )}
+                      {n.status !== 'ACKNOWLEDGED' && (
+                        <button className={styles.textBtn} onClick={() => handleAcknowledge(n.id)}>Acknowledge</button>
+                      )}
+                    </div>
                   </div>
-                  <div className={styles.notifActions}>
-                    {n.status === 'UNREAD' && (
-                      <button className={styles.textBtn} onClick={() => handleMarkRead(n.id)}>Mark Read</button>
-                    )}
-                    {n.status !== 'ACKNOWLEDGED' && (
-                      <button className={styles.textBtn} onClick={() => handleAcknowledge(n.id)}>Acknowledge</button>
+                  <h4 className={styles.notifTitle}>{n.title}</h4>
+                  <p className={styles.notifMessage}>{n.message}</p>
+                  <div className={styles.notifFooter}>
+                    <span className={styles.notifId}>ID: {n.id.substring(0, 8)}...</span>
+                    {n.entity_id && (
+                      <button className={styles.textBtn} onClick={() => navigateToEntity(n.entity_type, n.entity_id)}>
+                        {n.entity_type === 'WORKFLOW_SCHEDULE' ? 'View Schedule' : n.entity_type === 'WORKFLOW_RUN' ? 'View Run' : 'View Details'}
+                        <ExternalLink size={14} />
+                      </button>
                     )}
                   </div>
                 </div>
-                <h4 className={styles.notifTitle}>{n.title}</h4>
-                <p className={styles.notifMessage}>{n.message}</p>
-                <div className={styles.notifFooter}>
-                  <span className={styles.notifId}>ID: {n.id.substring(0, 8)}...</span>
-                  {n.entity_id && (
-                    <button className={styles.textBtn} onClick={() => navigateToEntity(n.entity_type, n.entity_id)}>
-                      {n.entity_type === 'WORKFLOW_SCHEDULE' ? 'View Schedule' : n.entity_type === 'WORKFLOW_RUN' ? 'View Run' : 'View Details'}
-                      <ExternalLink size={14} />
-                    </button>
-                  )}
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalCount > 0 && (
+              <div className="registry-pagination-bar" style={{ margin: '0 1.5rem 1.5rem 1.5rem', background: 'rgba(30, 41, 59, 0.2)' }}>
+                <div className="registry-pagination-info">
+                  Showing <span className="highlight">{totalCount === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)}</span> of{" "}
+                  <span className="highlight">{totalCount}</span> records
+                </div>
+                <div className="registry-pagination-actions">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="registry-page-num">
+                    Page {page} of {Math.ceil(totalCount / pageSize) || 1}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= (Math.ceil(totalCount / pageSize) || 1)}
+                    onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize) || 1, p + 1))}
+                  >
+                    Next
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

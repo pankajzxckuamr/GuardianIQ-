@@ -229,7 +229,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     bottomNavItems.push({ label: "Tenants", path: "/tenants", icon: Users });
   }
 
-  const hasPerm = (p: string) => currentUser?.is_superuser || currentUser?.permissions?.includes(p);
+  // const hasPerm = (p: string) => currentUser?.is_superuser || currentUser?.permissions?.includes(p);
 
   const phase2ExecutionItems = [
     { label: "Workflow Scheduler", path: "/workflow-scheduler", icon: Calendar, show: true },

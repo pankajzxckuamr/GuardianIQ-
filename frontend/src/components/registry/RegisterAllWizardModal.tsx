@@ -14,9 +14,7 @@ import {
   Plug, 
   GitBranch, 
   Link2, 
-  Plus, 
-  CheckCircle2, 
-  Trash2 
+  CheckCircle2
 } from "lucide-react";
 import { 
   ReactFlow, 
@@ -33,14 +31,14 @@ import '@xyflow/react/dist/style.css';
 import styles from "./RegisterAllWizardModal.module.css";
 
 // Import Form Modals
-import { DepartmentFormModal } from "./DepartmentFormModal";
-import { RoleFormModal } from "./RoleFormModal";
-import { UserFormModal } from "./UserFormModal";
-import { DataSourceFormModal } from "./DataSourceFormModal";
-import { ModelFormModal } from "./ModelFormModal";
-import { AgentFormModal } from "./AgentFormModal";
-import { ToolFormModal } from "./ToolFormModal";
-import { WorkflowFormModal } from "./WorkflowFormModal";
+// import { DepartmentFormModal } from "./DepartmentFormModal";
+// import { RoleFormModal } from "./RoleFormModal";
+// import { UserFormModal } from "./UserFormModal";
+// import { DataSourceFormModal } from "./DataSourceFormModal";
+// import { ModelFormModal } from "./ModelFormModal";
+// import { AgentFormModal } from "./AgentFormModal";
+// import { ToolFormModal } from "./ToolFormModal";
+// import { WorkflowFormModal } from "./WorkflowFormModal";
 
 interface RegisterAllWizardModalProps {
   isOpen: boolean;
@@ -134,7 +132,7 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     workflow: []
   });
   const [loadingLookups, setLoadingLookups] = useState<Record<string, boolean>>({});
-  const [activeCreateModal, setActiveCreateModal] = useState<string | null>(null);
+  // const [activeCreateModal, setActiveCreateModal] = useState<string | null>(null);
   const [approverId, setApproverId] = useState("");
 
   const fetchLookup = async (key: string) => {
@@ -239,24 +237,24 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
     }
   };
 
-  const handleModalSuccess = async (stepKey: string) => {
-    const previousItems = lookups[stepKey] || [];
-    const previousIds = new Set(previousItems.map(item => item.id));
+  // const handleModalSuccess = async (stepKey: string) => {
+  //   const previousItems = lookups[stepKey] || [];
+  //   const previousIds = new Set(previousItems.map(item => item.id));
 
-    await fetchLookup(stepKey);
+  //   await fetchLookup(stepKey);
 
-    setTimeout(() => {
-      setLookups(currentLookups => {
-        const list = currentLookups[stepKey] || [];
-        const newlyAdded = list.find(item => !previousIds.has(item.id));
-        if (newlyAdded) {
-          setSelectedIds(prev => ({ ...prev, [stepKey]: newlyAdded.id }));
-          showToast(`Newly registered ${STEPS.find(s => s.key === stepKey)?.label} selected automatically!`, "success");
-        }
-        return currentLookups;
-      });
-    }, 100);
-  };
+  //   setTimeout(() => {
+  //     setLookups(currentLookups => {
+  //       const list = currentLookups[stepKey] || [];
+  //       const newlyAdded = list.find(item => !previousIds.has(item.id));
+  //       if (newlyAdded) {
+  //         setSelectedIds(prev => ({ ...prev, [stepKey]: newlyAdded.id }));
+  //         showToast(`Newly registered ${STEPS.find(s => s.key === stepKey)?.label} selected automatically!`, "success");
+  //       }
+  //       return currentLookups;
+  //     });
+  //   }, 100);
+  // };
 
   const getEntityName = (type: string, id: string) => {
     const key = type.toLowerCase() === "data_source" ? "data_source" : type.toLowerCase();
@@ -543,7 +541,7 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
                 )}
               </div>
 
-              <div className={styles.optionColumn}>
+              {/* <div className={styles.optionColumn}>
                 <h4 className={styles.optionColumnTitle}>Register New</h4>
                 <button
                   type="button"
@@ -553,7 +551,7 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
                   <Plus size={16} />
                   <span>Register {activeStep.label}</span>
                 </button>
-              </div>
+              </div> */}
             </div>
           ) : activeStep.key === "relationships" ? (
             <div style={{ width: '100%', height: '350px', background: '#0b1120', borderRadius: '8px', border: '1px solid #1e293b' }}>

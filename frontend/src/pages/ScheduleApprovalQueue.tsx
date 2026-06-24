@@ -7,7 +7,6 @@ import { PageHeader } from '../components/common/PageHeader';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
 import { Clock, AlertCircle, XCircle } from 'lucide-react';
-import { storage } from '../utils/storage';
 import styles from './phase2Shared.module.css';
 
 type Tab = 'PENDING_MY_APPROVAL' | 'GROUP_QUEUE' | 'COMPLETED';

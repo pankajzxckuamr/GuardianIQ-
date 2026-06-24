@@ -54,6 +54,8 @@ export const AgentAssignmentMatrix: React.FC = () => {
   const [tools, setTools] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [models, setModels] = useState<any[]>([]);
+  const [showConfirmDiff, setShowConfirmDiff] = useState(false);
+  const [diffList, setDiffList] = useState<any[]>([]);
 
   useEffect(() => {
     document.title = 'Agent Assignments — GuardianIQ';
@@ -136,11 +138,11 @@ export const AgentAssignmentMatrix: React.FC = () => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           subject_type: 'USER',
-          subject_id: currentUser?.id,
-          object_type: 'ASSIGNMENT',
-          object_id: formData.id || 'new',
+          subject_user_id: null,
+          object_type: 'agent_assignments',
+          object_id: formData.id && formData.id !== 'new' ? formData.id : null,
           action: 'ASSIGN_AI_AGENT_TO_WORKFLOW',
-          environment: { payload: formData },
+          context_json: { ...formData },
         }),
       });
       const json = await res.json();
@@ -152,7 +154,94 @@ export const AgentAssignmentMatrix: React.FC = () => {
     }
   };
 
+  const getDiff = () => {
+    if (!selectedAssignment) return [];
+    const diffs: { field: string; prev: string; next: string }[] = [];
+
+    if (selectedAssignment.agent_id !== formData.agent_id) {
+      const prevAgent = agents.find(a => a.id === selectedAssignment.agent_id);
+      const nextAgent = agents.find(a => a.id === formData.agent_id);
+      diffs.push({
+        field: 'Agent',
+        prev: getAgentLabel(prevAgent),
+        next: getAgentLabel(nextAgent)
+      });
+    }
+
+    if (selectedAssignment.model_id !== formData.model_id) {
+      const prevModel = models.find(m => m.id === selectedAssignment.model_id);
+      const nextModel = models.find(m => m.id === formData.model_id);
+      diffs.push({
+        field: 'Model',
+        prev: getModelLabel(prevModel),
+        next: getModelLabel(nextModel)
+      });
+    }
+
+    if (selectedAssignment.execution_mode !== formData.execution_mode) {
+      diffs.push({
+        field: 'Execution Mode',
+        prev: selectedAssignment.execution_mode,
+        next: formData.execution_mode
+      });
+    }
+
+    if (selectedAssignment.confidence_threshold !== formData.confidence_threshold) {
+      diffs.push({
+        field: 'Confidence Threshold',
+        prev: `${selectedAssignment.confidence_threshold}%`,
+        next: `${formData.confidence_threshold}%`
+      });
+    }
+
+    const prevTools = selectedAssignment.allowed_tools_json || [];
+    const nextTools = formData.allowed_tools_json || [];
+    if (JSON.stringify([...prevTools].sort()) !== JSON.stringify([...nextTools].sort())) {
+      const getToolNames = (codes: string[]) => codes.map(c => tools.find(t => t.tool_code === c || t.id === c)?.tool_name || c).join(', ') || 'None';
+      diffs.push({
+        field: 'Allowed Tools',
+        prev: getToolNames(prevTools),
+        next: getToolNames(nextTools)
+      });
+    }
+
+    const prevDataSources = selectedAssignment.allowed_data_sources_json || [];
+    const nextDataSources = formData.allowed_data_sources_json || [];
+    if (JSON.stringify([...prevDataSources].sort()) !== JSON.stringify([...nextDataSources].sort())) {
+      diffs.push({
+        field: 'Allowed Data Sources',
+        prev: prevDataSources.join(', ') || 'None',
+        next: nextDataSources.join(', ') || 'None'
+      });
+    }
+
+    const prevBlocked = selectedAssignment.blocked_operations_json || [];
+    const nextBlocked = formData.blocked_operations_json || [];
+    if (JSON.stringify([...prevBlocked].sort()) !== JSON.stringify([...nextBlocked].sort())) {
+      diffs.push({
+        field: 'Blocked Operations',
+        prev: prevBlocked.join(', ') || 'None',
+        next: nextBlocked.join(', ') || 'None'
+      });
+    }
+
+    return diffs;
+  };
+
   const handleSave = async () => {
+    if (drawerMode === 'EDIT' && !showConfirmDiff) {
+      const diffs = getDiff();
+      if (diffs.length > 0) {
+        setDiffList(diffs);
+        setShowConfirmDiff(true);
+        return;
+      }
+    }
+    await confirmAndSave();
+  };
+
+  const confirmAndSave = async () => {
+    setShowConfirmDiff(false);
     try {
       const token = storage.get<string>('guardianiq_access_token');
       const method = drawerMode === 'CREATE' ? 'POST' : 'PUT';
@@ -389,6 +478,42 @@ export const AgentAssignmentMatrix: React.FC = () => {
           </>
         )}
       </Drawer>
+
+      {showConfirmDiff && (
+        <div className={styles.drawerOverlay} style={{ zIndex: 1000 }}>
+          <div className={styles.drawerBackdrop} onClick={() => setShowConfirmDiff(false)} />
+          <div className={styles.drawerPanel} style={{ maxWidth: 500, height: 'auto', maxHeight: '80vh', borderRadius: '8px', overflow: 'hidden' }}>
+            <div className={styles.drawerHeader}>
+              <h2 className={styles.drawerTitle}>Confirm Assignment Changes</h2>
+              <button className={styles.iconBtnPlain} onClick={() => setShowConfirmDiff(false)} title="Close"><X size={20} /></button>
+            </div>
+            <div className={styles.drawerBody} style={{ padding: '1.5rem', background: '#0b1329' }}>
+              <p className={styles.subText} style={{ marginBottom: '1rem', color: '#94a3b8' }}>
+                You are updating the agent assignment boundary configurations. The parent schedule status will revert to <strong>Pending Approval</strong>.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                {diffList.map((d: any, idx: number) => (
+                  <div key={idx} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', padding: '0.75rem' }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.85rem', color: '#38bdf8', marginBottom: '0.25rem' }}>{d.field}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
+                      <div style={{ color: '#ef4444', textDecoration: 'line-through' }}>
+                        Prev: {d.prev}
+                      </div>
+                      <div style={{ color: '#10b981' }}>
+                        New: {d.next}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.drawerFooter} style={{ borderTop: '1px solid #334155', paddingTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <Button variant="secondary" onClick={() => setShowConfirmDiff(false)}>Cancel</Button>
+                <Button variant="primary" onClick={confirmAndSave}>Confirm & Save</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

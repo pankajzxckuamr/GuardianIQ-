@@ -22,8 +22,12 @@ from app.modules.workflow_scheduler.models import (
     WorkflowScheduleApproval,
     WorkflowScheduleHistory,
     WorkflowScheduleAgentAssignment,
-    Phase2WorkflowSchedule
+    Phase2WorkflowSchedule,
+    ApprovalGroupMember
 )
+from app.modules.workflow_notifications.models import WorkflowNotification
+from app.modules.registry.repositories import resolve_user_uuid
+from app.shared.response_utils import ResponseHelper
 from app.modules.workflow_execution.models import WorkflowRun
 import sqlalchemy as sa
 from sqlalchemy.orm import selectinload
@@ -128,6 +132,183 @@ async def list_agent_assignments(
 
         return make_envelope(True, {"items": data, "total": len(data)}, None, request_id)
     except Exception as e:
+        return make_envelope(False, None, str(e), request_id)
+
+
+@router.post("/api/v1/workflow-scheduler/schedules/{schedule_id}/agent-assignments")
+async def create_agent_assignment(
+    request: Request,
+    schedule_id: UUID,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        schedule = await schedule_service.repo.get_by_id(db, schedule_id)
+        if not schedule:
+            raise HTTPException(404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
+        
+        sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
+        if sched_status_str not in ["DRAFT", "PAUSED", "ACTIVE"]:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Updates are only allowed in DRAFT, PAUSED, or ACTIVE status", error_code="STATE_ERROR").model_dump())
+            
+        actor_uuid = resolve_user_uuid(db, current_user.id)
+        
+        assignment = WorkflowScheduleAgentAssignment(
+            id=uuid4(),
+            tenant_id=schedule.tenant_id,
+            schedule_id=schedule_id,
+            agent_id=UUID(payload["agent_id"]),
+            model_id=UUID(payload["model_id"]) if payload.get("model_id") else None,
+            execution_mode=payload.get("execution_mode", "READ_ONLY"),
+            confidence_threshold=payload.get("confidence_threshold", 80),
+            allowed_tools_json=payload.get("allowed_tools_json", []),
+            allowed_data_sources_json=payload.get("allowed_data_sources_json", []),
+            blocked_operations_json=payload.get("blocked_operations_json", []),
+            status=payload.get("status", "ACTIVE"),
+            created_by=actor_uuid,
+            updated_by=actor_uuid
+        )
+        db.add(assignment)
+        
+        if sched_status_str == "ACTIVE" and schedule.approval_required and schedule.approval_group_id:
+            await schedule_service.repo.update_status(db, schedule, "PENDING_APPROVAL")
+            approval = WorkflowScheduleApproval(
+                id=uuid4(),
+                tenant_id=schedule.tenant_id,
+                schedule_id=schedule.id,
+                approval_type="ACTIVATION",
+                approval_status="PENDING",
+                approval_group_id=schedule.approval_group_id,
+                submitted_by=actor_uuid,
+                created_by=actor_uuid,
+                updated_by=actor_uuid
+            )
+            db.add(approval)
+            
+            stmt = sa.select(ApprovalGroupMember.user_id).where(ApprovalGroupMember.approval_group_id == schedule.approval_group_id)
+            res = await execute_statement(db, stmt)
+            member_ids = [r[0] for r in res.fetchall()]
+            for member_id in member_ids:
+                notif = WorkflowNotification(
+                    id=uuid4(),
+                    tenant_id=schedule.tenant_id,
+                    recipient_user_id=member_id,
+                    notification_type="APPROVAL_REQUIRED",
+                    title="Schedule Approval Required",
+                    message=f"Approval is required for updated schedule {schedule.schedule_name} ({schedule.schedule_code}).",
+                    severity="HIGH",
+                    entity_type="workflow_schedules",
+                    entity_id=schedule.id,
+                    status="UNREAD",
+                    created_by=actor_uuid,
+                    updated_by=actor_uuid
+                )
+                db.add(notif)
+        
+        db.commit()
+        return make_envelope(True, {"id": str(assignment.id)}, None, request_id)
+    except HTTPException as e:
+        db.rollback()
+        return make_envelope(False, None, str(e.detail), request_id)
+    except Exception as e:
+        db.rollback()
+        return make_envelope(False, None, str(e), request_id)
+
+
+@router.put("/api/v1/workflow-scheduler/schedules/{schedule_id}/agent-assignments/{assignment_id}")
+async def update_agent_assignment(
+    request: Request,
+    schedule_id: UUID,
+    assignment_id: UUID,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        schedule = await schedule_service.repo.get_by_id(db, schedule_id)
+        if not schedule:
+            raise HTTPException(404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
+            
+        sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
+        if sched_status_str not in ["DRAFT", "PAUSED", "ACTIVE"]:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Updates are only allowed in DRAFT, PAUSED, or ACTIVE status", error_code="STATE_ERROR").model_dump())
+            
+        stmt = sa.select(WorkflowScheduleAgentAssignment).where(
+            WorkflowScheduleAgentAssignment.id == assignment_id,
+            WorkflowScheduleAgentAssignment.schedule_id == schedule_id,
+            WorkflowScheduleAgentAssignment.is_deleted == False
+        )
+        res = await execute_statement(db, stmt)
+        assignment = res.scalar()
+        if not assignment:
+            raise HTTPException(404, detail=ResponseHelper.error(message="Agent assignment not found", error_code="NOT_FOUND").model_dump())
+            
+        actor_uuid = resolve_user_uuid(db, current_user.id)
+        
+        if "agent_id" in payload:
+            assignment.agent_id = UUID(payload["agent_id"])
+        if "model_id" in payload:
+            assignment.model_id = UUID(payload["model_id"]) if payload["model_id"] else None
+        if "execution_mode" in payload:
+            assignment.execution_mode = payload["execution_mode"]
+        if "confidence_threshold" in payload:
+            assignment.confidence_threshold = payload["confidence_threshold"]
+        if "allowed_tools_json" in payload:
+            assignment.allowed_tools_json = payload["allowed_tools_json"]
+        if "allowed_data_sources_json" in payload:
+            assignment.allowed_data_sources_json = payload["allowed_data_sources_json"]
+        if "blocked_operations_json" in payload:
+            assignment.blocked_operations_json = payload["blocked_operations_json"]
+        if "status" in payload:
+            assignment.status = payload["status"]
+            
+        assignment.updated_by = actor_uuid
+        
+        if sched_status_str == "ACTIVE" and schedule.approval_required and schedule.approval_group_id:
+            await schedule_service.repo.update_status(db, schedule, "PENDING_APPROVAL")
+            approval = WorkflowScheduleApproval(
+                id=uuid4(),
+                tenant_id=schedule.tenant_id,
+                schedule_id=schedule.id,
+                approval_type="ACTIVATION",
+                approval_status="PENDING",
+                approval_group_id=schedule.approval_group_id,
+                submitted_by=actor_uuid,
+                created_by=actor_uuid,
+                updated_by=actor_uuid
+            )
+            db.add(approval)
+            
+            stmt = sa.select(ApprovalGroupMember.user_id).where(ApprovalGroupMember.approval_group_id == schedule.approval_group_id)
+            res = await execute_statement(db, stmt)
+            member_ids = [r[0] for r in res.fetchall()]
+            for member_id in member_ids:
+                notif = WorkflowNotification(
+                    id=uuid4(),
+                    tenant_id=schedule.tenant_id,
+                    recipient_user_id=member_id,
+                    notification_type="APPROVAL_REQUIRED",
+                    title="Schedule Approval Required",
+                    message=f"Approval is required for updated schedule {schedule.schedule_name} ({schedule.schedule_code}).",
+                    severity="HIGH",
+                    entity_type="workflow_schedules",
+                    entity_id=schedule.id,
+                    status="UNREAD",
+                    created_by=actor_uuid,
+                    updated_by=actor_uuid
+                )
+                db.add(notif)
+                
+        db.commit()
+        return make_envelope(True, {"id": str(assignment.id)}, None, request_id)
+    except HTTPException as e:
+        db.rollback()
+        return make_envelope(False, None, str(e.detail), request_id)
+    except Exception as e:
+        db.rollback()
         return make_envelope(False, None, str(e), request_id)
 
 

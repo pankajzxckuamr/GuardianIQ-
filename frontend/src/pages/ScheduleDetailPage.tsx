@@ -139,7 +139,7 @@ export const ScheduleDetailPage: React.FC = () => {
             </div>
             <div className={styles.monoCode}>{schedule.schedule_code}</div>
               <div className={styles.headerMetaRow}>
-              <div className={styles.metaItem}><span className={styles.metaLabel}>Owner</span><span className={styles.metaValue}>{(schedule as any).owner_name || schedule.owner_user_id}</span></div>
+              <div className={styles.metaItem}><span className={styles.metaLabel}>Owner</span><span className={styles.metaValue}>{schedule.owner_name || schedule.owner_user_id}</span></div>
               <div className={styles.metaItem}><span className={styles.metaLabel}>Next Run</span><span className={styles.metaValue}>{schedule.next_run_at ? new Date(schedule.next_run_at).toLocaleString() : 'Manual only'} ({schedule.timezone})</span></div>
               <div className={styles.metaItem}><span className={styles.metaLabel}>Last Run</span><span className={styles.metaValue}>{schedule.last_run_at ? new Date(schedule.last_run_at).toLocaleString() : 'Never'}</span></div>
             </div>
@@ -193,7 +193,7 @@ export const ScheduleDetailPage: React.FC = () => {
                 </div>
               )}
               <div className={styles.dlGrid}>
-                <div><div className={styles.dlLabel}>Workflow</div><div className={styles.dlValue}>{(schedule as any).workflow_name || schedule.workflow_id}</div></div>
+                <div><div className={styles.dlLabel}>Workflow</div><div className={styles.dlValue}>{schedule.workflow_name || schedule.workflow_id}</div></div>
                 <div><div className={styles.dlLabel}>Health Status</div><div className={styles.dlValue}>{schedule.health_status}</div></div>
               </div>
 

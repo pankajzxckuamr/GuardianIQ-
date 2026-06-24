@@ -42,6 +42,10 @@ export interface WorkflowScheduleResponse {
   created_at: string;
   updated_at: string;
   version_no: number;
+  health_status?: string;
+  workflow_name?: string;
+  owner_name?: string;
+  is_overdue?: boolean;
 }
 
 export interface AgentAssignmentResponse {
@@ -74,6 +78,8 @@ export interface WorkflowRunResponse {
   completed_at?: string;
   duration_ms?: number;
   context_json?: any;
+  workflow_name?: string;
+  triggered_by_name?: string;
 }
 
 export interface WorkflowRunStepResponse {

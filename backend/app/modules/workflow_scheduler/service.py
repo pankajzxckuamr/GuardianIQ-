@@ -333,10 +333,10 @@ class WorkflowScheduleService:
 
         actor_uuid = resolve_user_uuid(db, current_user.id)
 
-        # Only allowed in DRAFT or PAUSED status
+        # Only allowed in DRAFT, PAUSED or ACTIVE status
         sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
-        if sched_status_str not in ["DRAFT", "PAUSED"]:
-            raise WorkflowScheduleStateError(sched_status_str, "UPDATE", "Updates are only allowed in DRAFT or PAUSED status")
+        if sched_status_str not in ["DRAFT", "PAUSED", "ACTIVE"]:
+            raise WorkflowScheduleStateError(sched_status_str, "UPDATE", "Updates are only allowed in DRAFT, PAUSED, or ACTIVE status")
 
         # Serialise before JSON for history tracking
         before_json = serialize_schedule_history(schedule)
@@ -406,6 +406,43 @@ class WorkflowScheduleService:
             updated_by=actor_uuid
         )
         db.add(history_rec)
+        # If the schedule was ACTIVE and requires approval, transition to PENDING_APPROVAL
+        if sched_status_str == "ACTIVE" and updated_schedule.approval_required and updated_schedule.approval_group_id:
+            await self.repo.update_status(db, updated_schedule, "PENDING_APPROVAL")
+            approval = WorkflowScheduleApproval(
+                id=uuid4(),
+                tenant_id=updated_schedule.tenant_id,
+                schedule_id=updated_schedule.id,
+                approval_type="ACTIVATION",
+                approval_status="PENDING",
+                approval_group_id=updated_schedule.approval_group_id,
+                submitted_by=actor_uuid,
+                created_by=actor_uuid,
+                updated_by=actor_uuid
+            )
+            db.add(approval)
+            
+            # Create notifications
+            stmt = select(ApprovalGroupMember.user_id).where(ApprovalGroupMember.approval_group_id == updated_schedule.approval_group_id)
+            res = await execute_statement(db, stmt)
+            member_ids = [r[0] for r in res.fetchall()]
+            for member_id in member_ids:
+                notif = WorkflowNotification(
+                    id=uuid4(),
+                    tenant_id=updated_schedule.tenant_id,
+                    recipient_user_id=member_id,
+                    notification_type="APPROVAL_REQUIRED",
+                    title="Schedule Approval Required",
+                    message=f"Approval is required for updated schedule {updated_schedule.schedule_name} ({updated_schedule.schedule_code}).",
+                    severity="HIGH",
+                    entity_type="workflow_schedules",
+                    entity_id=updated_schedule.id,
+                    status="UNREAD",
+                    created_by=actor_uuid,
+                    updated_by=actor_uuid
+                )
+                db.add(notif)
+
         await db_flush(db)
 
         # Publish event

@@ -49,7 +49,11 @@ async def list_runs(
         query = select(WorkflowRun).where(WorkflowRun.is_deleted == False)
         
         if run_status:
-            query = query.where(WorkflowRun.run_status == run_status)
+            if "," in run_status:
+                status_list = [s.strip() for s in run_status.split(",")]
+                query = query.where(WorkflowRun.run_status.in_(status_list))
+            else:
+                query = query.where(WorkflowRun.run_status == run_status)
         if risk_level:
             query = query.where(WorkflowRun.risk_level == risk_level)
         if trigger_type:

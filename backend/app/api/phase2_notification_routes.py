@@ -42,11 +42,23 @@ async def list_notifications(
         )
         
         if status:
-            query = query.where(WorkflowNotification.status == status)
+            if "," in status:
+                status_list = [s.strip() for s in status.split(",")]
+                query = query.where(WorkflowNotification.status.in_(status_list))
+            else:
+                query = query.where(WorkflowNotification.status == status)
         if notification_type:
-            query = query.where(WorkflowNotification.notification_type == notification_type)
+            if "," in notification_type:
+                type_list = [t.strip() for t in notification_type.split(",")]
+                query = query.where(WorkflowNotification.notification_type.in_(type_list))
+            else:
+                query = query.where(WorkflowNotification.notification_type == notification_type)
         if severity:
-            query = query.where(WorkflowNotification.severity == severity)
+            if "," in severity:
+                severity_list = [s.strip() for s in severity.split(",")]
+                query = query.where(WorkflowNotification.severity.in_(severity_list))
+            else:
+                query = query.where(WorkflowNotification.severity == severity)
             
         count_stmt = sa.select(sa.func.count()).select_from(query.subquery())
         count_res = await execute_statement(db, count_stmt)

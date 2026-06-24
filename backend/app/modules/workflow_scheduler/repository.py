@@ -59,7 +59,14 @@ class WorkflowScheduleRepository:
         
         # Apply filters
         if "status" in filters and filters["status"]:
-            query = query.where(Phase2WorkflowSchedule.schedule_status == filters["status"])
+            status_val = filters["status"]
+            if isinstance(status_val, str) and "," in status_val:
+                status_val = [s.strip() for s in status_val.split(",")]
+            
+            if isinstance(status_val, list):
+                query = query.where(Phase2WorkflowSchedule.schedule_status.in_(status_val))
+            else:
+                query = query.where(Phase2WorkflowSchedule.schedule_status == status_val)
         if "risk_level" in filters and filters["risk_level"]:
             query = query.where(Phase2WorkflowSchedule.risk_level == filters["risk_level"])
         if "owner_user_id" in filters and filters["owner_user_id"]:
