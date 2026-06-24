@@ -1,22 +1,5 @@
-<<<<<<< HEAD
-import { storage } from '../utils/storage';
-
-const envelope = async <T>(res: Response): Promise<T> => {
-  const json = await res.json();
-  if (json.status !== 'success') throw new Error(json.message ?? 'API error');
-  return json.data;
-};
-
-const getAuthHeaders = () => {
-  const token = storage.get<string>('guardianiq_access_token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
-  };
-};
-=======
 import apiClient from '../services/shared/apiClient';
->>>>>>> 1a84385 (Update Phase 2 workflow scheduling and approval queue)
+
 
 export const scheduleApi = {
   list: (params?: Record<string, any>) => apiClient.get('/api/v1/workflow-scheduler/schedules', { params }),

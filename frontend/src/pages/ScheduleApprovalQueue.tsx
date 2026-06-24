@@ -66,17 +66,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
     if (!selectedSchedule || !decision) return;
     try {
       const approvalId = selectedSchedule.id;
-<<<<<<< HEAD
-      const res = await fetch(`/api/v1/schedule-approvals/${approvalId}/decide`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ decision, reason }),
-      });
-      const json = await res.json();
-      if (json.status !== 'success') throw new Error(json.message || 'Request failed');
-=======
       await apiClient.post(`/api/v1/schedule-approvals/${approvalId}/decide`, { decision, reason });
->>>>>>> 1a84385 (Update Phase 2 workflow scheduling and approval queue)
       showToast(`Decision ${decision} recorded`, 'success');
       setSelectedSchedule(null);
       setDecision(null);
