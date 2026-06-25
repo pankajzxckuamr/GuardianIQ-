@@ -25,6 +25,17 @@ const statusPillClass = (status: string): string => {
   }
 };
 
+const runStatusPillClass = (status: string): string => {
+  switch (status) {
+    case 'RUNNING': return styles.pillInfo;
+    case 'COMPLETED': return styles.pillSuccess;
+    case 'FAILED': return styles.pillDanger;
+    case 'CANCELLED': return styles.pillWarning;
+    case 'RETRY_QUEUED': return styles.pillAccent;
+    default: return styles.pillNeutral;
+  }
+};
+
 export const ScheduleDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
@@ -265,7 +276,7 @@ export const ScheduleDetailPage: React.FC = () => {
                     <tr key={a.id}>
                       <td>{a.approval_type}</td>
                       <td>{a.approval_status}</td>
-                      <td>{a.approver_user_id || '-'}</td>
+                      <td>{a.approver_name || a.approver_user_id || '-'}</td>
                       <td>{a.decision_reason || '-'}</td>
                       <td>{a.decided_at ? new Date(a.decided_at).toLocaleString() : '-'}</td>
                     </tr>
@@ -277,9 +288,64 @@ export const ScheduleDetailPage: React.FC = () => {
           )}
 
           {activeTab === 'RUNS' && (
-            <div className={styles.stateCard} style={{ border: 'none', background: 'transparent' }}>
-              <div className={styles.stateDesc}>View full paginated runs for this schedule in the Run History page.</div>
-              <Button variant="secondary" size="sm" onClick={() => navigate(`/workflow-runs?search=${schedule.schedule_code}`)}>Open Run History</Button>
+            <div className={styles.fieldStack}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className={styles.sectionHeading} style={{ margin: 0 }}>Performed Runs</h3>
+                <Button variant="secondary" size="sm" onClick={() => navigate(`/workflow-runs?search=${schedule.schedule_code}`)}>
+                  Open Run History
+                </Button>
+              </div>
+              <div className={styles.miniTableWrap}>
+                <table className={styles.miniTable}>
+                  <thead>
+                    <tr>
+                      <th>Run Code</th>
+                      <th>Trigger</th>
+                      <th>Status</th>
+                      <th>Started At</th>
+                      <th>Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runs.map(r => (
+                      <tr key={r.id}>
+                        <td>
+                          <button className={styles.linkCell} onClick={() => navigate(`/workflow-runs/${r.id}`)}>
+                            {r.run_code}
+                          </button>
+                        </td>
+                        <td>
+                          <span className={styles.tagChip}>
+                            {r.trigger_type}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`${styles.pill} ${runStatusPillClass(r.run_status)}`}>
+                            {(r.run_status || '').replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={styles.mutedCell} style={{ fontSize: '0.85rem' }}>
+                            {r.started_at ? new Date(r.started_at).toLocaleString() : '-'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={styles.mutedCell} style={{ fontSize: '0.85rem' }}>
+                            {r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '-'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {runs.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className={styles.miniEmpty}>
+                          No performed runs found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -298,7 +364,7 @@ export const ScheduleDetailPage: React.FC = () => {
                     <tr key={h.id}>
                       <td>{h.change_type}</td>
                       <td>{h.change_summary}</td>
-                      <td>{h.changed_by || 'System'}</td>
+                      <td>{h.changed_by_name || h.changed_by || 'System'}</td>
                       <td>{new Date(h.created_at).toLocaleString()}</td>
                     </tr>
                   ))}

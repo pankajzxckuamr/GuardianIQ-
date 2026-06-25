@@ -1208,7 +1208,7 @@
 .auditItem { display: flex; gap: var(--spacing-md, 1rem); padding-bottom: var(--spacing-lg, 1.5rem); position: relative; }
 .auditDotCol { display: flex; flex-direction: column; align-items: center; }
 .auditDot {
-  width: 30px; height: 30px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 50%;
   background: var(--bg-tertiary, #151d30);
   border: 1px solid var(--card-border, #334155);
   display: flex; align-items: center; justify-content: center;
@@ -1216,9 +1216,32 @@
   font-size: var(--font-size-xs, 0.75rem); font-weight: 700;
   flex-shrink: 0;
 }
+.auditDot.success {
+  color: var(--color-success, #10b981);
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.08);
+}
+.auditDot.warning {
+  color: var(--color-warning, #f59e0b);
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.08);
+}
+.auditDot.danger {
+  color: var(--color-danger, #ef4444);
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+.auditDot.info {
+  color: var(--accent-primary, #6366f1);
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.08);
+}
 .auditLine { flex: 1; width: 2px; background: var(--card-border, #334155); margin-top: 4px; }
 .auditContent { display: flex; flex: 1; justify-content: space-between; gap: var(--spacing-md, 1rem); padding-top: 4px; flex-wrap: wrap; }
-.auditSummary { font-size: var(--font-size-sm, 0.875rem); color: var(--text-secondary, #94a3b8); }
+.auditBody { display: flex; flex-direction: column; gap: 4px; }
+.auditSummary { font-size: var(--font-size-sm, 0.875rem); color: var(--text-primary, #f8fafc); font-weight: 500; }
+.auditMeta { display: flex; align-items: center; gap: var(--spacing-sm, 0.5rem); }
+.auditActor { font-size: var(--font-size-xs, 0.75rem); color: var(--text-muted, #64748b); font-weight: 500; }
 .auditTime { font-size: var(--font-size-xs, 0.75rem); color: var(--text-muted, #64748b); white-space: nowrap; }
 
 /* ── Create Schedule wizard ─────────────────────────────────── */

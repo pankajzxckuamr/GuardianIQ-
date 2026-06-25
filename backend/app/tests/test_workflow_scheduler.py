@@ -537,6 +537,7 @@ class WorkflowSchedulerTests(unittest.TestCase):
         # Test 6: Submit → PENDING_APPROVAL
         hr_payload = high_risk_payload.copy()
         hr_payload["schedule_code"] = "VERIFY_HIGH_001"
+        hr_payload["schedule_name"] = "Verify High Risk Schedule"
         hr_payload["approval_group_id"] = str(self.group.id)
         r6_1 = self.client.post("/api/v1/workflow-scheduler/schedules", json=hr_payload, headers=self.headers)
         self.assertTrue(r6_1.json().get("success"))
@@ -602,3 +603,59 @@ class WorkflowSchedulerTests(unittest.TestCase):
         hist_count = self.db.query(WorkflowScheduleHistory).filter(WorkflowScheduleHistory.schedule_id == schedule_id_hr).count()
         self.assertGreater(hist_count, 0)
         print("PASS: Update writes workflow_schedule_history row")
+
+    def test_duplication_validation(self):
+        # 1. Create a schedule to serve as the duplicate base
+        payload_1 = {
+            "workflow_id": str(self.workflow.id),
+            "schedule_code": "DUPLICATE_CODE_001",
+            "schedule_name": "Unique Duplicate Name",
+            "schedule_type": "DAILY",
+            "timezone": "Asia/Kolkata",
+            "owner_user_id": str(self.admin_uuid),
+            "risk_level": "LOW",
+            "approval_required": False,
+            "agent_assignments": [{
+                "agent_id": str(self.agent.id),
+                "model_id": str(self.model.id),
+                "execution_mode": "RECOMMEND_ONLY",
+                "allowed_tools": ["TL-READ-2"],
+                "boundary_rules": {"max_records": 100, "allow_write_tools": False, "requires_human_approval_for_high_risk": True}
+            }]
+        }
+        r1 = self.client.post("/api/v1/workflow-scheduler/schedules", json=payload_1, headers=self.headers)
+        self.assertEqual(r1.status_code, 200)
+        self.assertTrue(r1.json().get("success"))
+        sched1_id = r1.json()["data"]["id"]
+        from uuid import UUID
+        self.schedules_to_cleanup.append(UUID(sched1_id))
+
+        # 2. Try to create another schedule with the same name (case-insensitive) but different code
+        payload_same_name = payload_1.copy()
+        payload_same_name["schedule_code"] = "DIFFERENT_CODE_002"
+        payload_same_name["schedule_name"] = "unique duplicate name" # lowercase
+        r2 = self.client.post("/api/v1/workflow-scheduler/schedules", json=payload_same_name, headers=self.headers)
+        if r2.status_code == 422:
+            self.assertIn("already exists", r2.text)
+        else:
+            self.assertEqual(r2.status_code, 200)
+            self.assertFalse(r2.json().get("success"))
+            self.assertIn("already exists", str(r2.json().get("error")))
+
+        # 3. Try to create another schedule with the same code (case-insensitive) but different name
+        payload_same_code = payload_1.copy()
+        payload_same_code["schedule_code"] = "duplicate_code_001" # lowercase
+        payload_same_code["schedule_name"] = "Another Different Name"
+        r3 = self.client.post("/api/v1/workflow-scheduler/schedules", json=payload_same_code, headers=self.headers)
+        if r3.status_code == 422:
+            self.assertIn("already exists", r3.text)
+        else:
+            self.assertEqual(r3.status_code, 200)
+            self.assertFalse(r3.json().get("success"))
+            self.assertIn("already exists", str(r3.json().get("error")))
+
+        # 4. Check that update on self does not trigger validation failure
+        r4 = self.client.put(f"/api/v1/workflow-scheduler/schedules/{sched1_id}", json={"schedule_name": "Unique Duplicate Name"}, headers=self.headers)
+        self.assertEqual(r4.status_code, 200)
+        self.assertTrue(r4.json().get("success"))
+

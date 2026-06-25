@@ -13,14 +13,26 @@ export const AgentAssignmentPanel: React.FC<Props> = ({ assignment, readonly }) 
 
   return (
     <div className={styles.section}>
-      <div className={styles.detailHeader} style={{ marginBottom: '1rem' }}>
-        <h4 className={styles.subHeading}>Agent ID: {assignment.agent_id}</h4>
+      <div className={styles.detailHeader} style={{ marginBottom: '1rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <h4 className={styles.subHeading} style={{ margin: 0 }}>Agent: {assignment.agent_name || 'Unknown Agent'}</h4>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>ID: {assignment.agent_id}</span>
+        </div>
         <span className={`${styles.pill} ${assignment.execution_mode === 'AUTONOMOUS' ? styles.pillDanger : styles.pillInfo}`}>
           {assignment.execution_mode}
         </span>
       </div>
       <div className={styles.fieldStack}>
-        <div className={styles.mutedCell}>Model ID: {assignment.model_id || 'N/A'}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div className={styles.mutedCell} style={{ fontWeight: 500, color: 'var(--text-primary, #f8fafc)' }}>
+            Model: {assignment.model_name || 'N/A'}
+          </div>
+          {assignment.model_id && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>
+              ID: {assignment.model_id}
+            </span>
+          )}
+        </div>
         <div className={styles.mutedCell}>Role: {assignment.assignment_role}</div>
         <div className={styles.panelRow}>
           <span className={styles.panelStat} title={assignment.allowed_tools_json?.join(', ')}>

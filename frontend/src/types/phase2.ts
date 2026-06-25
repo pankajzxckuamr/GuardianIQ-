@@ -52,7 +52,9 @@ export interface AgentAssignmentResponse {
   id?: string;
   schedule_id?: string;
   agent_id: string;
+  agent_name?: string;
   model_id?: string;
+  model_name?: string;
   assignment_role: string;
   execution_mode: string;
   confidence_threshold?: number;
@@ -129,6 +131,7 @@ export interface ApprovalResponse {
   decided_at?: string;
   submitted_by?: string;
   approver_user_id?: string;
+  approver_name?: string;
   created_at: string;
 }
 
@@ -140,5 +143,15 @@ export interface HistoryResponse {
   before_json?: any;
   after_json?: any;
   changed_by?: string;
+  changed_by_name?: string;
   created_at: string;
 }
+
+export interface AuditTimelineEvent {
+  id: string;
+  action_type: string;
+  event_summary: string;
+  actor_name: string;
+  created_at: string;
+}
+

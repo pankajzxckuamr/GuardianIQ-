@@ -30,7 +30,8 @@ class WorkflowScheduleRepository:
         stmt = (
             select(Phase2WorkflowSchedule)
             .options(
-                selectinload(Phase2WorkflowSchedule.agent_assignments),
+                selectinload(Phase2WorkflowSchedule.agent_assignments).selectinload(WorkflowScheduleAgentAssignment.agent),
+                selectinload(Phase2WorkflowSchedule.agent_assignments).selectinload(WorkflowScheduleAgentAssignment.model),
                 selectinload(Phase2WorkflowSchedule.approvals),
                 selectinload(Phase2WorkflowSchedule.runs)
             )
@@ -43,7 +44,8 @@ class WorkflowScheduleRepository:
         stmt = (
             select(Phase2WorkflowSchedule)
             .options(
-                selectinload(Phase2WorkflowSchedule.agent_assignments),
+                selectinload(Phase2WorkflowSchedule.agent_assignments).selectinload(WorkflowScheduleAgentAssignment.agent),
+                selectinload(Phase2WorkflowSchedule.agent_assignments).selectinload(WorkflowScheduleAgentAssignment.model),
                 selectinload(Phase2WorkflowSchedule.approvals),
                 selectinload(Phase2WorkflowSchedule.runs),
                 selectinload(Phase2WorkflowSchedule.workflow),

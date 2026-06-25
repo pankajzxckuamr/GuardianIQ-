@@ -581,7 +581,12 @@ async def get_approvals(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
-        stmt = sa.select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == id).order_by(WorkflowScheduleApproval.created_at.desc())
+        stmt = (
+            sa.select(WorkflowScheduleApproval)
+            .options(sa.orm.selectinload(WorkflowScheduleApproval.approver_user))
+            .where(WorkflowScheduleApproval.schedule_id == id)
+            .order_by(WorkflowScheduleApproval.created_at.desc())
+        )
         res = await execute_statement(db, stmt)
         approvals = res.scalars().all()
         data = [
@@ -594,6 +599,7 @@ async def get_approvals(
                 "decided_at": app.decided_at.isoformat() if app.decided_at else None,
                 "submitted_by": str(app.submitted_by) if app.submitted_by else None,
                 "approver_user_id": str(app.approver_user_id) if app.approver_user_id else None,
+                "approver_name": app.approver_user.full_name if app.approver_user else None,
                 "created_at": app.created_at.isoformat()
             }
             for app in approvals
@@ -612,7 +618,12 @@ async def get_history(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
-        stmt = sa.select(WorkflowScheduleHistory).where(WorkflowScheduleHistory.schedule_id == id).order_by(WorkflowScheduleHistory.created_at.desc())
+        stmt = (
+            sa.select(WorkflowScheduleHistory)
+            .options(sa.orm.selectinload(WorkflowScheduleHistory.changed_by_user))
+            .where(WorkflowScheduleHistory.schedule_id == id)
+            .order_by(WorkflowScheduleHistory.created_at.desc())
+        )
         res = await execute_statement(db, stmt)
         histories = res.scalars().all()
         data = [
@@ -624,6 +635,7 @@ async def get_history(
                 "before_json": h.before_json,
                 "after_json": h.after_json,
                 "changed_by": str(h.changed_by) if h.changed_by else None,
+                "changed_by_name": h.changed_by_user.full_name if h.changed_by_user else None,
                 "created_at": h.created_at.isoformat()
             }
             for h in histories
@@ -704,15 +716,35 @@ async def get_audit_events_timeline(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
+        # Map frontend entity types to database entity types
+        entity_type_map = {
+            "WORKFLOW_SCHEDULE": "workflow_schedules",
+            "WORKFLOW_RUN": "workflow_runs",
+            "workflow_schedule": "workflow_schedules",
+            "workflow_run": "workflow_runs"
+        }
+        normalized_entity_type = entity_type_map.get(entity_type, entity_type)
+
         from app.modules.audit.event_service import GovernanceEventService
         service = GovernanceEventService()
-        events = await service.get_timeline(entity_type, entity_id, db)
+        events = await service.get_timeline(normalized_entity_type, entity_id, db)
         
+        # Resolve actor usernames from User IDs
+        actor_ids = {ev.actor_user_id for ev in events if ev.actor_user_id is not None}
+        actor_map = {}
+        if actor_ids:
+            from app.modules.auth.models import User
+            user_stmt = sa.select(User.id, User.name, User.email).where(User.id.in_(list(actor_ids)))
+            user_res = await execute_statement(db, user_stmt)
+            for row in user_res.fetchall():
+                actor_map[row[0]] = row[1] or row[2]
+
         data = [
             {
                 "id": str(ev.id),
                 "action_type": ev.action,
                 "event_summary": ev.event_metadata.get("event_summary") if ev.event_metadata else f"Action {ev.action} on {ev.entity_type}",
+                "actor_name": actor_map.get(ev.actor_user_id, "System"),
                 "created_at": ev.created_at.isoformat() if ev.created_at else None
             }
             for ev in events

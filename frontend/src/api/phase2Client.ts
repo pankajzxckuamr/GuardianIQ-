@@ -29,3 +29,7 @@ export const notificationApi = {
   markRead: (id: string) => apiClient.put(`/api/v1/workflow-notifications/${id}/read`),
   acknowledge: (id: string) => apiClient.put(`/api/v1/workflow-notifications/${id}/acknowledge`),
 };
+
+export const auditApi = {
+  getTimeline: (entityType: string, entityId: string) => apiClient.get('/api/v1/audit/events', { params: { entity_type: entityType, entity_id: entityId } }),
+};

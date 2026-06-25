@@ -50,7 +50,9 @@ class AgentAssignmentResponse(BaseModel):
     id: UUID
     schedule_id: UUID
     agent_id: UUID
+    agent_name: str | None = None
     model_id: UUID | None
+    model_name: str | None = None
     assignment_role: AssignmentRole
     execution_mode: ExecutionMode
     confidence_threshold: float | None

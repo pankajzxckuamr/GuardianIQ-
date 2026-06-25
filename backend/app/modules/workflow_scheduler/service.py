@@ -169,7 +169,9 @@ def format_schedule_response(item: Phase2WorkflowSchedule) -> dict:
             "id": ass.id,
             "schedule_id": ass.schedule_id,
             "agent_id": ass.agent_id,
+            "agent_name": ass.agent.agent_name if ass.agent else "Unknown",
             "model_id": ass.model_id,
+            "model_name": ass.model.model_name if ass.model else None,
             "assignment_role": ass.assignment_role.value if hasattr(ass.assignment_role, "value") else str(ass.assignment_role),
             "execution_mode": ass.execution_mode.value if hasattr(ass.execution_mode, "value") else str(ass.execution_mode),
             "confidence_threshold": float(ass.confidence_threshold) if ass.confidence_threshold is not None else None,
@@ -245,8 +247,10 @@ class WorkflowScheduleService:
         self.event_service = GovernanceEventService()
 
     async def create_schedule(self, payload, current_user, db) -> Phase2WorkflowSchedule:
+        actor_uuid = resolve_user_uuid(db, current_user.id)
+
         # 1. Validate payload
-        errors = await WorkflowScheduleValidationService.validate_create(payload, db)
+        errors = await WorkflowScheduleValidationService.validate_create(payload, db, tenant_id=actor_uuid)
         if errors:
             details = [{"field": e.field, "message": e.message} for e in errors]
             raise HTTPException(
@@ -257,8 +261,6 @@ class WorkflowScheduleService:
                     details=details
                 ).model_dump()
             )
-
-        actor_uuid = resolve_user_uuid(db, current_user.id)
 
         # 2. Authorization check
         auth_service = AuthorizationDecisionService()
@@ -357,7 +359,9 @@ class WorkflowScheduleService:
             merged_state["retry_policy_json"] = update_data["retry_policy_json"]
 
         # Validate merge result
-        errors = await WorkflowScheduleValidationService.validate_create(merged_state, db)
+        errors = await WorkflowScheduleValidationService.validate_create(
+            merged_state, db, tenant_id=schedule.tenant_id, schedule_id=schedule.id
+        )
         if errors:
             details = [{"field": e.field, "message": e.message} for e in errors]
             raise HTTPException(

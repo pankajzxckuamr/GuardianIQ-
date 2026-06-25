@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 
 from app.shared.enums import RiskLevel, ExecutionMode, ScheduleType
 from app.modules.registry.models import RegistryWorkflow, RegistryAIAgent, RegistryAIModel, RegistryTool
-from app.modules.workflow_scheduler.models import ApprovalGroup
+from app.modules.workflow_scheduler.models import ApprovalGroup, Phase2WorkflowSchedule
 
 from app.shared.db_compat import db_get, execute_statement
 
@@ -24,7 +24,7 @@ class ValidationError:
 
 class WorkflowScheduleValidationService:
     @classmethod
-    async def validate_create(cls, payload, db) -> list[ValidationError]:
+    async def validate_create(cls, payload, db, tenant_id=None, schedule_id=None) -> list[ValidationError]:
         errors = []
 
         def get_val(obj, key, default=None):
@@ -176,5 +176,45 @@ class WorkflowScheduleValidationService:
                         errors.append(ValidationError("approval_group_id", f"Approval group with ID {approval_group_id} does not exist"))
                 except ValueError:
                     errors.append(ValidationError("approval_group_id", f"Invalid approval group UUID format: {approval_group_id}"))
+
+        # 8. Duplicate check for schedule_name and schedule_code (case-insensitive) under same tenant
+        t_id = tenant_id
+        if not t_id:
+            from app.modules.registry.repositories import resolve_user_uuid
+            tenant_id_val = get_val(payload, "tenant_id")
+            if tenant_id_val:
+                t_id = resolve_user_uuid(db, tenant_id_val)
+            else:
+                owner_id_val = get_val(payload, "owner_user_id")
+                if owner_id_val:
+                    t_id = resolve_user_uuid(db, owner_id_val)
+
+        if t_id:
+            schedule_name = get_val(payload, "schedule_name")
+            schedule_code = get_val(payload, "schedule_code")
+            
+            if schedule_name:
+                stmt = select(Phase2WorkflowSchedule).where(
+                    Phase2WorkflowSchedule.tenant_id == t_id,
+                    sa.func.lower(Phase2WorkflowSchedule.schedule_name) == sa.func.lower(str(schedule_name).strip()),
+                    Phase2WorkflowSchedule.is_deleted == False
+                )
+                if schedule_id:
+                    stmt = stmt.where(Phase2WorkflowSchedule.id != schedule_id)
+                res = await execute_statement(db, stmt)
+                if res.scalars().first():
+                    errors.append(ValidationError("schedule_name", f"A schedule with the name '{schedule_name}' already exists (case-insensitive)"))
+            
+            if schedule_code:
+                stmt = select(Phase2WorkflowSchedule).where(
+                    Phase2WorkflowSchedule.tenant_id == t_id,
+                    sa.func.lower(Phase2WorkflowSchedule.schedule_code) == sa.func.lower(str(schedule_code).strip()),
+                    Phase2WorkflowSchedule.is_deleted == False
+                )
+                if schedule_id:
+                    stmt = stmt.where(Phase2WorkflowSchedule.id != schedule_id)
+                res = await execute_statement(db, stmt)
+                if res.scalars().first():
+                    errors.append(ValidationError("schedule_code", f"A schedule with the code '{schedule_code}' already exists (case-insensitive)"))
 
         return errors
