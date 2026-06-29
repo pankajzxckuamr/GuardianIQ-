@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
@@ -44,6 +45,9 @@ class AgentAssignmentCreate(BaseModel):
         return v
 
     model_config = ConfigDict(from_attributes=True)
+
+class AgentAssignmentCreateRequest(AgentAssignmentCreate):
+    pass
 
 
 class AgentAssignmentResponse(BaseModel):
@@ -93,6 +97,13 @@ class WorkflowScheduleCreate(BaseModel):
     metadata_json: dict | None = None
     agent_assignments: list[AgentAssignmentCreate] = Field(default_factory=list)
 
+    @field_validator('schedule_code')
+    @classmethod
+    def validate_schedule_code(cls, v: str) -> str:
+        if not re.match(r'^[A-Z0-9_]+$', v):
+            raise ValueError('schedule_code must match pattern ^[A-Z0-9_]+$')
+        return v
+
     @model_validator(mode='after')
     def validate_schedule(self) -> 'WorkflowScheduleCreate':
         if self.schedule_type == ScheduleType.CRON and not self.cron_expression:
@@ -102,6 +113,9 @@ class WorkflowScheduleCreate(BaseModel):
         return self
 
     model_config = ConfigDict(from_attributes=True)
+
+class WorkflowScheduleCreateRequest(WorkflowScheduleCreate):
+    pass
 
 
 class WorkflowScheduleUpdate(BaseModel):
@@ -155,6 +169,7 @@ class WorkflowScheduleResponse(BaseModel):
     owner_department_id: UUID | None
     approval_required: bool
     approval_group_id: UUID | None
+    approval_status: str | None = None
     risk_level: RiskLevel
     schedule_status: ScheduleStatus
     version_no: int

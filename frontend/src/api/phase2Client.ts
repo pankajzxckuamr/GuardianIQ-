@@ -4,16 +4,20 @@ import apiClient from '../services/shared/apiClient';
 export const scheduleApi = {
   list: (params?: Record<string, any>) => apiClient.get('/api/v1/workflow-scheduler/schedules', { params }),
   create: (body: any) => apiClient.post('/api/v1/workflow-scheduler/schedules', body),
+  validateUniqueness: (body: any) => apiClient.post('/api/v1/workflow-scheduler/validate-uniqueness', body),
   getById: (id: string) => apiClient.get(`/api/v1/workflow-scheduler/schedules/${id}`),
   update: (id: string, body: any) => apiClient.put(`/api/v1/workflow-scheduler/schedules/${id}`, body),
   submit: (id: string) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/submit`),
-  activate: (id: string) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/activate`),
+  activate: (id: string, body?: any) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/activate`, body),
+  reject: (id: string, body: any) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/reject`, body),
   pause: (id: string) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/pause`),
   resume: (id: string) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/resume`),
   retire: (id: string) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/retire`),
   runNow: (id: string) => apiClient.post(`/api/v1/workflow-scheduler/schedules/${id}/run-now`),
   getApprovals: (id: string) => apiClient.get(`/api/v1/workflow-scheduler/schedules/${id}/approvals`),
   getHistory: (id: string) => apiClient.get(`/api/v1/workflow-scheduler/schedules/${id}/history`),
+  decideApproval: (approvalId: string, body: { decision: string, reason: string }) => apiClient.post(`/api/v1/schedule-approvals/${approvalId}/decide`, body),
+  getApprovalMetrics: () => apiClient.get('/api/v1/schedule-approvals/metrics/today'),
 };
 
 export const runApi = {

@@ -1,15 +1,28 @@
 import React, { useState } from 'react';
 
 interface Props {
-  open: boolean;
+  open?: boolean;
   title: string;
   message: string;
   onConfirm: (reason?: string) => void;
   onCancel: () => void;
   requireReason?: boolean;
+  confirmLabel?: string;
+  confirmVariant?: 'primary' | 'danger' | 'secondary';
+  isLoading?: boolean;
 }
 
-export const ConfirmActionModal: React.FC<Props> = ({ open, title, message, onConfirm, onCancel, requireReason }) => {
+export const ConfirmActionModal: React.FC<Props> = ({ 
+  open = true, 
+  title, 
+  message, 
+  onConfirm, 
+  onCancel, 
+  requireReason,
+  confirmLabel = 'Confirm',
+  confirmVariant = 'primary',
+  isLoading = false
+}) => {
   const [reason, setReason] = useState('');
 
   if (!open) return null;
@@ -42,14 +55,17 @@ export const ConfirmActionModal: React.FC<Props> = ({ open, title, message, onCo
           <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
             <button
               type="button"
-              disabled={requireReason && !reason.trim()}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm disabled:bg-gray-400"
+              disabled={isLoading || (requireReason && !reason.trim())}
+              className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:col-start-2 sm:text-sm disabled:bg-gray-400 disabled:cursor-not-allowed ${
+                confirmVariant === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
+              }`}
               onClick={() => onConfirm(reason)}
             >
-              Confirm
+              {isLoading ? 'Processing...' : confirmLabel}
             </button>
             <button
               type="button"
+              disabled={isLoading}
               className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
               onClick={onCancel}
             >

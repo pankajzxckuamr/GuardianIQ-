@@ -6,20 +6,33 @@ import { PageHeader } from '../components/common/PageHeader';
 import { RegistryDataTable } from '../components/common/RegistryDataTable';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
+import { ScreenGuide } from '../components/common/ScreenGuide';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
+import { useWorkflowRuns, useCancelRun } from '../hooks/usePhase2Runs';
 import { AlertTriangle, RefreshCw, Eye, XCircle } from 'lucide-react';
 import styles from './phase2Shared.module.css';
 
 const runStatusPillClass = (status: string): string => {
   switch (status) {
-    case 'RUNNING': return styles.pillInfo;
+    case 'RUNNING': return `${styles.pillInfo} ${styles.pulsing}`;
+    case 'QUEUED': return styles.pillNeutral;
     case 'COMPLETED': return styles.pillSuccess;
     case 'FAILED': return styles.pillDanger;
     case 'CANCELLED': return styles.pillWarning;
+    case 'SKIPPED': return styles.pillNeutral;
     case 'RETRY_QUEUED': return styles.pillAccent;
     default: return styles.pillNeutral;
   }
+};
+
+const formatDuration = (ms: number | null | undefined): string => {
+  if (!ms) return '-';
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 };
 
 const QUICK_FILTERS = [
@@ -40,39 +53,27 @@ export const RunHistoryPage: React.FC = () => {
   const canView = currentUser?.is_superuser || currentUser?.permissions?.includes('VIEW_WORKFLOW_RUN');
   const canCancel = currentUser?.is_superuser || currentUser?.permissions?.includes('CANCEL_WORKFLOW_RUN');
 
-  const [runs, setRuns] = useState<WorkflowRunResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
-
   const page = parseInt(searchParams.get('page') || '1', 10);
   const perPage = parseInt(searchParams.get('per_page') || '20', 10);
   const triggerType = searchParams.get('trigger_type') || '';
   const searchQ = searchParams.get('search') || '';
   const quickFilter = searchParams.get('quick') || '';
 
-  useEffect(() => {
-    document.title = 'Run History — GuardianIQ';
-  }, []);
-
-  const fetchRuns = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: any = { page, per_page: perPage };
-      if (triggerType) params.trigger_type = triggerType;
-      if (searchQ) params.search = searchQ;
-      if (quickFilter) params.quick = quickFilter;
-
-      const res: any = await runApi.list(params);
-      setRuns(res.items || []);
-      setTotal(res.total || 0);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load runs');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { runs, total, loading, error, refetch: fetchRuns } = useWorkflowRuns({
+    page,
+    per_page: perPage,
+    trigger_type: triggerType || undefined,
+    search: searchQ || undefined,
+    quick: quickFilter || undefined,
+    schedule_id: searchParams.get('schedule_id') || undefined,
+    workflow_id: searchParams.get('workflow_id') || undefined,
+    run_status: searchParams.get('run_status') || undefined,
+    risk_level: searchParams.get('risk_level') || undefined,
+    date_from: searchParams.get('date_from') || undefined,
+    date_to: searchParams.get('date_to') || undefined,
+  });
+  
+  const { cancelRun } = useCancelRun();
 
   useEffect(() => {
     if (!canView) return;
@@ -96,13 +97,7 @@ export const RunHistoryPage: React.FC = () => {
 
   const handleCancelRun = async (id: string) => {
     if (!window.confirm('Are you sure you want to cancel this run?')) return;
-    try {
-      await runApi.cancel(id);
-      showToast('Run cancelled successfully', 'success');
-      fetchRuns();
-    } catch (e: any) {
-      showToast(e.message || 'Failed to cancel run', 'error');
-    }
+    await cancelRun(id, fetchRuns);
   };
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -140,9 +135,10 @@ export const RunHistoryPage: React.FC = () => {
       ),
     },
     { key: 'trigger_type', label: 'Trigger', render: (r: any) => <span className={styles.tagChip}>{r.trigger_type}</span> },
+    { key: 'triggered_by', label: 'Triggered By', render: (r: any) => <span className={styles.mutedCell}>{r.triggered_by_name || r.triggered_by_user_id || 'System'}</span> },
     { key: 'run_status', label: 'Status', render: (r: any) => <span className={`${styles.pill} ${runStatusPillClass(r.run_status)}`}>{(r.run_status || '').replace(/_/g, ' ')}</span> },
     { key: 'started_at', label: 'Started At', render: (r: any) => <span className={styles.mutedCell}>{r.started_at ? new Date(r.started_at).toLocaleString() : '-'}</span> },
-    { key: 'duration_ms', label: 'Duration', render: (r: any) => <span className={styles.mutedCell}>{r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '-'}</span> },
+    { key: 'duration_ms', label: 'Duration', render: (r: any) => <span className={styles.mutedCell}>{formatDuration(r.duration_ms)}</span> },
     { key: 'risk_level', label: 'Risk', render: (r: any) => <RiskBadge level={r.risk_level} /> },
     {
       key: 'actions',
@@ -165,6 +161,11 @@ export const RunHistoryPage: React.FC = () => {
   return (
     <div className={styles.page}>
       <div className={styles.breadcrumb}>Orchestration &gt; Run History</div>
+      <ScreenGuide
+        id="run-history-guide"
+        title="Run History"
+        description="Monitor and audit all automated and manual workflow executions. Use the filters to find specific runs, and click a run code to view detailed execution steps and outputs."
+      />
       <PageHeader
         title="Run History"
         description="Monitor and audit all automated and manual workflow executions"

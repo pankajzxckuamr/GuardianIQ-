@@ -1,12 +1,16 @@
+import asyncio
 from datetime import datetime, timezone
+import json
+import logging
 from uuid import UUID, uuid4
+import sqlalchemy
 from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.shared.db_compat import execute_statement
 
 from app.db.session import get_db
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import get_current_user, require_permission
 from app.modules.workflow_scheduler.service import (
     WorkflowScheduleService,
     WorkflowScheduleStateError,
@@ -45,23 +49,97 @@ def make_envelope(success: bool, data: any, error: str | None, request_id: str) 
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
+class CronValidationRequest(BaseModel):
+    cron_expression: str
+
+@router.post("/api/v1/workflow-scheduler/validate-cron")
+def validate_cron(
+    request: Request,
+    payload: CronValidationRequest,
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    from croniter import croniter
+    is_valid = croniter.is_valid(payload.cron_expression)
+    
+    return {
+        "status": "success",
+        "data": {"valid": is_valid},
+        "message": "Valid cron expression" if is_valid else "Invalid cron expression",
+        "request_id": request_id
+    }
+
+class UniquenessValidationRequest(BaseModel):
+    schedule_name: str | None = None
+    schedule_code: str | None = None
+    schedule_id: UUID | None = None
+
+@router.post("/api/v1/workflow-scheduler/validate-uniqueness")
+def validate_uniqueness(
+    request: Request,
+    payload: UniquenessValidationRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    
+    # get tenant_id for the user
+    t_id = resolve_user_uuid(db, current_user.id)
+    
+    errors = {}
+    
+    if payload.schedule_name:
+        stmt = sa.select(Phase2WorkflowSchedule).where(
+            Phase2WorkflowSchedule.tenant_id == t_id,
+            sa.func.lower(Phase2WorkflowSchedule.schedule_name) == payload.schedule_name.lower()
+        )
+        if payload.schedule_id:
+            stmt = stmt.where(Phase2WorkflowSchedule.id != payload.schedule_id)
+            
+        existing_name = db.execute(stmt).scalars().first()
+        if existing_name and not existing_name.is_deleted:
+            errors["schedule_name"] = "A schedule with this name already exists"
+            
+    if payload.schedule_code:
+        stmt = sa.select(Phase2WorkflowSchedule).where(
+            Phase2WorkflowSchedule.tenant_id == t_id,
+            sa.func.lower(Phase2WorkflowSchedule.schedule_code) == payload.schedule_code.lower()
+        )
+        if payload.schedule_id:
+            stmt = stmt.where(Phase2WorkflowSchedule.id != payload.schedule_id)
+            
+        existing_code = db.execute(stmt).scalars().first()
+        if existing_code and not existing_code.is_deleted:
+            errors["schedule_code"] = "A schedule with this code already exists"
+            
+    return {
+        "status": "success",
+        "data": {"valid": len(errors) == 0, "errors": errors},
+        "request_id": request_id
+    }
 
 @router.get("/api/v1/workflow-scheduler/schedules")
 async def list_schedules(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     status: str | None = None,
     risk_level: str | None = None,
     owner_user_id: UUID | None = None,
     workflow_id: UUID | None = None,
     schedule_type: str | None = None,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
         filters = {}
+        if sort_by:
+            filters["sort_by"] = sort_by
+        if sort_dir:
+            filters["sort_dir"] = sort_dir
         if status:
             filters["status"] = status
         if risk_level:
@@ -90,8 +168,13 @@ async def list_schedules(
 @router.get("/api/v1/workflow-scheduler/agent-assignments")
 async def list_agent_assignments(
     request: Request,
+    agent_id: UUID = Query(None),
+    execution_mode: str = Query(None),
+    schedule_status: str = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -103,8 +186,21 @@ async def list_agent_assignments(
                 selectinload(WorkflowScheduleAgentAssignment.model),
                 selectinload(WorkflowScheduleAgentAssignment.schedule).selectinload(Phase2WorkflowSchedule.workflow),
             )
-            .order_by(WorkflowScheduleAgentAssignment.created_at.desc())
         )
+        if agent_id:
+            query = query.where(WorkflowScheduleAgentAssignment.agent_id == agent_id)
+        if execution_mode:
+            query = query.where(WorkflowScheduleAgentAssignment.execution_mode == execution_mode)
+        if schedule_status:
+            query = query.join(WorkflowScheduleAgentAssignment.schedule).where(Phase2WorkflowSchedule.schedule_status == schedule_status)
+
+        # Count total
+        count_query = sa.select(sa.func.count()).select_from(query.subquery())
+        res_count = await execute_statement(db, count_query)
+        total = res_count.scalar()
+
+        # Paginate
+        query = query.order_by(WorkflowScheduleAgentAssignment.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
         res = await execute_statement(db, query)
         items = res.scalars().all()
 
@@ -130,7 +226,51 @@ async def list_agent_assignments(
                 "status": a.status,
             })
 
-        return make_envelope(True, {"items": data, "total": len(data)}, None, request_id)
+        return make_envelope(True, {"items": data, "total": total, "page": page, "page_size": page_size}, None, request_id)
+    except Exception as e:
+        return make_envelope(False, None, str(e), request_id)
+
+@router.get("/api/v1/workflow-scheduler/schedules/{schedule_id}/agent-assignments")
+async def get_schedule_agent_assignments(
+    schedule_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        query = (
+            sa.select(WorkflowScheduleAgentAssignment)
+            .where(
+                WorkflowScheduleAgentAssignment.schedule_id == schedule_id,
+                WorkflowScheduleAgentAssignment.is_deleted == False
+            )
+            .options(
+                selectinload(WorkflowScheduleAgentAssignment.agent),
+                selectinload(WorkflowScheduleAgentAssignment.model)
+            )
+            .order_by(WorkflowScheduleAgentAssignment.created_at.desc())
+        )
+        res = await execute_statement(db, query)
+        items = res.scalars().all()
+
+        data = []
+        for a in items:
+            data.append({
+                "id": str(a.id),
+                "schedule_id": str(a.schedule_id),
+                "agent_id": str(a.agent_id),
+                "agent_name": a.agent.agent_name if a.agent else None,
+                "assignment_role": a.assignment_role,
+                "model_id": str(a.model_id) if a.model_id else None,
+                "execution_mode": a.execution_mode,
+                "confidence_threshold": float(a.confidence_threshold) if a.confidence_threshold is not None else None,
+                "allowed_tools_json": a.allowed_tools_json or [],
+                "allowed_data_sources_json": a.allowed_data_sources_json or [],
+                "blocked_operations_json": a.blocked_operations_json or [],
+                "status": a.status,
+            })
+        return make_envelope(True, {"items": data}, None, request_id)
     except Exception as e:
         return make_envelope(False, None, str(e), request_id)
 
@@ -141,25 +281,38 @@ async def create_agent_assignment(
     schedule_id: UUID,
     payload: dict,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
         schedule = await schedule_service.repo.get_by_id(db, schedule_id)
         if not schedule:
-            raise HTTPException(404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
-        
-        sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
-        if sched_status_str not in ["DRAFT", "PAUSED", "ACTIVE"]:
-            raise HTTPException(400, detail=ResponseHelper.error(message="Updates are only allowed in DRAFT, PAUSED, or ACTIVE status", error_code="STATE_ERROR").model_dump())
+            raise HTTPException(status_code=404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
             
         actor_uuid = resolve_user_uuid(db, current_user.id)
+        
+        # Business Validation
+        from app.modules.workflow_scheduler.validators import WorkflowScheduleValidationService
+        val_res = await WorkflowScheduleValidationService.validate_agent_assignment(payload, schedule_id, db)
+        if not val_res["is_valid"]:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Assignment validation failed", error_code="VALIDATION_ERROR", details=[{"field": e.field, "message": e.message} for e in val_res["errors"]]).model_dump())
+            
+        # Boundary Check
+        from app.modules.agent_runtime.boundary_checker import BoundaryChecker
+        bc = BoundaryChecker()
+        bound_res = await bc.validate_assignment_boundaries(payload, UUID(payload["agent_id"]), db)
+        if not bound_res.is_valid:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Boundary validation failed", error_code="BOUNDARY_ERROR", details=[{"field": "boundary", "message": err} for err in bound_res.errors]).model_dump())
+            
+        if bound_res.write_capable_tools:
+            schedule.approval_required = True
         
         assignment = WorkflowScheduleAgentAssignment(
             id=uuid4(),
             tenant_id=schedule.tenant_id,
             schedule_id=schedule_id,
             agent_id=UUID(payload["agent_id"]),
+            assignment_role=payload.get("assignment_role", "PRIMARY"),
             model_id=UUID(payload["model_id"]) if payload.get("model_id") else None,
             execution_mode=payload.get("execution_mode", "READ_ONLY"),
             confidence_threshold=payload.get("confidence_threshold", 80),
@@ -172,6 +325,22 @@ async def create_agent_assignment(
         )
         db.add(assignment)
         
+        # Publish Event
+        from app.modules.audit.event_service import GovernanceEventService
+        event_service = GovernanceEventService()
+        await event_service.publish_event(
+            event_code=WorkflowEventCode.AGENT_ASSIGNED_TO_SCHEDULE,
+            entity_type="workflow_schedules",
+            entity_id=schedule.id,
+            actor_type="USER",
+            actor_id=actor_uuid,
+            action_type="CREATE",
+            event_summary=f"Agent {payload['agent_id']} assigned to schedule {schedule_id}",
+            event_payload={"agent_id": payload["agent_id"], "assignment_id": str(assignment.id)},
+            db=db
+        )
+
+        sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
         if sched_status_str == "ACTIVE" and schedule.approval_required and schedule.approval_group_id:
             await schedule_service.repo.update_status(db, schedule, "PENDING_APPROVAL")
             approval = WorkflowScheduleApproval(
@@ -208,10 +377,14 @@ async def create_agent_assignment(
                 db.add(notif)
         
         db.commit()
-        return make_envelope(True, {"id": str(assignment.id)}, None, request_id)
+        response_data = {"id": str(assignment.id)}
+        if bound_res.write_capable_tools:
+            response_data["warnings"] = bound_res.warnings
+            
+        return make_envelope(True, response_data, None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -246,10 +419,36 @@ async def update_agent_assignment(
         if not assignment:
             raise HTTPException(404, detail=ResponseHelper.error(message="Agent assignment not found", error_code="NOT_FOUND").model_dump())
             
+        # Merge payload with assignment for validation
+        test_payload = {
+            "agent_id": str(payload.get("agent_id", assignment.agent_id)),
+            "assignment_role": payload.get("assignment_role", assignment.assignment_role),
+            "execution_mode": payload.get("execution_mode", assignment.execution_mode.value if hasattr(assignment.execution_mode, "value") else str(assignment.execution_mode)),
+            "allowed_tools_json": payload.get("allowed_tools_json", assignment.allowed_tools_json),
+            "allowed_data_sources_json": payload.get("allowed_data_sources_json", assignment.allowed_data_sources_json),
+            "blocked_operations_json": payload.get("blocked_operations_json", assignment.blocked_operations_json)
+        }
+        
+        from app.modules.workflow_scheduler.validators import WorkflowScheduleValidationService
+        val_res = await WorkflowScheduleValidationService.validate_agent_assignment(test_payload, schedule_id, db, assignment_id)
+        if not val_res["is_valid"]:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Assignment validation failed", error_code="VALIDATION_ERROR", details=[{"field": e.field, "message": e.message} for e in val_res["errors"]]).model_dump())
+
+        from app.modules.agent_runtime.boundary_checker import BoundaryChecker
+        bc = BoundaryChecker()
+        bound_res = await bc.validate_assignment_boundaries(test_payload, UUID(test_payload["agent_id"]), db)
+        if not bound_res.is_valid:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Boundary validation failed", error_code="BOUNDARY_ERROR", details=[{"field": "boundary", "message": err} for err in bound_res.errors]).model_dump())
+            
+        if bound_res.write_capable_tools:
+            schedule.approval_required = True
+        
         actor_uuid = resolve_user_uuid(db, current_user.id)
         
         if "agent_id" in payload:
             assignment.agent_id = UUID(payload["agent_id"])
+        if "assignment_role" in payload:
+            assignment.assignment_role = payload["assignment_role"]
         if "model_id" in payload:
             assignment.model_id = UUID(payload["model_id"]) if payload["model_id"] else None
         if "execution_mode" in payload:
@@ -266,6 +465,21 @@ async def update_agent_assignment(
             assignment.status = payload["status"]
             
         assignment.updated_by = actor_uuid
+        
+        # Publish Event
+        from app.modules.audit.event_service import GovernanceEventService
+        event_service = GovernanceEventService()
+        await event_service.publish_event(
+            event_code=WorkflowEventCode.AGENT_ASSIGNMENT_UPDATED,
+            entity_type="workflow_schedules",
+            entity_id=schedule.id,
+            actor_type="USER",
+            actor_id=actor_uuid,
+            action_type="UPDATE",
+            event_summary=f"Agent assignment {assignment_id} updated for schedule {schedule_id}",
+            event_payload={"assignment_id": str(assignment.id)},
+            db=db
+        )
         
         if sched_status_str == "ACTIVE" and schedule.approval_required and schedule.approval_group_id:
             await schedule_service.repo.update_status(db, schedule, "PENDING_APPROVAL")
@@ -303,10 +517,71 @@ async def update_agent_assignment(
                 db.add(notif)
                 
         db.commit()
-        return make_envelope(True, {"id": str(assignment.id)}, None, request_id)
+        response_data = {"id": str(assignment.id)}
+        if bound_res.write_capable_tools:
+            response_data["warnings"] = bound_res.warnings
+            
+        return make_envelope(True, response_data, None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
+    except Exception as e:
+        db.rollback()
+        return make_envelope(False, None, str(e), request_id)
+
+@router.delete("/api/v1/workflow-scheduler/schedules/{schedule_id}/agent-assignments/{assignment_id}")
+async def delete_agent_assignment(
+    request: Request,
+    schedule_id: UUID,
+    assignment_id: UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        schedule = await schedule_service.repo.get_by_id(db, schedule_id)
+        if not schedule:
+            raise HTTPException(404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
+            
+        sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
+        if sched_status_str not in ["DRAFT", "PAUSED"]:
+            raise HTTPException(400, detail=ResponseHelper.error(message="Deletes are only allowed in DRAFT or PAUSED status", error_code="STATE_ERROR").model_dump())
+            
+        stmt = sa.select(WorkflowScheduleAgentAssignment).where(
+            WorkflowScheduleAgentAssignment.id == assignment_id,
+            WorkflowScheduleAgentAssignment.schedule_id == schedule_id,
+            WorkflowScheduleAgentAssignment.is_deleted == False
+        )
+        res = await execute_statement(db, stmt)
+        assignment = res.scalar()
+        if not assignment:
+            raise HTTPException(404, detail=ResponseHelper.error(message="Agent assignment not found", error_code="NOT_FOUND").model_dump())
+            
+        actor_uuid = resolve_user_uuid(db, current_user.id)
+        
+        assignment.is_deleted = True
+        assignment.updated_by = actor_uuid
+        
+        # Publish Event
+        from app.modules.audit.event_service import GovernanceEventService
+        event_service = GovernanceEventService()
+        await event_service.publish_event(
+            event_code=WorkflowEventCode.AGENT_ASSIGNMENT_REMOVED,
+            entity_type="workflow_schedules",
+            entity_id=schedule.id,
+            actor_type="USER",
+            actor_id=actor_uuid,
+            action_type="DELETE",
+            event_summary=f"Agent assignment {assignment_id} removed from schedule {schedule_id}",
+            event_payload={"assignment_id": str(assignment.id)},
+            db=db
+        )
+        
+        db.commit()
+        return make_envelope(True, {"success": True}, None, request_id)
+    except HTTPException as e:
+        db.rollback()
+        raise e
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -317,7 +592,7 @@ async def create_schedule(
     request: Request,
     payload: WorkflowScheduleCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -326,10 +601,20 @@ async def create_schedule(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
+    except sqlalchemy.exc.IntegrityError as e:
+        db.rollback()
+        return make_envelope(
+            False, None, 
+            "A schedule with this name or code already exists for this tenant. Please use a unique name and code.", 
+            request_id
+        )
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -340,13 +625,13 @@ async def get_schedule(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
         schedule = await schedule_service.repo.get_by_id(db, id)
         if not schedule:
-            raise HTTPException(status_code=404, detail="Workflow schedule not found")
+            raise HTTPException(status_code=404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
             
         stmt = (
             sa.select(WorkflowScheduleApproval)
@@ -395,7 +680,7 @@ async def get_schedule(
         }
         return make_envelope(True, data, None, request_id)
     except HTTPException as e:
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except Exception as e:
         return make_envelope(False, None, str(e), request_id)
 
@@ -406,7 +691,7 @@ async def update_schedule(
     id: UUID,
     payload: WorkflowScheduleUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -415,10 +700,13 @@ async def update_schedule(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -429,7 +717,7 @@ async def submit_for_approval(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -438,21 +726,31 @@ async def submit_for_approval(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
 
 
+class ActivateScheduleRequest(BaseModel):
+    approval_reason: Optional[str] = None
+
+class RejectScheduleRequest(BaseModel):
+    rejection_reason: str
+
 @router.post("/api/v1/workflow-scheduler/schedules/{id}/activate")
 async def activate_schedule(
     request: Request,
     id: UUID,
+    payload: Optional[ActivateScheduleRequest] = None,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -461,10 +759,40 @@ async def activate_schedule(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
+    except Exception as e:
+        db.rollback()
         return make_envelope(False, None, str(e), request_id)
+
+
+@router.post("/api/v1/workflow-scheduler/schedules/{id}/reject")
+async def reject_schedule(
+    request: Request,
+    id: UUID,
+    payload: RejectScheduleRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        schedule = await schedule_service.reject_schedule(id, payload.rejection_reason, current_user, db)
+        db.commit()
+        return make_envelope(True, format_schedule_response(schedule), None, request_id)
+    except HTTPException as e:
+        db.rollback()
+        raise e
+    except WorkflowScheduleStateError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -475,7 +803,7 @@ async def pause_schedule(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -484,10 +812,13 @@ async def pause_schedule(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -498,7 +829,7 @@ async def resume_schedule(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -507,10 +838,13 @@ async def resume_schedule(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -521,7 +855,7 @@ async def retire_schedule(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -530,10 +864,13 @@ async def retire_schedule(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -544,14 +881,13 @@ async def run_now(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
-        # Verify schedule exists
         schedule = await schedule_service.repo.get_by_id(db, id)
         if not schedule:
-            raise HTTPException(status_code=404, detail="Workflow schedule not found")
+            raise HTTPException(status_code=404, detail=ResponseHelper.error(message="Workflow schedule not found", error_code="NOT_FOUND").model_dump())
         
         run = await WorkflowRunService.create_run(db, id, "MANUAL", current_user)
         db.commit()
@@ -566,7 +902,7 @@ async def run_now(
         return make_envelope(True, run_data, None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -577,7 +913,7 @@ async def get_approvals(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -614,7 +950,7 @@ async def get_history(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -644,6 +980,39 @@ async def get_history(
     except Exception as e:
         return make_envelope(False, None, str(e), request_id)
 
+@router.get("/api/v1/schedule-approvals/metrics/today")
+async def get_approval_metrics_today(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        from app.modules.workflow_scheduler.models import WorkflowScheduleApproval
+        from datetime import datetime, timezone
+        
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        stmt = sa.select(
+            WorkflowScheduleApproval.approval_status,
+            sa.func.count(WorkflowScheduleApproval.id)
+        ).where(
+            WorkflowScheduleApproval.decided_at >= today,
+            WorkflowScheduleApproval.approver_user_id == resolve_user_uuid(db, current_user.id)
+        ).group_by(WorkflowScheduleApproval.approval_status)
+        
+        res = await execute_statement(db, stmt)
+        counts = dict(res.all())
+        
+        metrics = {
+            "APPROVED": counts.get("APPROVED", 0),
+            "REJECTED": counts.get("REJECTED", 0),
+            "ESCALATED": counts.get("ESCALATED", 0),
+            "CHANGES_REQUESTED": counts.get("CHANGES_REQUESTED", 0)
+        }
+        return make_envelope(True, metrics, None, request_id)
+    except Exception as e:
+        return make_envelope(False, None, str(e), request_id)
 
 class ApprovalDecisionRequest(BaseModel):
     decision: str
@@ -655,7 +1024,7 @@ async def decide_approval(
     approval_id: UUID,
     payload: ApprovalDecisionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -670,10 +1039,13 @@ async def decide_approval(
         return make_envelope(True, format_schedule_response(schedule), None, request_id)
     except HTTPException as e:
         db.rollback()
-        return make_envelope(False, None, str(e.detail), request_id)
+        raise e
     except WorkflowScheduleStateError as e:
         db.rollback()
-        return make_envelope(False, None, str(e), request_id)
+        raise HTTPException(
+            status_code=409,
+            detail=ResponseHelper.error(message=str(e), error_code="INVALID_STATE_TRANSITION").model_dump()
+        )
     except Exception as e:
         db.rollback()
         return make_envelope(False, None, str(e), request_id)
@@ -683,7 +1055,7 @@ async def decide_approval(
 async def list_approval_groups(
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -712,7 +1084,7 @@ async def get_audit_events_timeline(
     entity_type: str = Query(...),
     entity_id: UUID = Query(...),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:

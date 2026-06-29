@@ -18,9 +18,10 @@ GuardianIQ is a FastAPI-based backend paired with a React + Vite frontend, provi
 
 ## Prerequisites
 
-- **Python 3.10+**
-- **Node.js** (for the React/Vite frontend)
-- **PostgreSQL** (installed locally or via Docker)
+- **Python 3.11+**
+- **Node.js 18+** (for the React/Vite frontend)
+- **PostgreSQL 14+** (installed locally or via Docker)
+- **Phase 0 & Phase 1 components properly configured and seeded.**
 
 ---
 
@@ -195,3 +196,76 @@ Once the backend server is running, test the APIs using the interactive **Swagge
 1. Call `POST /api/auth/login` to get your JWT token.
 2. Click the **"Authorize"** padlock icon at the top of the Swagger page.
 3. Paste the token and confirm — all protected routes will now be accessible.
+
+---
+
+## Phase 2: Workflow Scheduling & Agent Execution
+
+**Core Design Statement:** Every schedule, run, agent invocation, policy check, result, failure, and override must be controlled by identity, permissions, ownership, ABAC context, audit events, and governance status.
+
+### Overview
+Phase 2 introduces governed workflow scheduling and AI agent execution. It ensures that any automated execution is tracked, auditable, and subject to Role-Based Access Control (RBAC) and Attribute-Based Access Control (ABAC).
+
+### Key Design Decisions
+- **Database-Backed Scheduler:** Ensures persistence, transactional integrity, and visibility over scheduled tasks using `FOR UPDATE SKIP LOCKED`.
+- **RBAC + ABAC:** Allows fine-grained access control based on user roles and department contexts, essential for high-risk operations.
+- **Explicit Tool Lists:** Defines strict boundary rules indicating exactly which write-operations an agent is allowed to execute.
+- **Immutable Audit Events:** Leverages database triggers to block updates/deletes on the `audit_events` table for cryptographic integrity.
+
+### Quick Start (Clone to First Test Run)
+1. **Ensure Backend is Running:** Follow the Backend Setup above and ensure `.env` has `PHASE2_SCHEDULER_ENABLED=true`.
+2. **Start Scheduler Worker:** Open a terminal in `backend/` and run `python -m app.workers.worker_main`.
+3. **Login:** Use the frontend (`http://localhost:5173`) with `admin@guardianiq.com` and `Admin@1234!`.
+4. **Create Schedule:** Navigate to Workflow Scheduler > Create New. Follow the wizard, selecting a recommend-only agent, and save as `DRAFT`.
+5. **Submit & Approve:** Click "Submit for Approval" on the schedule detail page, then go to Schedule Approvals to approve it.
+6. **Trigger Run Now:** Click "Run Now".
+7. **View Results:** Go to Run History to see the completed run output.
+
+### Module Structure Table
+| Module | Responsibility |
+|---|---|
+| `workflow_scheduler` | Manages creation, state transitions, and background polling of schedules |
+| `workflow_run` | Handles agent execution, steps logging, output generation, and boundary checks |
+| `authorization` | Enforces ABAC and RBAC security rules for schedules and runs |
+| `notifications` | Emits alerts and escalations for high-risk operations |
+
+### Status Lifecycle Diagrams
+
+#### Schedule Status Lifecycle
+```mermaid
+graph TD
+    DRAFT --> PENDING_APPROVAL
+    PENDING_APPROVAL --> ACTIVE
+    PENDING_APPROVAL --> DRAFT
+    ACTIVE --> PAUSED
+    PAUSED --> ACTIVE
+    ACTIVE --> RETIRED
+```
+
+#### Run Status Lifecycle
+```mermaid
+graph TD
+    QUEUED --> SCHEDULED
+    SCHEDULED --> RUNNING
+    RUNNING --> COMPLETED
+    RUNNING --> FAILED
+    RUNNING --> ESCALATED
+    FAILED --> RETRY_QUEUED
+    RETRY_QUEUED --> RUNNING
+```
+
+### Environment Variables
+Check `.env.phase2.example` in the `backend` folder for Phase 2 specific configurations (`SCHEDULER_ENABLED`, `PHASE2_SCHEDULER_ENABLED`, etc.).
+
+### Running Tests
+To run the Phase 2 end-to-end tests:
+```bash
+cd backend
+pytest tests/test_phase2_e2e.py -v
+```
+
+### Adding a New Governance Event
+1. Define the event code in `backend/app/modules/audit/event_codes.py`.
+2. Publish it anywhere in the code using `EventService.publish(event_code, context)`.
+3. The trigger ensures it is immutable.
+

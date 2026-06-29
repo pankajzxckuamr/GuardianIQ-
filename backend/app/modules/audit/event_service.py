@@ -1,11 +1,15 @@
 import inspect
 import sqlalchemy as sa
 from sqlalchemy.future import select
+from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
 from app.modules.audit.models import AuditEvent
 from app.modules.registry.models import GuardianUser
 from app.modules.auth.models import User
 from app.modules.audit.event_codes import WorkflowEventCode
+
+class GovernanceEventPublishError(Exception):
+    pass
 
 async def execute_statement(db, stmt):
     res = db.execute(stmt)
@@ -22,21 +26,19 @@ async def commit_session(db):
 class GovernanceEventService:
     async def publish_event(
         self,
-        event_code: WorkflowEventCode,
+        event_code: WorkflowEventCode | str,
         entity_type: str,
-        entity_id: UUID,
-        actor_type: str,   # USER, SYSTEM, MACHINE_ACTOR
-        actor_id: UUID | None,
+        entity_id: UUID | str | None,
+        actor_type: str,
+        actor_id: UUID | str | None,
         action_type: str,
         event_summary: str,
         event_payload: dict,
         db
     ) -> None:
-        """Inserts a single event into the legacy audit_events table. No update or delete allowed."""
-        # Resolve actor_id (UUID of GuardianUser) to integer User.id by mapping their email address
         int_actor_id = None
         if actor_id:
-            guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == actor_id)
+            guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == str(actor_id))
             guardian_res = await execute_statement(db, guardian_stmt)
             email = guardian_res.scalar()
             
@@ -45,7 +47,6 @@ class GovernanceEventService:
                 user_res = await execute_statement(db, user_stmt)
                 int_actor_id = user_res.scalar()
 
-        # Build metadata structure to hold UUID values and rich payload
         meta = {
             "entity_id": str(entity_id) if entity_id else None,
             "actor_type": actor_type,
@@ -54,8 +55,6 @@ class GovernanceEventService:
             "payload": event_payload or {}
         }
 
-        # Create record. entity_id column is left as None because it expects an Integer,
-        # and UUID values are preserved inside event_metadata.
         event_type_str = event_code.value if hasattr(event_code, "value") else str(event_code)
         audit_event = AuditEvent(
             event_type=event_type_str,
@@ -65,11 +64,13 @@ class GovernanceEventService:
             action=action_type,
             event_metadata=meta
         )
-        db.add(audit_event)
-        await commit_session(db)
+        try:
+            db.add(audit_event)
+            await commit_session(db)
+        except SQLAlchemyError as e:
+            raise GovernanceEventPublishError(f"Failed to publish event: {str(e)}") from e
 
     async def publish_batch(self, events: list[dict], db) -> None:
-        """Inserts a batch of events into the audit_events table."""
         records = []
         for evt in events:
             event_code = evt.get("event_code")
@@ -83,7 +84,7 @@ class GovernanceEventService:
 
             int_actor_id = None
             if actor_id:
-                guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == actor_id)
+                guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == str(actor_id))
                 guardian_res = await execute_statement(db, guardian_stmt)
                 email = guardian_res.scalar()
                 
@@ -110,11 +111,13 @@ class GovernanceEventService:
                 event_metadata=meta
             ))
         
-        db.add_all(records)
-        await commit_session(db)
+        try:
+            db.add_all(records)
+            await commit_session(db)
+        except SQLAlchemyError as e:
+            raise GovernanceEventPublishError(f"Failed to publish batch: {str(e)}") from e
 
     async def get_timeline(self, entity_type: str, entity_id: UUID, db) -> list:
-        """Retrieves events for the given entity sorted chronologically."""
         stmt = (
             select(AuditEvent)
             .where(
@@ -128,3 +131,74 @@ class GovernanceEventService:
         )
         res = await execute_statement(db, stmt)
         return list(res.scalars().all())
+
+    # Convenience Methods
+    async def publish_schedule_created(self, schedule_id: UUID, actor_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_CREATED, "workflow_schedules", schedule_id, "USER", actor_id, "CREATE", "Schedule created", {}, db)
+
+    async def publish_schedule_updated(self, schedule_id: UUID, actor_id: UUID, before_json: dict, after_json: dict, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_UPDATED, "workflow_schedules", schedule_id, "USER", actor_id, "UPDATE", "Schedule updated", {"before": before_json, "after": after_json}, db)
+
+    async def publish_schedule_submitted(self, schedule_id: UUID, actor_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_SUBMITTED, "workflow_schedules", schedule_id, "USER", actor_id, "SUBMIT", "Schedule submitted for approval", {}, db)
+
+    async def publish_schedule_activated(self, schedule_id: UUID, actor_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_ACTIVATED, "workflow_schedules", schedule_id, "USER", actor_id, "ACTIVATE", "Schedule activated", {}, db)
+
+    async def publish_schedule_paused(self, schedule_id: UUID, actor_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_PAUSED, "workflow_schedules", schedule_id, "USER", actor_id, "PAUSE", "Schedule paused", {}, db)
+
+    async def publish_schedule_retired(self, schedule_id: UUID, actor_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_RETIRED, "workflow_schedules", schedule_id, "USER", actor_id, "RETIRE", "Schedule retired", {}, db)
+
+    async def publish_run_queued(self, run_id: UUID, schedule_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_RUN_QUEUED, "workflow_runs", run_id, "SYSTEM", None, "QUEUE", "Run queued", {"schedule_id": str(schedule_id)}, db)
+
+    async def publish_run_started(self, run_id: UUID, schedule_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_RUN_STARTED, "workflow_runs", run_id, "SYSTEM", None, "START", "Run started", {"schedule_id": str(schedule_id)}, db)
+
+    async def publish_run_completed(self, run_id: UUID, schedule_id: UUID, workflow_id: UUID, agent_id: UUID, duration_ms: int, risk_level: str, outputs_summary: dict, db) -> None:
+        payload = {
+            "schedule_id": str(schedule_id),
+            "workflow_id": str(workflow_id) if workflow_id else None,
+            "agent_id": str(agent_id) if agent_id else None,
+            "duration_ms": duration_ms,
+            "risk_level": risk_level,
+            "outputs": outputs_summary
+        }
+        await self.publish_event(WorkflowEventCode.WORKFLOW_RUN_COMPLETED, "workflow_runs", run_id, "SYSTEM", None, "COMPLETE", "Run completed", payload, db)
+
+    async def publish_run_failed(self, run_id: UUID, schedule_id: UUID, failure: str, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_RUN_FAILED, "workflow_runs", run_id, "SYSTEM", None, "FAIL", "Run failed", {"schedule_id": str(schedule_id), "failure": failure}, db)
+
+    async def publish_run_escalated(self, run_id: UUID, schedule_id: UUID, reason: str, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_RUN_ESCALATED, "workflow_runs", run_id, "SYSTEM", None, "ESCALATE", "Run escalated", {"schedule_id": str(schedule_id), "reason": reason}, db)
+
+    async def publish_run_cancelled(self, run_id: UUID, schedule_id: UUID, actor_id: UUID, actor_type: str, reason: str, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_RUN_CANCELLED, "workflow_runs", run_id, actor_type, actor_id, "CANCEL", "Run cancelled", {"schedule_id": str(schedule_id), "reason": reason}, db)
+
+    async def publish_agent_boundary_passed(self, run_id: UUID, agent_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.AGENT_BOUNDARY_CHECK_PASSED, "workflow_runs", run_id, "SYSTEM", None, "BOUNDARY_PASS", "Agent boundary check passed", {"agent_id": str(agent_id)}, db)
+
+    async def publish_agent_boundary_failed(self, run_id: UUID, agent_id: UUID, reason: str, db) -> None:
+        await self.publish_event(WorkflowEventCode.AGENT_BOUNDARY_CHECK_FAILED, "workflow_runs", run_id, "SYSTEM", None, "BOUNDARY_FAIL", "Agent boundary check failed", {"agent_id": str(agent_id), "reason": reason}, db)
+
+    async def publish_agent_execution_started(self, run_id: UUID, agent_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.AGENT_EXECUTION_STARTED, "workflow_runs", run_id, "SYSTEM", None, "AGENT_START", "Agent execution started", {"agent_id": str(agent_id)}, db)
+
+    async def publish_agent_execution_completed(self, run_id: UUID, agent_id: UUID, output_summary: dict, db) -> None:
+        await self.publish_event(WorkflowEventCode.AGENT_EXECUTION_COMPLETED, "workflow_runs", run_id, "SYSTEM", None, "AGENT_COMPLETE", "Agent execution completed", {"agent_id": str(agent_id), "output": output_summary}, db)
+
+    async def publish_output_generated(self, run_id: UUID, output_id: UUID, db) -> None:
+        await self.publish_event(WorkflowEventCode.WORKFLOW_OUTPUT_GENERATED, "workflow_runs", run_id, "SYSTEM", None, "OUTPUT_GENERATE", "Output generated", {"output_id": str(output_id)}, db)
+
+    @staticmethod
+    async def publish_authorization_denied(actor_id: UUID, actor_type: str, action: str, entity_type: str, entity_id: UUID, rbac_result: dict, abac_result: dict, denial_reason: list, db) -> None:
+        payload = {
+            "action": action,
+            "rbac_result": rbac_result,
+            "abac_result": abac_result,
+            "denial_reason": denial_reason
+        }
+        service = GovernanceEventService()
+        await service.publish_event(WorkflowEventCode.AUTHORIZATION_DENIED, entity_type, entity_id, actor_type, actor_id, "DENY", "Authorization denied", payload, db)

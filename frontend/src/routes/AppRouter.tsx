@@ -200,6 +200,7 @@ export const AppRouter: React.FC = () => {
         {/* Phase 2 Routes */}
         <Route path="/workflow-scheduler" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><WorkflowSchedulerDashboard /></React.Suspense></AppShell></ProtectedRoute>} />
         <Route path="/workflow-scheduler/new" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><CreateScheduleWizard /></React.Suspense></AppShell></ProtectedRoute>} />
+        <Route path="/workflow-scheduler/:id/edit" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><CreateScheduleWizard /></React.Suspense></AppShell></ProtectedRoute>} />
         <Route path="/workflow-scheduler/:id" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><ScheduleDetailPage /></React.Suspense></AppShell></ProtectedRoute>} />
         <Route path="/workflow-runs" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><RunHistoryPage /></React.Suspense></AppShell></ProtectedRoute>} />
         <Route path="/workflow-runs/:runId" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><RunDetailPage /></React.Suspense></AppShell></ProtectedRoute>} />

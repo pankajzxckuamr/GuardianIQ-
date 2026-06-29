@@ -1,11 +1,12 @@
-from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, JSON, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, func
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 from app.shared.mixins import WorkflowBaseMixin
 
 class WorkflowAuthorizationDecision(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_authorization_decisions"
+
 
     subject_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
     subject_agent_id = Column(UUID(as_uuid=True), ForeignKey("registry_ai_agents.id"), nullable=True)
@@ -14,10 +15,10 @@ class WorkflowAuthorizationDecision(Base, WorkflowBaseMixin):
     object_id = Column(UUID(as_uuid=True), nullable=True)
     action = Column(String(100), nullable=True)
     decision = Column(String(20), nullable=False)
-    reason_json = Column(JSON, server_default="{}", nullable=True, default=None)
-    rbac_result = Column(JSON, server_default="{}", nullable=True, default=None)
-    abac_result = Column(JSON, server_default="{}", nullable=True, default=None)
-    relationship_result = Column(JSON, server_default="{}", nullable=True, default=None)
+    reason_json = Column(JSONB, server_default="{}", nullable=True, default=None)
+    rbac_result = Column(JSONB, server_default="{}", nullable=True, default=None)
+    abac_result = Column(JSONB, server_default="{}", nullable=True, default=None)
+    relationship_result = Column(JSONB, server_default="{}", nullable=True, default=None)
     evaluated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
@@ -27,6 +28,7 @@ class WorkflowAuthorizationDecision(Base, WorkflowBaseMixin):
 
 class WorkflowDelegation(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_delegations"
+
 
     delegator_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=False)
     delegatee_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=False)

@@ -1,6 +1,7 @@
 from uuid import UUID
 import pytz
 from croniter import croniter
+from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.future import select
 
@@ -24,8 +25,9 @@ class ValidationError:
 
 class WorkflowScheduleValidationService:
     @classmethod
-    async def validate_create(cls, payload, db, tenant_id=None, schedule_id=None) -> list[ValidationError]:
+    async def validate_create(cls, payload, db, tenant_id=None, schedule_id=None) -> dict:
         errors = []
+        warnings = []
 
         def get_val(obj, key, default=None):
             if isinstance(obj, dict):
@@ -151,6 +153,18 @@ class WorkflowScheduleValidationService:
             except Exception:
                 errors.append(ValidationError("timezone", f"Invalid timezone: {timezone}"))
 
+        # 4.5 start_at in future
+        if start_at:
+            tz = pytz.timezone(timezone or "UTC")
+            now = datetime.now(tz)
+            start_dt = start_at
+            if start_dt.tzinfo is None:
+                start_dt = tz.localize(start_dt)
+            else:
+                start_dt = start_dt.astimezone(tz)
+            if start_dt < now:
+                errors.append(ValidationError("start_at", "start_at must be in the future"))
+
         # 5. end_at > start_at
         if start_at and end_at:
             if end_at <= start_at:
@@ -217,4 +231,58 @@ class WorkflowScheduleValidationService:
                 if res.scalars().first():
                     errors.append(ValidationError("schedule_code", f"A schedule with the code '{schedule_code}' already exists (case-insensitive)"))
 
-        return errors
+        return {
+            "is_valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
+        }
+
+    @classmethod
+    async def validate_agent_assignment(cls, payload: dict, schedule_id, db, assignment_id=None) -> dict:
+        errors = []
+        
+        agent_id = payload.get("agent_id")
+        role = payload.get("assignment_role")
+        mode = payload.get("execution_mode", "READ_ONLY")
+        
+        from app.modules.workflow_scheduler.registry_check_service import RegistryCheckService
+        try:
+            agent = await RegistryCheckService.get_active_agent(agent_id, db)
+            
+            # Check execution mode ceiling
+            agent_mode = RegistryCheckService.get_agent_max_execution_mode(agent)
+            from app.modules.agent_runtime.boundary_checker import EXECUTION_MODE_RANK
+            
+            if EXECUTION_MODE_RANK.get(mode, 0) > EXECUTION_MODE_RANK.get(agent_mode, 0):
+                errors.append(ValidationError("execution_mode", f"Assignment execution mode {mode} exceeds agent's max registered mode {agent_mode}"))
+        except HTTPException:
+            errors.append(ValidationError("agent_id", f"Agent {agent_id} is not ACTIVE or does not exist"))
+
+        # Role uniqueness and dependencies
+        if role:
+            from app.modules.workflow_scheduler.models import WorkflowScheduleAgentAssignment
+            stmt = sa.select(WorkflowScheduleAgentAssignment).where(
+                WorkflowScheduleAgentAssignment.schedule_id == schedule_id,
+                WorkflowScheduleAgentAssignment.is_deleted == False
+            )
+            if assignment_id:
+                stmt = stmt.where(WorkflowScheduleAgentAssignment.id != assignment_id)
+                
+            res = await execute_statement(db, stmt)
+            existing_assignments = res.scalars().all()
+            
+            # Unique role check
+            has_primary = False
+            for ea in existing_assignments:
+                if getattr(ea, "assignment_role", None) == role:
+                    errors.append(ValidationError("assignment_role", f"An assignment with role {role} already exists for this schedule"))
+                if getattr(ea, "assignment_role", None) == "PRIMARY":
+                    has_primary = True
+                    
+            if role in ["SECONDARY", "FALLBACK"] and not has_primary:
+                errors.append(ValidationError("assignment_role", f"Cannot add a {role} assignment without an existing PRIMARY assignment"))
+                
+        return {
+            "is_valid": len(errors) == 0,
+            "errors": errors
+        }

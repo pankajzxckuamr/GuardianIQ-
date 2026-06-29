@@ -6,6 +6,7 @@ import { AgentAssignmentPanel } from '../components/phase2/AgentAssignmentPanel'
 import { PageHeader } from '../components/common/PageHeader';
 import { RegistryDataTable } from '../components/common/RegistryDataTable';
 import { Button } from '../components/common/Button';
+import { ScreenGuide } from '../components/common/ScreenGuide';
 import { Shield, Plus, X, AlertCircle, CheckCircle, RefreshCw, XCircle } from 'lucide-react';
 import { storage } from '../utils/storage';
 import styles from './phase2Shared.module.css';
@@ -339,6 +340,11 @@ export const AgentAssignmentMatrix: React.FC = () => {
             </Button>
           )
         }
+      />
+      <ScreenGuide
+        id="agent-matrix-guide"
+        title="Agent Assignment Matrix"
+        description="Manage global AI agent assignments and their security boundaries across all automated workflows. Ensure appropriate constraints and approval requirements are in place."
       />
 
       {/* Filters */}

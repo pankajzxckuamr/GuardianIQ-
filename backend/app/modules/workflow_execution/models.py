@@ -1,11 +1,12 @@
-from sqlalchemy import Column, String, Boolean, Integer, Numeric, Text, TIMESTAMP, ForeignKey, JSON, BigInteger
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, Text, TIMESTAMP, ForeignKey, BigInteger
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 from app.shared.mixins import WorkflowBaseMixin
 
 class WorkflowRun(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_runs"
+
 
     schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id"), nullable=False)
     workflow_id = Column(UUID(as_uuid=True), ForeignKey("registry_workflows.id"), nullable=False)
@@ -19,8 +20,8 @@ class WorkflowRun(Base, WorkflowBaseMixin):
     duration_ms = Column(BigInteger, nullable=True)
     risk_level = Column(String(50), nullable=True)
     summary = Column(Text, nullable=True)
-    context_json = Column(JSON, server_default="{}", nullable=True, default=None)
-    result_json = Column(JSON, server_default="{}", nullable=True, default=None)
+    context_json = Column(JSONB, server_default="{}", nullable=True, default=None)
+    result_json = Column(JSONB, server_default="{}", nullable=True, default=None)
 
     # Relationships
     schedule = relationship("Phase2WorkflowSchedule", back_populates="runs")
@@ -35,6 +36,7 @@ class WorkflowRun(Base, WorkflowBaseMixin):
 class WorkflowRunStep(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_run_steps"
 
+
     run_id = Column(UUID(as_uuid=True), ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False)
     step_code = Column(String(100), nullable=False)
     step_order = Column(Integer, nullable=False)
@@ -42,9 +44,10 @@ class WorkflowRunStep(Base, WorkflowBaseMixin):
     step_status = Column(String(50), server_default="PENDING", nullable=True, default="PENDING")
     started_at = Column(TIMESTAMP(timezone=True), nullable=True)
     completed_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    input_json = Column(JSON, server_default="{}", nullable=True, default=None)
-    output_json = Column(JSON, server_default="{}", nullable=True, default=None)
+    input_json = Column(JSONB, server_default="{}", nullable=True, default=None)
+    output_json = Column(JSONB, server_default="{}", nullable=True, default=None)
     error_message = Column(Text, nullable=True)
+    error_detail = Column(Text, nullable=True)
 
     # Relationships
     run = relationship("WorkflowRun", back_populates="steps")
@@ -54,14 +57,16 @@ class WorkflowRunStep(Base, WorkflowBaseMixin):
 class WorkflowRunOutput(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_run_outputs"
 
+
     run_id = Column(UUID(as_uuid=True), ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False)
     output_type = Column(String(100), nullable=True)
     severity = Column(String(50), nullable=True)
     risk_score = Column(Numeric(5, 2), nullable=True)
-    findings_json = Column(JSON, server_default="[]", nullable=True, default=None)
-    recommendations_json = Column(JSON, server_default="[]", nullable=True, default=None)
-    evidence_json = Column(JSON, server_default="{}", nullable=True, default=None)
-    raw_output_json = Column(JSON, server_default="{}", nullable=True, default=None)
+    findings_json = Column(JSONB, server_default="[]", nullable=True, default=None)
+    recommendations_json = Column(JSONB, server_default="[]", nullable=True, default=None)
+    evidence_json = Column(JSONB, server_default="{}", nullable=True, default=None)
+    raw_output_json = Column(JSONB, server_default="{}", nullable=True, default=None)
+    raw_output = Column(Text, nullable=True)
     parse_status = Column(String(50), server_default="PARSED", nullable=True, default="PARSED")
 
     # Relationships
@@ -71,6 +76,7 @@ class WorkflowRunOutput(Base, WorkflowBaseMixin):
 class WorkflowRunFailure(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_run_failures"
 
+
     run_id = Column(UUID(as_uuid=True), ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False)
     failure_type = Column(String(100), nullable=True)
     failure_code = Column(String(100), nullable=True)
@@ -78,6 +84,7 @@ class WorkflowRunFailure(Base, WorkflowBaseMixin):
     failed_step_id = Column(UUID(as_uuid=True), ForeignKey("workflow_run_steps.id"), nullable=True)
     retry_count = Column(Integer, server_default="0", nullable=True, default=0)
     max_retries = Column(Integer, server_default="1", nullable=True, default=1)
+    next_retry_at = Column(TIMESTAMP(timezone=True), nullable=True)
     escalation_required = Column(Boolean, server_default="FALSE", nullable=True, default=False)
     escalation_sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
 

@@ -14,6 +14,7 @@ class WorkflowRunFailureResponse(BaseModel):
     max_retries: int
     escalation_required: bool
     escalation_sent_at: datetime | None
+    next_retry_at: datetime | None
     version_no: int
     is_deleted: bool
     metadata_json: dict | None
@@ -35,6 +36,7 @@ class WorkflowRunOutputResponse(BaseModel):
     recommendations_json: list[dict] | None
     evidence_json: dict | None
     raw_output_json: dict | None
+    raw_output: str | None
     parse_status: str
     version_no: int
     is_deleted: bool
@@ -59,6 +61,7 @@ class WorkflowRunStepResponse(BaseModel):
     input_json: dict | None
     output_json: dict | None
     error_message: str | None
+    error_detail: str | None
     version_no: int
     is_deleted: bool
     metadata_json: dict | None
@@ -98,6 +101,9 @@ class WorkflowRunResponse(BaseModel):
     failures: list[WorkflowRunFailureResponse]
 
     model_config = ConfigDict(from_attributes=True)
+
+class WorkflowRunDetailResponse(WorkflowRunResponse):
+    pass
 
 
 class WorkflowRunListItem(BaseModel):

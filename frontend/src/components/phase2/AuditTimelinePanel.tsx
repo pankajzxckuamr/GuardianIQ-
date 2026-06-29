@@ -62,8 +62,17 @@ export const AuditTimelinePanel: React.FC<Props> = ({ entityType, entityId }) =>
           </div>
           <div className={styles.auditContent}>
             <div className={styles.auditBody}>
+              <div style={{ fontWeight: '600', marginBottom: '4px' }}>{ev.event_code}</div>
               <span className={styles.auditSummary}>{ev.event_summary}</span>
-              <div className={styles.auditMeta}>
+              {ev.event_payload && (
+                <details className={styles.detailsToggle} style={{ marginTop: '8px' }}>
+                  <summary>Event Payload</summary>
+                  <pre className={styles.codeBlock} style={{ marginTop: '4px' }}>
+                    {JSON.stringify(ev.event_payload, null, 2)}
+                  </pre>
+                </details>
+              )}
+              <div className={styles.auditMeta} style={{ marginTop: '8px' }}>
                 <span className={styles.auditActor}>by {ev.actor_name || 'System'}</span>
               </div>
             </div>

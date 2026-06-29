@@ -83,9 +83,19 @@ class WorkflowScheduleRepository:
         count_res = await execute_statement(db, count_stmt)
         total = count_res.scalar() or 0
         
+        # Sort
+        sort_by = filters.get("sort_by", "created_at")
+        sort_dir = filters.get("sort_dir", "desc")
+        
+        sort_attr = getattr(Phase2WorkflowSchedule, sort_by, Phase2WorkflowSchedule.created_at)
+        if sort_dir.lower() == "asc":
+            query = query.order_by(sort_attr.asc())
+        else:
+            query = query.order_by(sort_attr.desc())
+        
         # Paginate
         offset = (page - 1) * page_size
-        query = query.order_by(Phase2WorkflowSchedule.created_at.desc()).offset(offset).limit(page_size)
+        query = query.offset(offset).limit(page_size)
         query = query.options(
             selectinload(Phase2WorkflowSchedule.agent_assignments),
             selectinload(Phase2WorkflowSchedule.approvals)

@@ -304,7 +304,8 @@ def upgrade() -> None:
             sa.Column('change_summary', sa.Text(), nullable=True),
             sa.Column('before_json', JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
             sa.Column('after_json', JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
-            sa.Column('changed_by', sa.UUID(), sa.ForeignKey('guardian_users.id'), nullable=True)
+            sa.Column('changed_by', sa.UUID(), sa.ForeignKey('guardian_users.id'), nullable=True),
+            sa.Column('changed_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True)
         ])
     )
 

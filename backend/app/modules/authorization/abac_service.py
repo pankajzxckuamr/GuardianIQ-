@@ -2,8 +2,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 import sqlalchemy as sa
 from sqlalchemy.future import select
-from app.modules.workflow_scheduler.models import ApprovalGroupMember
-from app.modules.authorization.models import WorkflowDelegation
+from app.modules.authorization.rbac_service import is_in_approval_group, has_active_delegation
 from app.modules.registry.models import RegistryAIAgent
 import inspect
 
@@ -19,45 +18,48 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
     action_upper = action.upper()
 
     user_id = subject.get("user_id")
+    user_roles = [r.upper() for r in subject.get("roles", [])]
+    user_dept = subject.get("department_id")
     
-    # 1. ACTIVATE_WORKFLOW_SCHEDULE
+    # 1. CREATE / ACTIVATE / RUN_NOW
+    if action_upper in ["CREATE_WORKFLOW_SCHEDULE", "ACTIVATE_WORKFLOW_SCHEDULE", "RUN_WORKFLOW_SCHEDULE"]:
+        # Department check
+        owner_dept = object_context.get("owner_department_id")
+        if owner_dept and user_dept and str(owner_dept) != str(user_dept):
+            if "GOVERNANCE_ADMIN" not in user_roles and "SUPER_ADMIN" not in user_roles:
+                allowed = False
+                failed_conditions.append("Subject department does not match schedule owner department")
+
     if action_upper == "ACTIVATE_WORKFLOW_SCHEDULE":
         risk_level = str(object_context.get("risk_level", "MEDIUM")).upper()
+        approval_group_id = object_context.get("approval_group_id")
+        
+        # Risk level approval check
         if risk_level in ["HIGH", "CRITICAL"]:
-            approval_group_id = object_context.get("approval_group_id")
-            
-            # Check membership in the approval group
-            is_member = False
-            if approval_group_id and user_id:
-                member_stmt = select(ApprovalGroupMember.user_id).where(
-                    ApprovalGroupMember.approval_group_id == approval_group_id,
-                    ApprovalGroupMember.user_id == user_id
-                )
-                member_res = await execute_statement(db, member_stmt)
-                is_member = member_res.scalar() is not None
-            
-            # Check active delegation
-            has_delegation = False
-            if not is_member and approval_group_id and user_id:
-                now = datetime.now(timezone.utc)
-                delegation_stmt = (
-                    select(WorkflowDelegation.id)
-                    .join(ApprovalGroupMember, ApprovalGroupMember.user_id == WorkflowDelegation.delegator_user_id)
-                    .where(
-                        WorkflowDelegation.delegatee_user_id == user_id,
-                        ApprovalGroupMember.approval_group_id == approval_group_id,
-                        WorkflowDelegation.start_at <= now,
-                        WorkflowDelegation.end_at >= now,
-                        WorkflowDelegation.status == "ACTIVE",
-                        WorkflowDelegation.is_deleted == False
-                    )
-                )
-                delegation_res = await execute_statement(db, delegation_stmt)
-                has_delegation = delegation_res.scalar() is not None
-            
-            if not (is_member or has_delegation):
+            if "RISK_MANAGER" not in user_roles and "GOVERNANCE_ADMIN" not in user_roles and "SUPER_ADMIN" not in user_roles:
+                is_member = False
+                has_deleg = False
+                if approval_group_id and user_id:
+                    is_member = await is_in_approval_group(user_id, approval_group_id, db)
+                    has_deleg = await has_active_delegation(user_id, approval_group_id, db)
+                
+                if not (is_member or has_deleg):
+                    allowed = False
+                    failed_conditions.append("High risk schedules require approval group membership or active delegation to activate")
+
+        # Execution mode check
+        exec_mode = str(object_context.get("execution_mode", "READ_ONLY")).upper()
+        if exec_mode not in ["READ_ONLY", "RECOMMEND_ONLY"]:
+            if "ACTIVATE_HIGH_RISK_SCHEDULE" not in user_roles and "GOVERNANCE_ADMIN" not in user_roles and "SUPER_ADMIN" not in user_roles:
                 allowed = False
-                failed_conditions.append("High risk schedules require approval group membership or active delegation to activate")
+                failed_conditions.append("Execution mode above RECOMMEND_ONLY requires ACTIVATE_HIGH_RISK_SCHEDULE permission")
+
+        # Write-capable tool check
+        write_tools_present = object_context.get("write_tools_present", False)
+        approval_required = object_context.get("approval_required", False)
+        if write_tools_present and not approval_required:
+            allowed = False
+            failed_conditions.append("Schedules with write-capable tools must have approval_required=True to be activated")
 
     # 2. ASSIGN_AI_AGENT_TO_WORKFLOW
     elif action_upper == "ASSIGN_AI_AGENT_TO_WORKFLOW":
@@ -102,7 +104,6 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
             "CONFIDENTIAL": 4
         }
         
-        # Mapping severity high/critical to CONFIDENTIAL, medium to RESTRICTED, low to INTERNAL
         if output_sens not in SENSITIVITY_RANK:
             if output_sens in ["HIGH", "CRITICAL"]:
                 output_sens = "CONFIDENTIAL"
@@ -113,7 +114,6 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
             else:
                 output_sens = "PUBLIC"
 
-        # Determine user's maximum clearance based on their roles
         ROLE_CLEARANCE = {
             "SUPER_ADMIN": "CONFIDENTIAL",
             "GOVERNANCE_ADMIN": "CONFIDENTIAL",
@@ -123,9 +123,7 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
             "BUSINESS_USER": "INTERNAL"
         }
         
-        user_roles = [r.upper() for r in subject.get("roles", [])]
-        user_max_rank = 1  # Default is PUBLIC (rank 1)
-        
+        user_max_rank = 1
         for r in user_roles:
             clearance = ROLE_CLEARANCE.get(r, "INTERNAL")
             rank = SENSITIVITY_RANK.get(clearance.upper(), 2)

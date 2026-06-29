@@ -1,3 +1,4 @@
+import os
 import time
 from datetime import datetime, timezone
 
@@ -24,9 +25,35 @@ from app.modules.approval.routes import router as approval_router
 
 APP_VERSION = "0.1.0"
 
+from contextlib import asynccontextmanager
+
+import os
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Apply missing DB columns and triggers on startup
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE workflow_schedule_history ADD COLUMN IF NOT EXISTS changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;"))
+            conn.execute(text("ALTER TABLE workflow_run_steps ADD COLUMN IF NOT EXISTS error_detail TEXT;"))
+            conn.execute(text("ALTER TABLE workflow_run_outputs ADD COLUMN IF NOT EXISTS raw_output TEXT;"))
+            conn.execute(text("ALTER TABLE workflow_run_failures ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMP WITH TIME ZONE;"))
+            conn.execute(text("ALTER TABLE workflow_schedule_approvals ADD COLUMN IF NOT EXISTS approver_group_id UUID;"))
+            conn.execute(text("ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS related_entity_type VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS related_entity_id UUID;"))
+            # Load missing triggers
+            trigger_sql_path = os.path.join(os.path.dirname(__file__), "..", "..", "database", "ddl", "V2_FIX_003__missing_triggers.sql")
+            if os.path.exists(trigger_sql_path):
+                with open(trigger_sql_path, "r") as f:
+                    conn.execute(text(f.read()))
+    except Exception as e:
+        print(f"DB Patch Error: {e}")
+    yield
+
 app = FastAPI(
     title="GuardianIQ",
-    version=APP_VERSION
+    version=APP_VERSION,
+    lifespan=lifespan
 )
 
 # ── CORS ── Allow frontend dev server + any localhost port ────────────────────
@@ -73,10 +100,13 @@ app.include_router(approval_router)
 app.include_router(foundation_router)
 app.include_router(registry_router)
 app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
-app.include_router(phase2_auth_router)
-app.include_router(phase2_scheduler_router)
-app.include_router(phase2_run_router)
-app.include_router(phase2_notification_router)
+
+# Feature flag for Phase 2 endpoints
+if os.getenv("PHASE2_SCHEDULER_ENABLED", "False").lower() == "true":
+    app.include_router(phase2_auth_router)
+    app.include_router(phase2_scheduler_router)
+    app.include_router(phase2_run_router)
+    app.include_router(phase2_notification_router)
 
 @app.get("/api/health", response_model=StandardResponse[dict])
 def health_check():

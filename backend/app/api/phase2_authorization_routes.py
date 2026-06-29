@@ -25,7 +25,7 @@ async def evaluate_authorization(
     
     # We evaluate and persist the decision to the database
     service = AuthorizationDecisionService()
-    response = await service.evaluate(payload, db, persist=True)
+    response = await service.evaluate(payload, db, persist=False)
     
     return ResponseHelper.success(
         data=response.model_dump(),

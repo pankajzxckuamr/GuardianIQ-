@@ -6,6 +6,7 @@ import { ConfirmActionModal } from '../components/phase2/ConfirmActionModal';
 import { PageHeader } from '../components/common/PageHeader';
 import { RegistryDataTable } from '../components/common/RegistryDataTable';
 import { RiskBadge } from '../components/common/RiskBadge';
+import { ScheduleStatusBadge } from '../components/common/ScheduleStatusBadge';
 import { Button } from '../components/common/Button';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
@@ -24,15 +25,7 @@ import styles from './phase2Shared.module.css';
 const STATUS_OPTIONS = ['DRAFT', 'PENDING_APPROVAL', 'ACTIVE', 'PAUSED', 'FAILED', 'RETIRED'];
 const RISK_OPTIONS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
-const statusPillClass = (status: string): string => {
-  switch (status) {
-    case 'ACTIVE': return styles.pillSuccess;
-    case 'PENDING_APPROVAL': return styles.pillWarning;
-    case 'PAUSED': return styles.pillInfo;
-    case 'FAILED': return styles.pillDanger;
-    default: return styles.pillNeutral;
-  }
-};
+
 
 export const WorkflowSchedulerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -59,7 +52,7 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
     open: boolean;
     title: string;
     message: string;
-    action: 'PAUSE' | 'RESUME' | 'RETIRE' | null;
+    action: 'PAUSE' | 'RESUME' | 'RETIRE' | 'SUBMIT' | null;
     scheduleId: string | null;
     requireReason: boolean;
   }>({ open: false, title: '', message: '', action: null, scheduleId: null, requireReason: false });
@@ -102,21 +95,23 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
   }, [page, perPage, searchParams.getAll('status').join(','), searchParams.getAll('risk_level').join(','), scheduleType, searchQ]);
 
   // KPIs
-  const [kpis, setKpis] = useState({ total: 0, active: 0, pending: 0, attention: 0 });
+  const [kpis, setKpis] = useState({ active: 0, pending: 0, paused: 0, failed: 0, draft: 0 });
   useEffect(() => {
     const fetchKpis = async () => {
       try {
-        const [allRes, activeRes, pendingRes, attentionRes]: any[] = await Promise.all([
-          scheduleApi.list({ per_page: 1 }),
+        const [activeRes, pendingRes, pausedRes, failedRes, draftRes]: any[] = await Promise.all([
           scheduleApi.list({ per_page: 1, status: 'ACTIVE' }),
           scheduleApi.list({ per_page: 1, status: 'PENDING_APPROVAL' }),
-          scheduleApi.list({ per_page: 1, health_status: 'ATTENTION' }).catch(() => ({ total: 0 })),
+          scheduleApi.list({ per_page: 1, status: 'PAUSED' }),
+          scheduleApi.list({ per_page: 1, status: 'FAILED' }),
+          scheduleApi.list({ per_page: 1, status: 'DRAFT' }),
         ]);
         setKpis({
-          total: allRes.total || 0,
           active: activeRes.total || 0,
           pending: pendingRes.total || 0,
-          attention: attentionRes.total || 0,
+          paused: pausedRes.total || 0,
+          failed: failedRes.total || 0,
+          draft: draftRes.total || 0,
         });
       } catch (e) {
         console.error('Failed to load KPIs', e);
@@ -167,6 +162,7 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
       if (action === 'PAUSE') await scheduleApi.pause(scheduleId);
       if (action === 'RESUME') await scheduleApi.resume(scheduleId);
       if (action === 'RETIRE') await scheduleApi.retire(scheduleId);
+      if (action === 'SUBMIT') await scheduleApi.submit(scheduleId);
       showToast(`Schedule ${action.toLowerCase()}d successfully`, 'success');
       setConfirmModal({ ...confirmModal, open: false });
       fetchSchedules();
@@ -206,19 +202,26 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
     },
     { key: 'workflow_name', label: 'Workflow', render: (s: any) => <span className={styles.mutedCell}>{s.workflow_name || '-'}</span> },
     { key: 'schedule_type', label: 'Type', render: (s: any) => <span className={styles.tagChip}>{s.schedule_type}</span> },
-    { key: 'schedule_status', label: 'Status', render: (s: any) => <span className={`${styles.pill} ${statusPillClass(s.schedule_status)}`}>{(s.schedule_status || '').replace(/_/g, ' ')}</span> },
+    { key: 'schedule_status', label: 'Status', render: (s: any) => <ScheduleStatusBadge status={s.schedule_status} /> },
     { key: 'risk_level', label: 'Risk', render: (s: any) => <RiskBadge level={s.risk_level} /> },
+    { key: 'owner_name', label: 'Owner', render: (s: any) => <span className={styles.mutedCell}>{s.owner_name || s.owner_user_id || '-'}</span> },
     { key: 'health_status', label: 'Health', render: (s: any) => renderHealth(s.health_status) },
     {
       key: 'next_run_at',
       label: 'Next Run',
       render: (s: any) => (
-        <div>
-          <span className={styles.mutedCell}>
-            {s.schedule_type === 'MANUAL' ? 'Manual only' : (s.next_run_at ? new Date(s.next_run_at).toLocaleString() : '-')}
-          </span>
-          {s.last_run_at && <div className={styles.subText}>Last: {new Date(s.last_run_at).toLocaleString()}</div>}
-        </div>
+        <span className={styles.mutedCell}>
+          {s.schedule_type === 'MANUAL' ? 'Manual only' : (s.next_run_at ? new Date(s.next_run_at).toLocaleString() : 'Never')}
+        </span>
+      ),
+    },
+    {
+      key: 'last_run_at',
+      label: 'Last Run',
+      render: (s: any) => (
+        <span className={styles.mutedCell}>
+          {s.last_run_at ? new Date(s.last_run_at).toLocaleString() : 'Never'}
+        </span>
       ),
     },
     {
@@ -230,6 +233,16 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
             <button className={styles.actionBtn} title="View Details" onClick={(e) => { stop(e); navigate(`/workflow-scheduler/${s.id}`); }}>
               <Eye size={15} />
             </button>
+          )}
+          {canCreate && s.schedule_status === 'DRAFT' && (
+            <>
+              <button className={`${styles.actionBtn} ${styles.primary}`} title="Edit" onClick={(e) => { stop(e); navigate(`/workflow-scheduler/${s.id}/edit`); }}>
+                Edit
+              </button>
+              <button className={`${styles.actionBtn} ${styles.success}`} title="Submit for Approval" onClick={(e) => { stop(e); setConfirmModal({ open: true, title: 'Submit Schedule', message: 'Submit this schedule for approval or activation?', action: 'SUBMIT' as any, scheduleId: s.id, requireReason: false }); }}>
+                Submit
+              </button>
+            </>
           )}
           {canRun && s.schedule_status === 'ACTIVE' && (
             <button className={`${styles.actionBtn} ${styles.run}`} title="Run Now" onClick={(e) => { stop(e); handleRunNow(s.id); }}>
@@ -273,21 +286,25 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
 
       {/* KPIs */}
       <div className={styles.kpiGrid}>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiLabel}>Total Schedules</span>
-          <span className={styles.kpiValue}>{kpis.total}</span>
-        </div>
-        <div className={styles.kpiCard}>
+        <div className={`${styles.kpiCard} ${styles.clickableCard}`} onClick={() => updateFilters({ status: ['ACTIVE'] })}>
           <span className={styles.kpiLabel}>Active</span>
           <span className={`${styles.kpiValue} ${styles.success}`}>{kpis.active}</span>
         </div>
-        <div className={styles.kpiCard}>
+        <div className={`${styles.kpiCard} ${styles.clickableCard}`} onClick={() => updateFilters({ status: ['PENDING_APPROVAL'] })}>
           <span className={styles.kpiLabel}>Pending Approval</span>
           <span className={`${styles.kpiValue} ${styles.warning}`}>{kpis.pending}</span>
         </div>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiLabel}>Failed / Attention</span>
-          <span className={`${styles.kpiValue} ${styles.danger}`}>{kpis.attention}</span>
+        <div className={`${styles.kpiCard} ${styles.clickableCard}`} onClick={() => updateFilters({ status: ['PAUSED'] })}>
+          <span className={styles.kpiLabel}>Paused</span>
+          <span className={`${styles.kpiValue} ${styles.info}`}>{kpis.paused}</span>
+        </div>
+        <div className={`${styles.kpiCard} ${styles.clickableCard}`} onClick={() => updateFilters({ status: ['FAILED'] })}>
+          <span className={styles.kpiLabel}>Failed</span>
+          <span className={`${styles.kpiValue} ${styles.danger}`}>{kpis.failed}</span>
+        </div>
+        <div className={`${styles.kpiCard} ${styles.clickableCard}`} onClick={() => updateFilters({ status: ['DRAFT'] })}>
+          <span className={styles.kpiLabel}>Draft</span>
+          <span className={styles.kpiValue}>{kpis.draft}</span>
         </div>
       </div>
 

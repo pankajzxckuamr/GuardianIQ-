@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.encoders import jsonable_encoder
 from app.shared.responses import StandardResponse
 from app.core.middleware import get_request_id
 import traceback
@@ -25,7 +26,7 @@ def add_exception_handlers(app: FastAPI):
                 message=message,
                 data=None,
                 error_code="VALIDATION_ERROR"
-            ).model_dump()
+            ).model_dump(mode="json")
         )
 
     @app.exception_handler(StarletteHTTPException)
@@ -34,7 +35,7 @@ def add_exception_handlers(app: FastAPI):
             content = exc.detail.copy()
             if "request_id" not in content or not content["request_id"]:
                 content["request_id"] = get_request_id()
-            return JSONResponse(status_code=exc.status_code, content=content)
+            return JSONResponse(status_code=exc.status_code, content=jsonable_encoder(content))
             
         return JSONResponse(
             status_code=exc.status_code,
@@ -43,7 +44,7 @@ def add_exception_handlers(app: FastAPI):
                 request_id=get_request_id(),
                 message=str(exc.detail),
                 data=None
-            ).model_dump()
+            ).model_dump(mode="json")
         )
 
     @app.exception_handler(Exception)
@@ -56,5 +57,5 @@ def add_exception_handlers(app: FastAPI):
                 request_id=get_request_id(),
                 message="An unexpected internal server error occurred.",
                 data=None
-            ).model_dump()
+            ).model_dump(mode="json")
         )

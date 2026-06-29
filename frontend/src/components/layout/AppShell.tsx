@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { scheduleApi } from "../../api/phase2Client";
 import * as registryService from "../../services/registry/registryService";
 import { 
   Shield, 
@@ -103,7 +104,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
+
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchApprovals = async () => {
+      if (!currentUser?.is_superuser && (!currentUser?.approval_groups || currentUser.approval_groups.length === 0)) return;
+      try {
+        const res: any = await scheduleApi.list({ status: 'PENDING_APPROVAL' });
+        setPendingApprovalsCount(res.total ?? (res.items?.length || 0));
+      } catch (err) {
+        // Ignore error
+      }
+    };
+    fetchApprovals();
+    const interval = setInterval(fetchApprovals, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   // Close dropdown on route change
   useEffect(() => {
@@ -234,7 +252,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const phase2ExecutionItems = [
     { label: "Workflow Scheduler", path: "/workflow-scheduler", icon: Calendar, show: true },
     { label: "Run History", path: "/workflow-runs", icon: GitBranch, show: true },
-    { label: "Schedule Approvals", path: "/schedule-approvals", icon: CheckSquare, show: true },
+    { label: "Schedule Approvals", path: "/schedule-approvals", icon: CheckSquare, show: true, badge: pendingApprovalsCount },
   ].filter(i => i.show);
 
   const phase2ConfigItems = [
@@ -349,6 +367,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             return (
               <Link key={item.path} to={item.path} className={`sidebar-link ${isActive ? "active" : ""}`} onClick={() => setSidebarOpen(false)}>
                 <Icon size={18} /><span>{item.label}</span>
+                {(item as any).badge ? <span className="sidebar-badge">{(item as any).badge}</span> : null}
               </Link>
             );
           })}

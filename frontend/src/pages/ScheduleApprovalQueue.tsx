@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { scheduleApi } from '../api/phase2Client';
-import apiClient from '../services/shared/apiClient';
 import { PageHeader } from '../components/common/PageHeader';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
+import { ConfirmActionModal } from '../components/phase2/ConfirmActionModal';
+import { ApprovalRequirementBanner } from '../components/phase2/ApprovalRequirementBanner';
+import { ScreenGuide } from '../components/common/ScreenGuide';
 import { Clock, AlertCircle, XCircle } from 'lucide-react';
 import styles from './phase2Shared.module.css';
 
 type Tab = 'PENDING_MY_APPROVAL' | 'GROUP_QUEUE' | 'COMPLETED';
-type Decision = 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED' | 'ESCALATED';
+type Decision = 'APPROVED' | 'REJECTED' | 'ESCALATED' | 'CHANGES_REQUESTED';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'PENDING_MY_APPROVAL', label: 'My Approvals' },
@@ -18,34 +21,46 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'COMPLETED', label: 'Completed' },
 ];
 
-const DECISIONS: Decision[] = ['APPROVED', 'REJECTED', 'CHANGES_REQUESTED', 'ESCALATED'];
-
 export const ScheduleApprovalQueue: React.FC = () => {
   const { showToast } = useToast();
-  useAuth();
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<Tab>('PENDING_MY_APPROVAL');
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [selectedSchedule, setSelectedSchedule] = useState<any | null>(null);
+  const [scheduleDetails, setScheduleDetails] = useState<any | null>(null);
+  const [approvalId, setApprovalId] = useState<string | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
   const [reason, setReason] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isDelegated = false; // Mock
+  const hasApprovalGroup = currentUser?.is_superuser || (currentUser?.approval_groups && currentUser.approval_groups.length > 0);
 
   useEffect(() => {
     document.title = 'Schedule Approvals — GuardianIQ';
   }, []);
 
   const fetchQueue = async () => {
+    if (!hasApprovalGroup) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const statusFilter = activeTab === 'COMPLETED' ? ['ACTIVE', 'RETIRED'] : ['PENDING_APPROVAL'];
-      const res: any = await scheduleApi.list({ status: statusFilter });
+      const statusFilter = activeTab === 'COMPLETED' ? 'ACTIVE,RETIRED' : 'PENDING_APPROVAL';
+      const [res, metricsRes]: any = await Promise.all([
+        scheduleApi.list({ status: statusFilter }),
+        scheduleApi.getApprovalMetrics().catch(() => ({ data: null }))
+      ]);
       setSchedules(res.items || []);
+      setMetrics(metricsRes.data || null);
     } catch (e: any) {
       setError(e.message || 'Failed to fetch queue');
     } finally {
@@ -56,42 +71,117 @@ export const ScheduleApprovalQueue: React.FC = () => {
   useEffect(() => {
     fetchQueue();
     setSelectedSchedule(null);
+    setScheduleDetails(null);
+    setApprovalId(null);
     setDecision(null);
     setReason('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, hasApprovalGroup]);
 
-  const handleDecision = async () => {
-    if (!selectedSchedule || !decision) return;
+  useEffect(() => {
+    if (selectedSchedule) {
+      setScheduleDetails(null);
+      setApprovalId(null);
+      scheduleApi.getById(selectedSchedule.id)
+        .then((res: any) => setScheduleDetails(res.data || res))
+        .catch(() => showToast('Failed to load full schedule details', 'error'));
+      
+      scheduleApi.getApprovals(selectedSchedule.id)
+        .then((res: any) => {
+          const approvals = res.data || res;
+          const pending = approvals.find((a: any) => a.approval_status === 'PENDING' || a.approval_status === 'ESCALATED');
+          if (pending) {
+            setApprovalId(pending.id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedSchedule]);
+
+  const handleDecisionSubmit = async () => {
+    const activeApprovalId = approvalId || selectedSchedule?.id;
+    if (!selectedSchedule || !decision || !activeApprovalId) {
+      showToast('No pending approval found for this schedule.', 'error');
+      return;
+    }
+    setIsSubmitting(true);
     try {
-      const approvalId = selectedSchedule.id;
-      await apiClient.post(`/api/v1/schedule-approvals/${approvalId}/decide`, { decision, reason });
-      showToast(`Decision ${decision} recorded`, 'success');
+      await scheduleApi.decideApproval(activeApprovalId, { decision, reason: reason || 'Decision applied' });
+      showToast(`Schedule ${decision.toLowerCase().replace('_', ' ')} successfully.`, 'success');
+      
+      setShowConfirm(false);
       setSelectedSchedule(null);
       setDecision(null);
       setReason('');
       fetchQueue();
     } catch (e: any) {
-      showToast(e.message || 'Failed to record decision', 'error');
+      if (e?.response?.status === 403) {
+        showToast('You are not authorized to approve this schedule.', 'error');
+      } else {
+        showToast(e.message || 'Failed to record decision', 'error');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const getPrimaryAssignment = (assignments: any[]) => {
+    if (!assignments || assignments.length === 0) return null;
+    return assignments.find((a: any) => a.assignment_role === 'PRIMARY') || assignments[0];
+  };
+
+  if (!hasApprovalGroup) {
+    return (
+      <div className={styles.page}>
+        <PageHeader title="Schedule Approvals" description="Review and authorize workflow schedule configurations" />
+        <div className={styles.stateCard} style={{ marginTop: '32px' }}>
+          <div className={styles.stateTitle}>Access Restricted</div>
+          <div className={styles.stateDesc}>You are not a member of any approval group.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const assignment = scheduleDetails ? getPrimaryAssignment(scheduleDetails.assignments) : null;
 
   return (
     <div className={styles.page}>
       <div className={styles.breadcrumb}>Orchestration &gt; Schedule Approvals</div>
-      <PageHeader
-        title="Schedule Approvals"
-        description="Review and authorize workflow schedule configurations"
-      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <PageHeader
+          title="Schedule Approvals"
+          description="Review and authorize workflow schedule configurations"
+        />
+        <ScreenGuide
+          id="approval-queue-guide"
+          title="Approval Queue"
+          description="Review schedules that require your approval due to risk level or tool assignments. Select a schedule to view its details and record your decision."
+        />
+      </div>
 
-      {isDelegated && (
-        <div className={styles.banner}>
-          <AlertCircle size={16} /> You are acting under delegation from [Original Approver].
+      <div className={styles.kpiGrid} style={{ marginBottom: '24px' }}>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiLabel}>Pending Approvals</div>
+          <div className={styles.kpiValue}>{schedules.filter(s => s.schedule_status === 'PENDING_APPROVAL').length}</div>
         </div>
-      )}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiLabel}>Approved Today</div>
+          <div className={styles.kpiValue}>{metrics?.APPROVED || 0}</div>
+        </div>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiLabel}>Rejected Today</div>
+          <div className={styles.kpiValue}>{metrics?.REJECTED || 0}</div>
+        </div>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiLabel}>Escalated</div>
+          <div className={styles.kpiValue}>{metrics?.ESCALATED || 0}</div>
+        </div>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiLabel}>Changes Required</div>
+          <div className={styles.kpiValue}>{metrics?.CHANGES_REQUESTED || 0}</div>
+        </div>
+      </div>
 
       <div className={styles.approvalLayout}>
-        {/* List Pane */}
         <div className={styles.listPane}>
           <div className={styles.tabs}>
             {TABS.map(tab => (
@@ -116,7 +206,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
               </div>
             ) : schedules.length === 0 ? (
               <div style={{ padding: '2rem', textAlign: 'center' }}>
-                <div className={styles.stateDesc}>No schedules found in this queue.</div>
+                <div className={styles.stateDesc}>All caught up! No schedules waiting for approval.</div>
               </div>
             ) : (
               schedules.map(s => (
@@ -129,13 +219,14 @@ export const ScheduleApprovalQueue: React.FC = () => {
                     <span className={styles.listItemName}>{s.schedule_name}</span>
                     <RiskBadge level={s.risk_level} />
                   </div>
-                  <div className={styles.subText}>Owner: {s.owner_name || 'Unknown'}</div>
+                  <div className={styles.subText}>Workflow: {s.workflow_name || s.workflow_id}</div>
+                  <div className={styles.subText}>Requested By: {s.owner_name || 'Unknown'}</div>
                   <div className={styles.listItemMeta}>
                     <span className={styles.metaTime}>
                       <Clock size={12} /> {new Date(s.created_at || Date.now()).toLocaleDateString()}
                     </span>
                     {activeTab !== 'COMPLETED' && (
-                      <span className={`${styles.pill} ${styles.pillWarning}`}>24h left</span>
+                      <span className={`${styles.pill} ${styles.pillWarning}`}>Action Required</span>
                     )}
                   </div>
                 </button>
@@ -144,81 +235,152 @@ export const ScheduleApprovalQueue: React.FC = () => {
           </div>
         </div>
 
-        {/* Detail Pane */}
         {selectedSchedule ? (
           <div className={styles.detailPane}>
             <div className={styles.detailHeader}>
-              <h2 className={styles.detailTitle}>{selectedSchedule.schedule_name}</h2>
+              <div>
+                <h2 className={styles.detailTitle} style={{ margin: 0, marginBottom: '4px' }}>
+                  <button 
+                    className={styles.linkCell} 
+                    onClick={() => navigate(`/workflow-scheduler/${selectedSchedule.id}`, { state: { from: '/schedule-approvals' } })}
+                    style={{ fontSize: 'inherit', fontWeight: 'inherit', padding: 0 }}
+                  >
+                    {selectedSchedule.schedule_name}
+                  </button>
+                </h2>
+                <div className={styles.subText}>{selectedSchedule.schedule_code || selectedSchedule.id}</div>
+              </div>
               <button className={styles.iconBtnPlain} onClick={() => setSelectedSchedule(null)} title="Close">
                 <XCircle size={18} />
               </button>
             </div>
 
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Schedule Summary</h3>
-              <div className={styles.dlGrid}>
-                <div>
-                  <div className={styles.dlLabel}>Workflow</div>
-                  <div className={styles.dlValue}>{selectedSchedule.workflow_name || 'Unknown Workflow'}</div>
-                </div>
-                <div>
-                  <div className={styles.dlLabel}>Risk Level</div>
-                  <div className={styles.dlValue}><RiskBadge level={selectedSchedule.risk_level} /></div>
-                </div>
-                <div className={styles.dlFull}>
-                  <div className={styles.dlLabel}>Schedule</div>
-                  <div className={styles.dlValue}>{selectedSchedule.schedule_type} {selectedSchedule.cron_expression}</div>
+            <div className={styles.scrollContent} style={{ padding: '24px', overflowY: 'auto' }}>
+              <ApprovalRequirementBanner 
+                approvalRequired={true} 
+                reasons={[`Risk Level is ${selectedSchedule.risk_level}`, `Tool assignments require review`]} 
+              />
+
+              <div className={styles.section} style={{ marginTop: '24px' }}>
+                <h3 className={styles.sectionTitle}>Schedule Overview</h3>
+                <div className={styles.dlGrid}>
+                  <div>
+                    <div className={styles.dlLabel}>Workflow</div>
+                    <div className={styles.dlValue}>{selectedSchedule.workflow_name || selectedSchedule.workflow_id}</div>
+                  </div>
+                  <div>
+                    <div className={styles.dlLabel}>Risk Level</div>
+                    <div className={styles.dlValue}><RiskBadge level={selectedSchedule.risk_level} /></div>
+                  </div>
+                  <div>
+                    <div className={styles.dlLabel}>Execution Mode</div>
+                    <div className={styles.dlValue}>{selectedSchedule.execution_mode || 'AUTONOMOUS'}</div>
+                  </div>
+                  <div>
+                    <div className={styles.dlLabel}>Schedule</div>
+                    <div className={styles.dlValue}>{selectedSchedule.schedule_type} {selectedSchedule.cron_expression}</div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className={styles.noticeBox}>
-              <h3 className={styles.noticeTitle}><AlertCircle size={15} /> Approval Reason</h3>
-              <p className={styles.noticeText}>
-                This schedule requires approval due to configured risk level ({selectedSchedule.risk_level}) and tool assignment boundary.
-              </p>
-            </div>
-
-            {activeTab !== 'COMPLETED' && (
-              <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>Record Decision</h3>
-                <div className={styles.decisionButtons}>
-                  {DECISIONS.map(d => (
-                    <button
-                      key={d}
-                      className={`${styles.decisionBtn} ${decision === d ? (d === 'APPROVED' ? styles.selectedApprove : styles.selectedOther) : ''}`}
-                      onClick={() => setDecision(d)}
-                    >
-                      {d.replace(/_/g, ' ')}
-                    </button>
-                  ))}
-                </div>
-
-                {decision && (
-                  <div>
-                    <label className={styles.fieldLabel}>
-                      Reason / Notes <span className={styles.req}>*</span>
-                    </label>
-                    <textarea
-                      className={styles.textarea}
-                      rows={3}
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="Provide reasoning for this decision..."
-                    />
-                    <div className={styles.decisionFooter}>
-                      <Button
-                        variant="primary"
-                        onClick={handleDecision}
-                        disabled={!decision || (decision !== 'APPROVED' && reason.length < 10)}
-                      >
-                        Submit Decision
-                      </Button>
+              {scheduleDetails && assignment && (
+                <div className={styles.section} style={{ marginTop: '24px' }}>
+                  <h3 className={styles.sectionTitle}>Agent Assignment Summary</h3>
+                  <div className={styles.dlGrid}>
+                    <div>
+                      <div className={styles.dlLabel}>Agent</div>
+                      <div className={styles.dlValue}>{assignment.agent_id}</div>
+                    </div>
+                    <div>
+                      <div className={styles.dlLabel}>Execution Mode</div>
+                      <div className={styles.dlValue}>{assignment.execution_mode}</div>
+                    </div>
+                    <div>
+                      <div className={styles.dlLabel}>Confidence Threshold</div>
+                      <div className={styles.dlValue}>{assignment.confidence_threshold}%</div>
+                    </div>
+                    <div className={styles.dlFull}>
+                      <div className={styles.dlLabel}>Allowed Tools</div>
+                      <div className={styles.dlValue} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                        {assignment.allowed_tools?.map((tool: string) => {
+                          const isWrite = tool.toLowerCase().includes('write') || tool.toLowerCase().includes('update') || tool.toLowerCase().includes('create');
+                          return (
+                            <span key={tool} className={isWrite ? `${styles.pill} ${styles.pillWarning}` : styles.tagChip}>
+                              {tool}
+                            </span>
+                          );
+                        }) || <span className={styles.subText}>None</span>}
+                      </div>
+                    </div>
+                    <div className={styles.dlFull}>
+                      <div className={styles.dlLabel}>Blocked Operations</div>
+                      <div className={styles.dlValue} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                        {assignment.blocked_operations?.map((op: string) => (
+                          <span key={op} className={`${styles.pill} ${styles.pillDanger}`}>{op}</span>
+                        )) || <span className={styles.subText}>None</span>}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+
+              {activeTab !== 'COMPLETED' && (
+                <div className={styles.section} style={{ marginTop: '24px' }}>
+                  <h3 className={styles.sectionTitle}>Record Decision</h3>
+                  <div className={styles.decisionButtons}>
+                    <button
+                      className={`${styles.decisionBtn} ${decision === 'APPROVED' ? styles.selectedApprove : ''}`}
+                      onClick={() => setDecision('APPROVED')}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className={`${styles.decisionBtn} ${decision === 'REJECTED' ? styles.selectedReject : ''}`}
+                      onClick={() => setDecision('REJECTED')}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className={`${styles.decisionBtn} ${decision === 'ESCALATED' ? styles.selectedEscalate : ''}`}
+                      onClick={() => setDecision('ESCALATED')}
+                    >
+                      Escalate
+                    </button>
+                    <button
+                      className={`${styles.decisionBtn} ${decision === 'CHANGES_REQUESTED' ? styles.selectedReject : ''}`}
+                      onClick={() => setDecision('CHANGES_REQUESTED')}
+                    >
+                      Request Changes
+                    </button>
+                  </div>
+
+                  {decision && (
+                    <div style={{ marginTop: '16px' }}>
+                      <label className={styles.fieldLabel}>
+                        {decision === 'APPROVED' ? 'Approval notes (optional)' : `${decision.charAt(0) + decision.slice(1).toLowerCase().replace('_', ' ')} reason (required)`} 
+                        {decision !== 'APPROVED' && <span className={styles.req}>*</span>}
+                      </label>
+                      <textarea
+                        className={styles.textarea}
+                        rows={3}
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder={decision === 'APPROVED' ? 'Provide optional approval notes...' : 'Provide a reason (min 10 characters)...'}
+                      />
+                      <div className={styles.decisionFooter} style={{ marginTop: '16px' }}>
+                        <Button
+                          variant={decision === 'APPROVED' ? 'primary' : 'danger'}
+                          onClick={() => setShowConfirm(true)}
+                          disabled={decision !== 'APPROVED' && reason.length < 10}
+                        >
+                          Submit Decision
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className={styles.detailEmpty}>
@@ -226,6 +388,18 @@ export const ScheduleApprovalQueue: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showConfirm && (
+        <ConfirmActionModal
+          title={`${decision ? decision.charAt(0) + decision.slice(1).toLowerCase().replace('_', ' ') : ''} Schedule`}
+          message={`Are you sure you want to ${decision ? decision.toLowerCase().replace('_', ' ') : ''} this schedule? This action will notify the schedule owner.`}
+          confirmLabel={decision ? decision.charAt(0) + decision.slice(1).toLowerCase().replace('_', ' ') : ''}
+          confirmVariant={decision === 'APPROVED' ? 'primary' : 'danger'}
+          onConfirm={handleDecisionSubmit}
+          onCancel={() => setShowConfirm(false)}
+          isLoading={isSubmitting}
+        />
+      )}
     </div>
   );
 };

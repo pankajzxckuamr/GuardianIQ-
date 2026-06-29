@@ -7,6 +7,7 @@ import { AgentAssignmentPanel } from '../components/phase2/AgentAssignmentPanel'
 import { AuditTimelinePanel } from '../components/phase2/AuditTimelinePanel';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
+import { ScreenGuide } from '../components/common/ScreenGuide';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { Play, ArrowLeft } from 'lucide-react';
@@ -47,6 +48,7 @@ export const ScheduleDetailPage: React.FC = () => {
   const [history, setHistory] = useState<HistoryResponse[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('OVERVIEW');
 
@@ -89,6 +91,7 @@ export const ScheduleDetailPage: React.FC = () => {
   const handleAction = async () => {
     const action = confirmModal.action;
     if (!action || !id) return;
+    setIsActionLoading(true);
     try {
       if (action === 'PAUSE') await scheduleApi.pause(id);
       if (action === 'RESUME') await scheduleApi.resume(id);
@@ -100,6 +103,8 @@ export const ScheduleDetailPage: React.FC = () => {
       fetchData();
     } catch (e: any) {
       showToast(e.message || 'Failed to perform action', 'error');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -135,9 +140,15 @@ export const ScheduleDetailPage: React.FC = () => {
 
   return (
     <div className={styles.page}>
-      <button className={styles.clearBtn} onClick={() => navigate('/workflow-scheduler')} style={{ alignSelf: 'flex-start' }}>
-        <ArrowLeft size={14} /> Back to Scheduler
+      <button className={styles.clearBtn} onClick={() => window.history.state && window.history.state.idx > 0 ? navigate(-1) : navigate('/workflow-scheduler')} style={{ alignSelf: 'flex-start' }}>
+        <ArrowLeft size={14} /> Back
       </button>
+
+      <ScreenGuide
+        id="schedule-detail-guide"
+        title="Schedule Details"
+        description="View and manage the configuration, approvals, and execution history for this specific workflow schedule. Use the tabs below to explore different aspects of the schedule."
+      />
 
       {/* Header */}
       <div className={styles.detailHeaderCard}>
@@ -157,7 +168,10 @@ export const ScheduleDetailPage: React.FC = () => {
           </div>
           <div className={styles.headerActions}>
             {schedule.schedule_status === 'DRAFT' && hasPerm('CREATE_WORKFLOW_SCHEDULE') && (
-              <Button variant="secondary" size="sm" onClick={() => setConfirmModal({ open: true, title: 'Submit Schedule', message: 'Submit this schedule for approval or activation?', action: 'SUBMIT', requireReason: false })}>Submit</Button>
+              <>
+                <Button variant="secondary" size="sm" onClick={() => navigate(`/workflow-scheduler/${schedule.id}/edit`)}>Edit</Button>
+                <Button variant="secondary" size="sm" onClick={() => setConfirmModal({ open: true, title: 'Submit Schedule', message: 'Submit this schedule for approval or activation?', action: 'SUBMIT', requireReason: false })}>Submit</Button>
+              </>
             )}
             {schedule.schedule_status === 'PENDING_APPROVAL' && hasPerm('ACTIVATE_WORKFLOW_SCHEDULE') && (
               <Button variant="primary" size="sm" onClick={() => navigate('/schedule-approvals')}>Go to Approvals</Button>
@@ -201,6 +215,11 @@ export const ScheduleDetailPage: React.FC = () => {
                 <div className={styles.banner}>
                   This schedule is pending approval.
                   <button className={styles.textBtn} onClick={() => navigate('/schedule-approvals')} style={{ marginLeft: 6 }}>View Queue</button>
+                </div>
+              )}
+              {['REJECTED', 'ESCALATED', 'CHANGES_REQUESTED'].includes(schedule.schedule_status || '') && approvals.length > 0 && approvals[0]?.decision_reason && (
+                <div className={styles.banner} style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger-fg)' }}>
+                  <strong>{schedule.schedule_status.replace('_', ' ')}:</strong> {approvals[0].decision_reason}
                 </div>
               )}
               <div className={styles.dlGrid}>
@@ -262,6 +281,8 @@ export const ScheduleDetailPage: React.FC = () => {
               <div><div className={styles.dlLabel}>Cron</div><div className={styles.dlValue}>{schedule.cron_expression || '-'}</div></div>
               <div><div className={styles.dlLabel}>Timezone</div><div className={styles.dlValue}>{schedule.timezone}</div></div>
               <div><div className={styles.dlLabel}>Concurrency Policy</div><div className={styles.dlValue}>{schedule.concurrency_policy}</div></div>
+              <div><div className={styles.dlLabel}>Start Date</div><div className={styles.dlValue}>{schedule.start_at ? new Date(schedule.start_at).toLocaleString() : 'Immediate'}</div></div>
+              <div><div className={styles.dlLabel}>End Date</div><div className={styles.dlValue}>{schedule.end_at ? new Date(schedule.end_at).toLocaleString() : 'Never'}</div></div>
             </div>
           )}
 
@@ -383,6 +404,7 @@ export const ScheduleDetailPage: React.FC = () => {
         requireReason={confirmModal.requireReason}
         onConfirm={handleAction}
         onCancel={() => setConfirmModal({ ...confirmModal, open: false })}
+        isLoading={isActionLoading}
       />
     </div>
   );

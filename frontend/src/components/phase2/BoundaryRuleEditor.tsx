@@ -11,12 +11,20 @@ interface ToolOption {
   capability?: string;
 }
 
+interface DataSourceOption {
+  id: string;
+  source_code?: string;
+  source_name?: string;
+  name?: string;
+}
+
 interface Props {
   allowedTools: string[];
   allowedDataSources: string[];
   blockedOperations: string[];
   onChange: (field: string, value: any) => void;
   toolOptions: ToolOption[];
+  dataSourceOptions?: DataSourceOption[];
 }
 
 const WRITE_MODES = new Set(['WRITE', 'EXECUTE', 'ADMIN']);
@@ -37,8 +45,22 @@ function matchesAllowedTool(allowedTools: string[], tool: ReturnType<typeof norm
   return allowedTools.includes(tool.code) || allowedTools.includes(tool.id);
 }
 
-export const BoundaryRuleEditor: React.FC<Props> = ({ allowedTools, blockedOperations, onChange, toolOptions }) => {
+function normalizeDataSource(ds: DataSourceOption) {
+  const code = ds.source_code || ds.id;
+  return {
+    id: ds.id,
+    code,
+    label: ds.source_name || ds.name || code,
+  };
+}
+
+function matchesAllowedDataSource(allowedDataSources: string[], ds: ReturnType<typeof normalizeDataSource>) {
+  return allowedDataSources.includes(ds.code) || allowedDataSources.includes(ds.id);
+}
+
+export const BoundaryRuleEditor: React.FC<Props> = ({ allowedTools, allowedDataSources, blockedOperations, onChange, toolOptions, dataSourceOptions = [] }) => {
   const tools = useMemo(() => toolOptions.map(normalizeTool), [toolOptions]);
+  const dataSources = useMemo(() => dataSourceOptions.map(normalizeDataSource), [dataSourceOptions]);
 
   const selectedCodes = useMemo(
     () => tools.filter(tool => matchesAllowedTool(allowedTools, tool)).map(tool => tool.code),
@@ -48,6 +70,16 @@ export const BoundaryRuleEditor: React.FC<Props> = ({ allowedTools, blockedOpera
   const selectedTools = useMemo(
     () => tools.filter(tool => matchesAllowedTool(allowedTools, tool)),
     [allowedTools, tools],
+  );
+
+  const selectedDsCodes = useMemo(
+    () => dataSources.filter(ds => matchesAllowedDataSource(allowedDataSources, ds)).map(ds => ds.code),
+    [allowedDataSources, dataSources],
+  );
+
+  const selectedDsObjects = useMemo(
+    () => dataSources.filter(ds => matchesAllowedDataSource(allowedDataSources, ds)),
+    [allowedDataSources, dataSources],
   );
 
   return (
@@ -88,6 +120,41 @@ export const BoundaryRuleEditor: React.FC<Props> = ({ allowedTools, blockedOpera
           </>
         ) : (
           <p className={styles.subText}>No tools available. Register tools in the Registry first.</p>
+        )}
+      </div>
+      <div>
+        <label className={styles.fieldLabel} htmlFor="allowed-data-sources-select">Allowed Data Sources</label>
+        {dataSources.length > 0 ? (
+          <>
+            <select
+              id="allowed-data-sources-select"
+              multiple
+              className={`${styles.formControl} ${styles.multiSelect}`}
+              value={selectedDsCodes}
+              onChange={(e) => {
+                const next = Array.from(e.target.selectedOptions, option => option.value);
+                onChange('allowed_data_sources_json', next);
+              }}
+            >
+              {dataSources.map(ds => (
+                <option key={ds.id} value={ds.code}>
+                  {ds.label}
+                </option>
+              ))}
+            </select>
+            <p className={styles.subText}>Hold Cmd/Ctrl (or Shift) to select multiple data sources.</p>
+            {selectedDsObjects.length > 0 && (
+              <div className={styles.selectedChips}>
+                {selectedDsObjects.map(ds => (
+                  <span key={ds.code} className={styles.tagChip}>
+                    {ds.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className={styles.subText}>No data sources available. Register them in the Registry first.</p>
         )}
       </div>
       <div>

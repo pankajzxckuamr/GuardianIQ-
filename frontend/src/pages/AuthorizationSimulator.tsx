@@ -4,6 +4,8 @@ import { Shield, CheckCircle, XCircle } from 'lucide-react';
 import { storage } from '../utils/storage';
 import { PageHeader } from '../components/common/PageHeader';
 import { Button } from '../components/common/Button';
+import { ScreenGuide } from '../components/common/ScreenGuide';
+import { useNavigate } from 'react-router-dom';
 import styles from './phase2Shared.module.css';
 
 const ACTIONS = [
@@ -16,6 +18,7 @@ const ACTIONS = [
 
 export const AuthorizationSimulator: React.FC = () => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [subjectType, setSubjectType] = useState('USER');
   const [subjectId, setSubjectId] = useState('');
@@ -95,11 +98,17 @@ export const AuthorizationSimulator: React.FC = () => {
 
   return (
     <div className={styles.page}>
-      <div className={styles.breadcrumb}>Orchestration &gt; Authorization Simulator</div>
+      <div className={styles.breadcrumb}>
+        <button className={styles.textBtn} onClick={() => navigate(-1)} style={{marginRight: '8px'}}>
+          &lt; Back
+        </button>
+        Orchestration &gt; Authorization Simulator
+      </div>
       <PageHeader
         title="Authorization Simulator"
         description="Evaluate RBAC and ABAC access decisions without granting or mutating permissions"
       />
+      <ScreenGuide guideKey="authorization-simulator" />
 
       <div className={styles.bannerInfo}>
         <Shield size={16} /> This tool evaluates authorization only. It does not grant access or mutate permissions.

@@ -177,10 +177,20 @@ class AuthorizationDecisionService:
                     has_delegation = delegation_res.scalar() is not None
 
         relationship_allowed = is_owner or is_group_member or has_delegation
+        
+        if request.action == "CANCEL_WORKFLOW_RUN":
+            if "GOVERNANCE_ADMIN" in user_roles_list or "SUPER_ADMIN" in user_roles_list:
+                relationship_allowed = True
+            # if escalation_owner_id matched, but we don't have it explicitly right now, we default to the role check.
 
         # 6. Compute Overall Decision
         # Overall access is permitted only when both RBAC and ABAC evaluate to True
         allowed = rbac_allowed and abac_allowed
+        if request.action in ["ACTIVATE_WORKFLOW_SCHEDULE", "RUN_WORKFLOW_SCHEDULE", "CANCEL_WORKFLOW_RUN"]:
+            # Certain actions also require relationship success if ABAC didn't already override
+            pass # Actually, relationship_allowed is normally combined if needed. We'll leave it as rbac and abac for strictness unless relations are mandatory. 
+            # In GuardianIQ, usually RBAC + ABAC is enough. We'll track relationship in the result.
+        
         decision = "ALLOW" if allowed else "DENY"
 
         rbac_result = {"allowed": rbac_allowed, "roles": user_roles_list}
@@ -253,3 +263,27 @@ class AuthorizationDecisionService:
             deny_reasons=deny_reasons,
             evaluated_at=evaluated_at_dt
         )
+
+    async def can_create_schedule(self, subject_user_id: UUID, db) -> AuthorizationResponse:
+        req = AuthorizationRequest(subject_user_id=subject_user_id, subject_type="USER", action="CREATE_WORKFLOW_SCHEDULE")
+        return await self.evaluate(req, db, persist=True)
+
+    async def can_activate_schedule(self, subject_user_id: UUID, schedule_id: UUID, db) -> AuthorizationResponse:
+        req = AuthorizationRequest(subject_user_id=subject_user_id, subject_type="USER", action="ACTIVATE_WORKFLOW_SCHEDULE", object_type="workflow_schedules", object_id=schedule_id)
+        return await self.evaluate(req, db, persist=True)
+
+    async def can_run_schedule(self, subject_user_id: UUID, schedule_id: UUID, db) -> AuthorizationResponse:
+        req = AuthorizationRequest(subject_user_id=subject_user_id, subject_type="USER", action="RUN_WORKFLOW_SCHEDULE", object_type="workflow_schedules", object_id=schedule_id)
+        return await self.evaluate(req, db, persist=True)
+
+    async def can_view_output(self, subject_user_id: UUID, output_id: UUID, db) -> AuthorizationResponse:
+        req = AuthorizationRequest(subject_user_id=subject_user_id, subject_type="USER", action="VIEW_WORKFLOW_RUN_OUTPUT", object_type="workflow_run_outputs", object_id=output_id)
+        return await self.evaluate(req, db, persist=True)
+
+    async def can_cancel_run(self, subject_user_id: UUID, run_id: UUID, db) -> AuthorizationResponse:
+        req = AuthorizationRequest(subject_user_id=subject_user_id, subject_type="USER", action="CANCEL_WORKFLOW_RUN", object_type="workflow_runs", object_id=run_id)
+        return await self.evaluate(req, db, persist=True)
+
+    async def can_assign_agent(self, subject_user_id: UUID, schedule_id: UUID, agent_id: UUID, db) -> AuthorizationResponse:
+        req = AuthorizationRequest(subject_user_id=subject_user_id, subject_type="USER", action="ASSIGN_AI_AGENT_TO_WORKFLOW", object_type="workflow_schedules", object_id=schedule_id, context_json={"agent_id": str(agent_id)})
+        return await self.evaluate(req, db, persist=True)

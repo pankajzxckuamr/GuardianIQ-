@@ -29,35 +29,53 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs, 0.25rem);
-  background: var(--card-bg, rgba(30, 41, 59, 0.3));
-  border: 1px solid var(--card-border, #334155);
-  border-radius: var(--radius-md, 12px);
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.4));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md, 16px);
   padding: var(--spacing-lg, 1.5rem);
-  transition: border-color var(--transition-speed, 0.2s) ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.2);
 }
 
 .kpiCard:hover {
-  border-color: var(--card-border-hover, rgba(99, 102, 241, 0.35));
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px -4px rgba(99, 102, 241, 0.15);
 }
 
 .kpiLabel {
   font-size: var(--font-size-xs, 0.75rem);
-  font-weight: var(--font-weight-semibold, 600);
+  font-weight: var(--font-weight-bold, 700);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   color: var(--text-secondary, #94a3b8);
 }
 
 .kpiValue {
-  font-size: var(--font-size-3xl, 1.875rem);
-  font-weight: var(--font-weight-bold, 700);
-  color: var(--text-primary, #f8fafc);
-  line-height: 1.1;
+  font-size: 2.25rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #f8fafc, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.2;
 }
 
-.kpiValue.success { color: var(--color-success, #10b981); }
-.kpiValue.warning { color: var(--color-warning, #f59e0b); }
-.kpiValue.danger { color: var(--color-danger, #ef4444); }
+.kpiValue.success { 
+  background: linear-gradient(135deg, #10b981, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.kpiValue.warning { 
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.kpiValue.danger { 
+  background: linear-gradient(135deg, #ef4444, #f87171);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
 /* ── Filter bar ─────────────────────────────────────────────── */
 .filterBar {
@@ -411,19 +429,27 @@
   flex-direction: column;
   gap: var(--spacing-xs, 0.4rem);
   padding: var(--spacing-md, 1rem);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.25s ease;
   text-align: left;
   background: transparent;
-  border-left: none;
+  border-left: 2px solid transparent;
   border-right: none;
   border-top: none;
   width: 100%;
 }
 
-.listItem:hover { background: rgba(99, 102, 241, 0.05); }
-.listItem.selected { background: rgba(99, 102, 241, 0.1); }
+.listItem:hover { 
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.08) 0%, transparent 100%);
+  border-left-color: rgba(99, 102, 241, 0.5);
+  padding-left: 1.25rem;
+}
+.listItem.selected { 
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+  border-left-color: rgba(99, 102, 241, 1);
+  padding-left: 1.25rem;
+}
 
 .listItemTop {
   display: flex;
@@ -647,6 +673,19 @@
 
 .formControl::placeholder { color: var(--text-muted, #64748b); }
 .formControl:focus { border-color: var(--accent-primary, #6366f1); }
+
+.errorControl {
+  border-color: var(--color-danger, #ef4444);
+}
+.errorControl:focus {
+  border-color: var(--color-danger, #ef4444);
+}
+.errorText {
+  display: block;
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-danger, #ef4444);
+  margin-top: 0.25rem;
+}
 
 .multiSelect {
   min-height: 9rem;
@@ -1291,4 +1330,81 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--spacing-md, 1rem);
+}
+
+/* --- Notifications Center Styles --- */
+.notifCard {
+  background: var(--bg-tertiary, #151d30);
+  border: 1px solid var(--card-border, #334155);
+  border-radius: var(--radius-md, 12px);
+  padding: var(--spacing-lg, 1.5rem);
+  margin-bottom: var(--spacing-md, 1rem);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.notifCard:hover {
+  border-color: var(--accent-primary, #6366f1);
+}
+.notifUnread {
+  border-left: 4px solid var(--accent-primary, #6366f1);
+}
+.notifRead {
+  opacity: 0.8;
+}
+.notifHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-sm, 0.75rem);
+}
+.notifMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 0.5rem);
+  flex-wrap: wrap;
+}
+.notifTime {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+}
+.notifActions {
+  display: flex;
+  gap: var(--spacing-sm, 0.5rem);
+}
+.notifTitle {
+  font-size: var(--font-size-base, 1rem);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--text-primary, #f8fafc);
+  margin: 0 0 0.5rem 0;
+}
+.notifMessage {
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-secondary, #94a3b8);
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+.notifFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--card-border, #334155);
+  padding-top: var(--spacing-sm, 0.75rem);
+}
+.notifId {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+  font-family: monospace;
+}
+.notifIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-secondary, #1e293b);
+  color: var(--text-primary, #f8fafc);
+  margin-right: var(--spacing-md, 1rem);
+}
+.notifContent {
+  flex: 1;
 }
