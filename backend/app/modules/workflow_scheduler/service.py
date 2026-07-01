@@ -255,7 +255,7 @@ class WorkflowScheduleService:
         if not val_res["is_valid"]:
             details = [{"field": e.field, "message": e.message} for e in val_res["errors"]]
             raise HTTPException(
-                status_code=400,
+                status_code=422,
                 detail=ResponseHelper.error(
                     message="Validation failed for workflow schedule creation.",
                     error_code="VALIDATION_ERROR",
@@ -407,7 +407,7 @@ class WorkflowScheduleService:
         if not val_res["is_valid"]:
             details = [{"field": e.field, "message": e.message} for e in val_res["errors"]]
             raise HTTPException(
-                status_code=400,
+                status_code=422,
                 detail=ResponseHelper.error(
                     message="Validation failed for workflow schedule update.",
                     error_code="VALIDATION_ERROR",
@@ -665,26 +665,9 @@ class WorkflowScheduleService:
 
         schedule.next_run_at = next_run
         await self.repo.update_status(db, schedule, "ACTIVE")
-        schedule.updated_by = actor_uuid        # Evaluate approval rules if approval is required
-        # Note: Actual approval group lookup is simplified for this demo
-        approval_group_id = None
-        if schedule.approval_required:
-            approval_group_id = resolve_default_approval_group(db)
-            if not approval_group_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail=ResponseHelper.error(message="No approval group configured for this risk level", error_code="INVALID_CONFIG").model_dump()
-                )
+        schedule.updated_by = actor_uuid
         
-        # Trigger activation
-        try:
-            schedule = schedule_fsm.activate_schedule(schedule, approval_group_id=approval_group_id)
-        except ValueError as e:
-            raise WorkflowScheduleStateError(str(e))
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        
-        self.repo.save(db, schedule)
+        db.add(schedule)
         
         history_rec = WorkflowScheduleHistory(
             id=uuid4(),

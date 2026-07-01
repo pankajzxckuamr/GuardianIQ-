@@ -328,7 +328,7 @@ class WorkflowRunTests(unittest.TestCase):
         self.db.refresh(run)
         self.assertEqual(run.run_status, "COMPLETED")
         self.assertIsNotNone(run.completed_at)
-        self.assertTrue(len(run.steps) == 6) # Validation, Boundary, Invocation, Parsing, Audit, Notification
+        self.assertTrue(len(run.steps) == 4) # POLICY_CHECK, AGENT_INVOCATION, OUTPUT_PARSE, AUDIT_PUBLISH
 
         # Verify output parsed successfully
         self.assertTrue(len(run.outputs) == 1)
@@ -385,7 +385,7 @@ class WorkflowRunTests(unittest.TestCase):
         self.assertEqual(steps_response.status_code, 200)
         steps_data = steps_response.json()
         self.assertTrue(steps_data["success"])
-        self.assertEqual(len(steps_data["data"]), 6)
+        self.assertEqual(len(steps_data["data"]), 4)
 
         # 5. Outputs REST route (Test permission masking)
         # Note: Admin should have VIEW_WORKFLOW_RUN_OUTPUT permission (allow path)

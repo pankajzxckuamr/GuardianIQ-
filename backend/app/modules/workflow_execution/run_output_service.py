@@ -36,6 +36,11 @@ class RunOutputService:
             for r in parsed_output.recommendations
         ]
         
+        from app.modules.workflow_execution.models import WorkflowRun
+        from app.shared.db_compat import db_get
+        run = await db_get(db, WorkflowRun, run_id)
+        tenant_id = run.tenant_id if run else None
+        
         output = WorkflowRunOutput(
             id=uuid4(),
             run_id=run_id,
@@ -47,7 +52,7 @@ class RunOutputService:
             evidence_json=parsed_output.evidence,
             raw_output_json={"raw": parsed_output.raw_output} if parsed_output.raw_output else {},
             parse_status=parsed_output.parse_status,
-            tenant_id=None # Defaulting, assuming the caller can patch or the DB populates it
+            tenant_id=tenant_id
         )
         db.add(output)
         await db_flush(db)

@@ -250,7 +250,7 @@ class WorkflowRunService:
             step_audit.started_at = datetime.now(timezone.utc)
             await db_flush(db)
 
-            run = await self.complete_run(run_id, db)
+            run = await self.complete_run(run_id, db, primary_assignment=primary_assignment, parsed_output=parsed_output)
             
             # Check for high/critical outputs for escalation
             if self.run_output_service.check_high_risk(parsed_output):
@@ -286,7 +286,7 @@ class WorkflowRunService:
         except Exception as e:
             await self.fail_run(run_id, "EXECUTION_FAILURE", "SYSTEM_ERROR", str(e), None, db)
 
-    async def complete_run(self, run_id: UUID, db) -> WorkflowRun:
+    async def complete_run(self, run_id: UUID, db, primary_assignment=None, parsed_output=None) -> WorkflowRun:
         run = await db_get(db, WorkflowRun, run_id)
         if not run:
             raise HTTPException(status_code=404, detail="Workflow run not found")
@@ -312,7 +312,7 @@ class WorkflowRunService:
             agent_id=primary_assignment.agent_id if primary_assignment else None,
             duration_ms=run.duration_ms,
             risk_level=run.risk_level,
-            outputs_summary={"findings_count": parsed_output.findings_count, "recommendations_count": parsed_output.recommendations_count} if parsed_output else {},
+            outputs_summary={"findings_count": len(parsed_output.findings), "recommendations_count": len(parsed_output.recommendations)} if parsed_output else {},
             db=db
         )
         return run

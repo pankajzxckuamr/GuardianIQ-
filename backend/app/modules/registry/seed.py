@@ -12,7 +12,16 @@ def seed_registry_data(db: Session):
         {"role_code": "REVIEWER", "role_name": "Reviewer", "role_type": "BUSINESS"},
         {"role_code": "APPROVER", "role_name": "Approver", "role_type": "BUSINESS"},
         {"role_code": "AUDITOR", "role_name": "Auditor", "role_type": "SYSTEM"},
-        {"role_code": "BUSINESS_OWNER", "role_name": "Business Owner", "role_type": "BUSINESS"}
+        {"role_code": "BUSINESS_OWNER", "role_name": "Business Owner", "role_type": "BUSINESS"},
+        
+        # Aligned Phase 2 User Personas
+        {"role_code": "SYSTEM_ADMIN", "role_name": "System Admin", "role_type": "SYSTEM"},
+        {"role_code": "GOVERNANCE_ADMIN", "role_name": "Governance Admin", "role_type": "BUSINESS"},
+        {"role_code": "AI_ASSET_OWNER", "role_name": "AI Asset Owner", "role_type": "BUSINESS"},
+        {"role_code": "AI_REVIEWER", "role_name": "AI Reviewer", "role_type": "BUSINESS"},
+        {"role_code": "BUSINESS_APPROVER", "role_name": "Business Approver", "role_type": "BUSINESS"},
+        {"role_code": "RISK_MANAGER", "role_name": "Risk Manager", "role_type": "BUSINESS"},
+        {"role_code": "COMPLIANCE_OFFICER", "role_name": "Compliance Officer", "role_type": "BUSINESS"}
     ]
     fixed_test_role_id = UUID("82b9ee67-2349-4120-91eb-ea19e84e841d")
     fixed_test_role = db.get(RegistryRole, fixed_test_role_id)
@@ -49,17 +58,23 @@ def seed_registry_data(db: Session):
 
     # Idempotent seed: guardian_users
     users_data = [
-        {"email": "admin@guardianiq.com", "full_name": "Admin User", "role_code": "ADMIN"},
-        {"email": "reviewer@guardianiq.com", "full_name": "Reviewer User", "role_code": "REVIEWER"},
+        {"email": "admin@guardianiq.com", "full_name": "Admin User", "role_code": "SYSTEM_ADMIN"},
+        {"email": "reviewer@guardianiq.com", "full_name": "Reviewer User", "role_code": "AI_REVIEWER"},
         {"email": "auditor@guardianiq.com", "full_name": "Auditor User", "role_code": "AUDITOR"}
     ]
     for user_info in users_data:
         existing = db.execute(select(GuardianUser).filter_by(email=user_info["email"])).scalar_one_or_none()
-        if not existing:
-            role = db.execute(select(RegistryRole).filter_by(role_code=user_info["role_code"])).scalar_one_or_none()
-            dept = db.execute(select(RegistryDepartment).filter_by(department_code="COMPLIANCE")).scalar_one_or_none()
-            if not dept:
-                dept = db.execute(select(RegistryDepartment)).scalars().first()
+        role = db.execute(select(RegistryRole).filter_by(role_code=user_info["role_code"])).scalar_one_or_none()
+        dept = db.execute(select(RegistryDepartment).filter_by(department_code="COMPLIANCE")).scalar_one_or_none()
+        if not dept:
+            dept = db.execute(select(RegistryDepartment)).scalars().first()
+        
+        if existing:
+            if role:
+                existing.role_id = role.id
+            if dept:
+                existing.department_id = dept.id
+        else:
             if role and dept:
                 new_user = GuardianUser(
                     email=user_info["email"],

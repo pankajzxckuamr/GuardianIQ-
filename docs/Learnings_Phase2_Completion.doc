@@ -1,0 +1,223 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>GuardianIQ Phase 2 completion - Project Learnings Sheet</title>
+<!--[if gte mso 9]>
+<xml>
+ <w:WordDocument>
+  <w:View>Print</w:View>
+  <w:Zoom>100</w:Zoom>
+  <w:DoNotOptimizeForBrowser/>
+ </w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+body {
+    font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.4;
+    color: #333333;
+    margin: 1in;
+}
+h1 {
+    font-family: 'Calibri Light', 'Segoe UI Light', sans-serif;
+    font-size: 20pt;
+    color: #1F4E78;
+    border-bottom: 2px solid #1F4E78;
+    padding-bottom: 6px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+}
+h2 {
+    font-family: 'Calibri Light', 'Segoe UI Light', sans-serif;
+    font-size: 14pt;
+    color: #2E74B5;
+    margin-top: 18px;
+    margin-bottom: 8px;
+}
+p {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+th {
+    background-color: #1F4E78;
+    color: #FFFFFF;
+    font-weight: bold;
+    border: 1px solid #D3D3D3;
+    padding: 8px;
+    text-align: left;
+    font-size: 9.5pt;
+}
+td {
+    border: 1px solid #D3D3D3;
+    padding: 8px;
+    font-size: 9pt;
+    vertical-align: top;
+}
+tr:nth-child(even) td {
+    background-color: #F2F5F8;
+}
+.instruction-box {
+    background-color: #F9F9F9;
+    border-left: 4px solid #007ACC;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 10pt;
+}
+.note {
+    font-style: italic;
+    color: #666666;
+}
+</style>
+</head>
+<body>
+
+<h1>GuardianIQ — Phase 2 Completion: Project Learnings Sheet</h1>
+
+<div class="instruction-box">
+    <strong>Instructions for use:</strong> This document contains the completed learnings data for the GuardianIQ Phase 2 project, structured exactly like your spreadsheet. You can copy the contents of the table below directly into the cells of your Excel sheet, or use this document to submit your Phase 2 learnings report.
+</div>
+
+<h2>Table 1: Learnings Matrix (For Spreadsheet Import)</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 5%;">S. No.</th>
+      <th style="width: 15%;">Reference</th>
+      <th style="width: 25%;">Problem Statement</th>
+      <th style="width: 25%;">Solution Provided</th>
+      <th style="width: 25%;">Learning</th>
+      <th style="width: 10%;">Updated By</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>WBS 2.3 & 2.5 (Workflow Lifecycle &amp; State Machines)</td>
+      <td>Implementation of complex scheduling and execution workflows without detailed specifications leads to gaps in status transition validation, timezone handling, and execution sequencing.</td>
+      <td>Conducted a thorough audit of the scheduler and run services against the Phase 2 Developer Spec, adding rigorous validations for cron patterns, timezone settings, and state machine transitions.</td>
+      <td>Understanding the implementation and workflow is more important before coding. Specifications act as a blueprint to avoid architectural misalignment and logic gaps.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>WBS 2.7 (RBAC &amp; ABAC Authorization)</td>
+      <td>Securing sensitive API endpoints and restricting action buttons in UI (add, edit, delete, run-now) based on roles, hierarchy, and context without a standardized access control model.</td>
+      <td>Implemented a comprehensive Authorization Decision Service combining RBAC (role-based) and ABAC (attribute-based, department, risk levels, and delegations) checks. Added screen-level button visibility controls and an authorization simulator.</td>
+      <td>Hierarchy, add, edit, and ABAC control mechanisms must map to a screen for each user type. Restricting views and actions based on user contexts prevents unauthorized overrides.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>WBS 2.1 (Database Schema and Migration)</td>
+      <td>Database tables lacked constraints, proper indexes on high-query JSONB columns, and automatic timestamp updates, risking data corruption and poor performance.</td>
+      <td>Added schema migrations defining tables for schedules, assignments, runs, steps, and audit events. Configured unique keys, GIN indexes on JSONB fields, and updated_at triggers.</td>
+      <td>Database schema integrity is the foundation of AI governance. Applying constraints, GIN indexes on JSONB, and automated audit triggers ensures reliable execution tracking.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>WBS 2.2 (SQLAlchemy Models and validation)</td>
+      <td>Risk of saving invalid cron schedules, mismatched execution modes, or incorrect timezone configurations due to lack of validation on input payloads.</td>
+      <td>Implemented SQLAlchemy models using Postgres-specific JSONB fields and designed Pydantic request schemas with custom validators for cron syntax, timezone verification, and confidence boundaries.</td>
+      <td>Moving validation to the schema input boundary (Pydantic field validators) catches invalid configurations before they hit the database, reducing backend complexity.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>WBS 2.4 (AI Agent Boundary Checker)</td>
+      <td>AI agents could execute unauthorized tools or exceed their permitted execution modes, leading to security breaches (e.g. executing write/execute tools).</td>
+      <td>Created the BoundaryChecker service to statically and dynamically validate tool calls, block execution if requested mode exceeds agent limits, and flag schedules containing write-capable tools for human approval.</td>
+      <td>Secure AI automation requires active boundary checks at both assignment (configuration) and execution (runtime) stages. Any write-capable tools must automatically trigger human-in-the-loop approvals.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>WBS 2.5 (Run Engine and Steps Timeline)</td>
+      <td>Monitoring complex multi-agent execution was difficult due to lack of visibility into intermediate states, execution times, and transient failure recovery.</td>
+      <td>Built a 6-step run engine generating 4 distinct audit steps (POLICY_CHECK, BOUNDARY_CHECK, AGENT_INVOCATION, OUTPUT_PARSING) persisted to the database. Added SLA breach tracking and retry policies.</td>
+      <td>Breaking down agent execution into discrete, persisted run steps provides deep visibility. Tracking failures by types (validation, SLA, boundary, database) allows fine-grained error recovery.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>WBS 2.6 (Scheduler Worker Concurrency)</td>
+      <td>Running multiple worker instances in a horizontal scaling setup caused duplicate runs of the same due schedule.</td>
+      <td>Rewrote the due schedule query to use database-level locking <code style="font-family: Consolas, monospace; font-size: 8.5pt; color: #7F0055;">FOR UPDATE SKIP LOCKED</code> and updated <code style="font-family: Consolas, monospace; font-size: 8.5pt; color: #7F0055;">next_run_at</code> inside the locked transaction.</td>
+      <td>In a distributed deployment, atomic locking (<code style="font-family: Consolas, monospace; font-size: 8.5pt; color: #7F0055;">FOR UPDATE SKIP LOCKED</code>) is mandatory to guarantee exact-once execution and prevent duplicate triggers.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>WBS 2.8 (Centralized Governance Event Logs)</td>
+      <td>Lack of a centralized, tampering-resistant audit log for actions like schedule creation, activation, run failure, and boundary checks.</td>
+      <td>Developed the GovernanceEventService to publish 19 distinct event codes to a unified <code style="font-family: Consolas, monospace; font-size: 8.5pt; color: #7F0055;">audit_events</code> table and attached a database trigger that rejects updates or deletes (immutability).</td>
+      <td>Compliance logs must be immutable. Implementing database-level triggers that block updates/deletes ensures audit trail integrity, satisfying stringent security regulations.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td>WBS 2.9 &amp; 2.10 (Create Wizard &amp; Dashboard UX)</td>
+      <td>Configuring schedules, agent assignments, and boundaries is complex for end-users, leading to setup mistakes.</td>
+      <td>Designed a 6-step Create Schedule Wizard including a CronExpressionBuilder, dynamic risk-warning banners, and permission-based action visibility on the dashboard.</td>
+      <td>Intricate security policies (like tool blocks and risk levels) must be guided by clean wizard-based UI designs, alert banners, and interactive builders to eliminate user configuration errors.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td>WBS 2.11 &amp; 2.12 (Run Detail &amp; Approval Queue UI)</td>
+      <td>Approvers and auditors lacked intuitive tools to review pending changes, see run steps timeline, or inspect evidence.</td>
+      <td>Built the Approval Queue table, details panel (highlighting write tools and risk warnings), and Run Detail Page showing an interactive steps timeline, findings, and JSON evidence viewer.</td>
+      <td>Visualizing the execution timeline (with colored status states) and highlighting high-risk actions (in amber/red) makes human review efficient and reduces sign-off delays.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td>WBS 2.13 (Test Suite Integrity)</td>
+      <td>Hidden setup bugs in the testing suite (like the tool allowlist default override) caused false positives, indicating security checks were working when they were bypassed.</td>
+      <td>Patched tool allowlist logic in test fixtures to handle empty lists explicitly and expanded authorization negative tests to cover 22 scenarios.</td>
+      <td>Test suites must be audited as closely as production code. Default overrides in test fixtures can lead to silent test coverage gaps, especially for security assertions.</td>
+      <td>AI Developer</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td>WBS 2.14 &amp; 2.15 (Deployment and Dev Documentation)</td>
+      <td>Onboarding new developers and deploying to production was prone to human error due to the lack of clear setup steps and architectural maps.</td>
+      <td>Documented a detailed 13-step startup sequence in <code style="font-family: Consolas, monospace; font-size: 8.5pt; color: #7F0055;">DEPLOYMENT.md</code>, drew Mermaid architecture diagrams, and added interactive help guides (ScreenGuides) across all frontend screens.</td>
+      <td>A project is not complete without comprehensive developer and deployment documentation. Contextual help widgets in the UI bridge the gap between technical specs and user operations.</td>
+      <td>AI Developer</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Detailed Section: What Material Should Go Where</h2>
+
+<h3>Column 1: S. No.</h3>
+<p>Enter chronological numbering starting from 1 up to 12.</p>
+
+<h3>Column 2: Reference</h3>
+<p>Put the module or design document package reference here. This maps the learnings directly back to the project structure (e.g., database schema, scheduling engines, API design, security frameworks, frontend UI, or DevOps configuration).</p>
+
+<h3>Column 3: Problem Statement</h3>
+<p>Put the technical challenge or functional requirement gap that the project had to resolve during Phase 2. This describes why the task was necessary and what would fail if it weren't implemented.</p>
+
+<h3>Column 4: Solution Provided</h3>
+<p>Put the engineering solution that was implemented in the code (e.g., adding triggers, building services, creating new UI components, or rewriting SQL queries to use locks) to address the corresponding Problem Statement.</p>
+
+<h3>Column 5: Learning</h3>
+<p>Put the development takeaway, security rule, or architectural best practice discovered by the team while implementing the solution. Note: Rows 1 and 2 incorporate and expand upon your handwritten draft notes ("Understanding the implementation and workflow..." and "Heirarchy, add, edit, abac...") into clear, professional statements.</p>
+
+<h3>Column 6: Updated By</h3>
+<p>Insert the name of the role or team member who executed the work and documented the learnings (e.g., "AI Developer", "Aayush", or the designated QA Lead).</p>
+
+</body>
+</html>

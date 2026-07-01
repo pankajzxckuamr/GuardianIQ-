@@ -61,7 +61,7 @@ async def get_user_roles(user_id: UUID, db) -> list[str]:
     return roles
 
 async def is_in_approval_group(user_id: UUID, approval_group_id: UUID, db) -> bool:
-    member_stmt = select(ApprovalGroupMember.id).where(
+    member_stmt = select(ApprovalGroupMember.user_id).where(
         ApprovalGroupMember.approval_group_id == approval_group_id,
         ApprovalGroupMember.user_id == user_id
     )

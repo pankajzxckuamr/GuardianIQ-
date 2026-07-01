@@ -215,23 +215,38 @@ class AuthorizationIntegrationTests(unittest.TestCase):
         self.db.commit()
         self.schedules_to_cleanup.append(schedule.id)
 
-        # 2. Evaluate with admin (RBAC passes, but admin is NOT in the approval group, and no active delegation)
-        payload = {
-            "subject_user_id": str(self.admin_uuid),
-            "object_type": "workflow_schedules",
-            "object_id": str(schedule.id),
-            "action": "ACTIVATE_WORKFLOW_SCHEDULE",
-            "context_json": {}
-        }
-        response = self.client.post("/api/v1/authorization/evaluate", json=payload, headers=self.headers)
-        self.assertEqual(response.status_code, 200)
-        
-        res_data = response.json()["data"]
-        self.assertFalse(res_data["allowed"])
-        self.assertEqual(res_data["decision"], "DENY")
-        self.assertTrue(res_data["rbac_result"]["allowed"])
-        self.assertFalse(res_data["abac_result"]["allowed"])
-        self.assertIn("High risk schedules require approval group membership", res_data["deny_reasons"][0])
+        # Temporarily remove SUPER_ADMIN role so we can test the restricted GOVERNANCE_ADMIN constraints
+        admin_user = self.db.query(User).filter(User.email == "admin@guardianiq.com").first()
+        super_role = self.db.query(Role).filter(Role.role_code == "SUPER_ADMIN").first()
+        removed_super = False
+        if admin_user and super_role and super_role in admin_user.roles:
+            admin_user.roles.remove(super_role)
+            self.db.commit()
+            removed_super = True
+
+        try:
+            # 2. Evaluate with admin (RBAC passes, but admin is NOT in the approval group, and no active delegation)
+            payload = {
+                "subject_user_id": str(self.admin_uuid),
+                "object_type": "workflow_schedules",
+                "object_id": str(schedule.id),
+                "action": "ACTIVATE_WORKFLOW_SCHEDULE",
+                "context_json": {}
+            }
+            response = self.client.post("/api/v1/authorization/evaluate", json=payload, headers=self.headers)
+            self.assertEqual(response.status_code, 200)
+            
+            res_data = response.json()["data"]
+            self.assertFalse(res_data["allowed"])
+            self.assertEqual(res_data["decision"], "DENY")
+            self.assertTrue(res_data["rbac_result"]["allowed"])
+            self.assertFalse(res_data["abac_result"]["allowed"])
+            self.assertIn("High risk schedules require approval group membership", res_data["deny_reasons"][0])
+        finally:
+            # Restore SUPER_ADMIN role
+            if removed_super and admin_user and super_role and super_role not in admin_user.roles:
+                admin_user.roles.append(super_role)
+                self.db.commit()
 
     def test_decision_persisted_to_workflow_authorization_decisions(self):
         # 1. Create schedule

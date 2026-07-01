@@ -1,0 +1,138 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0
+rootdir: C:\Users\aayus\Desktop\GuardianIQ--1\backend
+plugins: anyio-4.13.0
+collected 1 item
+
+app\tests\test_workflow_scheduler.py F
+
+================================== FAILURES ===================================
+__________ WorkflowSchedulerTests.test_schedule_lifecycle_endpoints ___________
+app\tests\test_workflow_scheduler.py:432: in test_schedule_lifecycle_endpoints
+    self.assertFalse(pause_response_ret.json()["success"])
+E   AssertionError: True is not false
+============================== warnings summary ===============================
+venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app\core\config.py:4
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\core\config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class Settings(BaseSettings):
+
+app\modules\audit\schemas.py:21
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\audit\schemas.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AuditEventResponse(BaseModel):
+
+app\modules\auth\schemas.py:20
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\auth\schemas.py:20: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class PermissionResponse(BaseModel):
+
+app\modules\auth\schemas.py:29
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\auth\schemas.py:29: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RoleResponse(BaseModel):
+
+app\modules\department\schemas.py:12
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\department\schemas.py:12: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DepartmentResponse(BaseModel):
+
+app\modules\policy\schemas.py:23
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\policy\schemas.py:23: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class PolicyResponse(BaseModel):
+
+app\modules\datasource\schemas.py:18
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\datasource\schemas.py:18: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DataSourceResponse(BaseModel):
+
+app\modules\ai_model\schemas.py:26
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\ai_model\schemas.py:26: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AIModelResponse(AIModelBase):
+
+app\modules\agent\schemas.py:20
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\agent\schemas.py:20: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AgentResponse(AgentBase):
+
+app\modules\recommendation\schemas.py:32
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\recommendation\schemas.py:32: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RecommendationResponse(RecommendationBase):
+
+app\modules\approval\schemas.py:21
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\approval\schemas.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ApprovalResponse(ApprovalBase):
+
+app\modules\registry\schemas.py:39
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:39: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ProviderResponse(ProviderBase):
+
+app\modules\registry\schemas.py:90
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:90: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AIModelResponse(AIModelBase):
+
+app\modules\registry\schemas.py:144
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:144: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AIAgentResponse(AIAgentBase):
+
+app\modules\registry\schemas.py:203
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:203: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ToolResponse(ToolBase):
+
+app\modules\registry\schemas.py:256
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:256: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class WorkflowResponse(WorkflowBase):
+
+app\modules\registry\schemas.py:300
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:300: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DepartmentResponse(DepartmentBase):
+
+app\modules\registry\schemas.py:316
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:316: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DepartmentLookup(BaseModel):
+
+app\modules\registry\schemas.py:341
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:341: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RoleResponse(RoleBase):
+
+app\modules\registry\schemas.py:357
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:357: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RoleLookup(BaseModel):
+
+app\modules\registry\schemas.py:384
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:384: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class GuardianUserResponse(GuardianUserBase):
+
+app\modules\registry\schemas.py:400
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:400: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class GuardianUserLookup(BaseModel):
+
+app\modules\registry\schemas.py:441
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:441: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class DataSourceResponse(DataSourceBase):
+
+app\modules\registry\schemas.py:468
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:468: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RelationshipResponse(BaseModel):
+
+app\modules\registry\schemas.py:497
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:497: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AuditResponse(BaseModel):
+
+app\modules\registry\schemas.py:557
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\registry\schemas.py:557: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class RegisterAllResponse(RegisterAllBase):
+
+app\modules\orchestration\routes.py:27
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\app\modules\orchestration\routes.py:27: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ReasonRequest(BaseModel):
+
+app/tests/test_workflow_scheduler.py: 11 warnings
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\venv\Lib\site-packages\sqlalchemy\sql\schema.py:3623: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore
+
+app/tests/test_workflow_scheduler.py::WorkflowSchedulerTests::test_schedule_lifecycle_endpoints
+  C:\Users\aayus\Desktop\GuardianIQ--1\backend\venv\Lib\site-packages\pydantic\main.py:263: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED app/tests/test_workflow_scheduler.py::WorkflowSchedulerTests::test_schedule_lifecycle_endpoints
+======================= 1 failed, 40 warnings in 8.50s ========================

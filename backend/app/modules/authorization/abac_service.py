@@ -36,7 +36,7 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
         
         # Risk level approval check
         if risk_level in ["HIGH", "CRITICAL"]:
-            if "RISK_MANAGER" not in user_roles and "GOVERNANCE_ADMIN" not in user_roles and "SUPER_ADMIN" not in user_roles:
+            if "RISK_MANAGER" not in user_roles and "SUPER_ADMIN" not in user_roles:
                 is_member = False
                 has_deleg = False
                 if approval_group_id and user_id:
@@ -116,9 +116,13 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
 
         ROLE_CLEARANCE = {
             "SUPER_ADMIN": "CONFIDENTIAL",
+            "SYSTEM_ADMIN": "CONFIDENTIAL",
             "GOVERNANCE_ADMIN": "CONFIDENTIAL",
             "RISK_MANAGER": "CONFIDENTIAL",
+            "COMPLIANCE_OFFICER": "CONFIDENTIAL",
             "AI_REVIEWER": "CONFIDENTIAL",
+            "AI_ASSET_OWNER": "CONFIDENTIAL",
+            "BUSINESS_APPROVER": "RESTRICTED",
             "AUDITOR": "RESTRICTED",
             "BUSINESS_USER": "INTERNAL"
         }

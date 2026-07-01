@@ -9,6 +9,8 @@ from app.modules.workflow_scheduler.models import (
     ApprovalGroup, Phase2WorkflowSchedule, WorkflowScheduleAgentAssignment, ApprovalGroupMember
 )
 from app.modules.workflow_execution.models import WorkflowRun
+from app.modules.auth.models import User as RBACUser, Role as RBACRole
+from app.core.security import hash_password
 import json
 
 logging.basicConfig(level=logging.INFO)
@@ -40,18 +42,42 @@ def seed_data():
         ]
         user_ids = {}
         for name, role_code, email in users_data:
+            r_role = db.query(RegistryRole).filter_by(role_code=role_code).first()
+            if not r_role:
+                r_role = role
+                
             user = db.query(GuardianUser).filter_by(email=email).first()
             if not user:
                 user = GuardianUser(
                     full_name=name.replace('_', ' ').title(),
                     email=email,
                     department_id=dept.id,
-                    role_id=role.id,
+                    role_id=r_role.id,
                     status="ACTIVE"
                 )
                 db.add(user)
                 db.flush()
+            else:
+                user.role_id = r_role.id
+                db.flush()
             user_ids[name] = user.id
+
+            # Ensure user also exists in RBAC tables for authorization
+            rbac_user = db.query(RBACUser).filter_by(email=email).first()
+            if not rbac_user:
+                rbac_user = RBACUser(
+                    name=name.replace('_', ' ').title(),
+                    email=email,
+                    hashed_password=hash_password("Admin@1234!")
+                )
+                db.add(rbac_user)
+                db.flush()
+            
+            rbac_role = db.query(RBACRole).filter_by(role_code=role_code).first()
+            if rbac_role and rbac_role not in rbac_user.roles:
+                rbac_user.roles.append(rbac_role)
+                db.flush()
+            
             logger.info(f"User {name} processed.")
 
         # Approval Group

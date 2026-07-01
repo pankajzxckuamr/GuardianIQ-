@@ -22,6 +22,7 @@ class ScheduleNotificationService:
 
         for user_id in recipients:
             notification = WorkflowNotification(
+                tenant_id=schedule.tenant_id,
                 recipient_user_id=user_id,
                 notification_type='APPROVAL_REQUIRED',
                 title=f"Approval required for schedule {schedule.schedule_name}",
@@ -39,6 +40,7 @@ class ScheduleNotificationService:
         notif_type = 'ACTIVATION_APPROVED' if status == 'APPROVED' else 'ACTIVATION_REJECTED'
         
         notification = WorkflowNotification(
+            tenant_id=schedule.tenant_id,
             recipient_user_id=schedule.owner_user_id,
             notification_type=notif_type,
             title=f"Schedule {schedule.schedule_name} {status}",
@@ -75,6 +77,7 @@ class ScheduleNotificationService:
 
         for user_id in recipients:
             notification = WorkflowNotification(
+                tenant_id=run.tenant_id,
                 recipient_user_id=user_id,
                 notification_type='RUN_FAILED',
                 title=f"Workflow Run Failed: {run.run_code}",
@@ -107,6 +110,7 @@ class ScheduleNotificationService:
 
         for user_id in recipients:
             notification = WorkflowNotification(
+                tenant_id=run.tenant_id,
                 recipient_user_id=user_id,
                 notification_type='SLA_BREACHED',
                 title=f"SLA Breach: {run.run_code}",
@@ -137,6 +141,7 @@ class ScheduleNotificationService:
 
         for user_id in recipients:
             notification = WorkflowNotification(
+                tenant_id=run.tenant_id,
                 recipient_user_id=user_id,
                 notification_type='HIGH_RISK_OUTPUT',
                 title=f"High Risk Output Detected: {run.run_code}",
@@ -166,6 +171,7 @@ class ScheduleNotificationService:
 
         for user_id in recipients:
             notification = WorkflowNotification(
+                tenant_id=schedule.tenant_id if schedule else actor_id,
                 recipient_user_id=user_id,
                 notification_type='AUTHORIZATION_DENIED',
                 title=f"Authorization Denied: {schedule.schedule_name if schedule else 'Unknown'}",
@@ -190,6 +196,7 @@ class ScheduleNotificationService:
 
         for user_id in recipients:
             notification = WorkflowNotification(
+                tenant_id=schedule.tenant_id,
                 recipient_user_id=user_id,
                 notification_type='SCHEDULE_PAUSED',
                 title=f"Schedule Paused Automatically: {schedule.schedule_name}",
