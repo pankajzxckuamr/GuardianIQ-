@@ -146,17 +146,20 @@ export const ScheduleApprovalQueue: React.FC = () => {
   return (
     <div className={styles.page}>
       <div className={styles.breadcrumb}>Orchestration &gt; Schedule Approvals</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <PageHeader
-          title="Schedule Approvals"
-          description="Review and authorize workflow schedule configurations"
-        />
-        <ScreenGuide
-          id="approval-queue-guide"
-          title="Approval Queue"
-          description="Review schedules that require your approval due to risk level or tool assignments. Select a schedule to view its details and record your decision."
-        />
-      </div>
+      <PageHeader
+        title="Schedule Approvals"
+        description="Review and authorize workflow schedule configurations"
+        actions={
+          <ScreenGuide
+            content={
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Approval Queue</h4>
+                <p style={{ margin: 0 }}>Review schedules that require your approval due to risk level or tool assignments. Select a schedule to view its details and record your decision.</p>
+              </div>
+            }
+          />
+        }
+      />
 
       <div className={styles.kpiGrid} style={{ marginBottom: '24px' }}>
         <div className={styles.kpiCard}>

@@ -12,7 +12,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.future import select
 
-from app.modules.registry.models import RegistryWorkflow, RegistryAIAgent, RegistryAIModel, RegistryDataSource
+from app.modules.registry.models import RegistryWorkflow, RegistryAIAgent, RegistryAIModel, RegistryDataSource, RegistryTool
 from app.modules.audit.event_service import GovernanceEventService
 from app.modules.audit.event_codes import WorkflowEventCode
 from app.shared.db_compat import db_get, execute_statement
@@ -59,11 +59,26 @@ class BoundaryChecker:
         # 2. Check data sources
         allowed_data_sources = assignment_payload.get("allowed_data_sources_json", [])
         for ds in allowed_data_sources:
-            stmt = sa.select(RegistryDataSource).where(
-                RegistryDataSource.name == ds, 
-                RegistryDataSource.is_deleted == False,
-                RegistryDataSource.status == "ACTIVE"
-            )
+            is_uuid = False
+            try:
+                UUID(ds)
+                is_uuid = True
+            except ValueError:
+                pass
+            
+            if is_uuid:
+                stmt = sa.select(RegistryDataSource).where(
+                    RegistryDataSource.id == UUID(ds),
+                    RegistryDataSource.status == "ACTIVE"
+                )
+            else:
+                stmt = sa.select(RegistryDataSource).where(
+                    sa.or_(
+                        RegistryDataSource.source_code == ds,
+                        RegistryDataSource.source_name == ds
+                    ),
+                    RegistryDataSource.status == "ACTIVE"
+                )
             res = await execute_statement(db, stmt)
             if not res.scalar():
                 errors.append(f"Data source {ds} is not ACTIVE or does not exist")
@@ -85,7 +100,24 @@ class BoundaryChecker:
     async def validate_runtime_boundary(self, assignment, tool_name: str, operation: str, db) -> tuple[bool, str | None]:
         # 1. tool_name in allowed_tools_json
         allowed_tools = assignment.allowed_tools_json or []
-        if tool_name not in allowed_tools:
+        
+        # Get both tool code and name from DB to check against allowed_tools
+        stmt = sa.select(RegistryTool).where(
+            sa.or_(
+                RegistryTool.tool_name == tool_name,
+                RegistryTool.tool_code == tool_name
+            ),
+            RegistryTool.status == "ACTIVE"
+        )
+        res = await execute_statement(db, stmt)
+        tool_obj = res.scalar()
+        
+        # We check both identifiers
+        identifiers = [tool_name]
+        if tool_obj:
+            identifiers.extend([tool_obj.tool_code, tool_obj.tool_name])
+            
+        if not any(ident in allowed_tools for ident in identifiers):
             reason = f"Tool {tool_name} is not in allowed_tools_json"
             await self._publish_failure(assignment, reason, db)
             return False, reason

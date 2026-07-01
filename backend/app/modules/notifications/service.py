@@ -148,3 +148,56 @@ class ScheduleNotificationService:
             )
             await self.adapter.send(notification, db)
         await db_flush(db)
+
+    async def notify_authorization_denied(self, schedule, actor_id, reason, severity, db):
+        recipients = []
+        if actor_id:
+            recipients.append(actor_id)
+        if schedule:
+            recipients.append(schedule.owner_user_id)
+            
+        if severity in ['HIGH', 'CRITICAL']:
+            stmt = select(GuardianUser.id).join(RegistryRole).where(RegistryRole.role_code.in_(['GOVERNANCE_ADMIN', 'SECURITY_ADMIN']))
+            res = await execute_statement(db, stmt)
+            admins = res.scalars().all()
+            recipients.extend(admins)
+
+        recipients = list(set([r for r in recipients if r]))
+
+        for user_id in recipients:
+            notification = WorkflowNotification(
+                recipient_user_id=user_id,
+                notification_type='AUTHORIZATION_DENIED',
+                title=f"Authorization Denied: {schedule.schedule_name if schedule else 'Unknown'}",
+                message=f"Action denied. Reason: {reason}",
+                severity=severity,
+                entity_type='WORKFLOW_SCHEDULE',
+                entity_id=schedule.id if schedule else None,
+                status='UNREAD'
+            )
+            await self.adapter.send(notification, db)
+        await db_flush(db)
+
+    async def notify_schedule_paused_automatically(self, schedule, reason, db):
+        recipients = [schedule.owner_user_id]
+        
+        stmt = select(GuardianUser.id).join(RegistryRole).where(RegistryRole.role_code == 'GOVERNANCE_ADMIN')
+        res = await execute_statement(db, stmt)
+        admins = res.scalars().all()
+        recipients.extend(admins)
+
+        recipients = list(set([r for r in recipients if r]))
+
+        for user_id in recipients:
+            notification = WorkflowNotification(
+                recipient_user_id=user_id,
+                notification_type='SCHEDULE_PAUSED',
+                title=f"Schedule Paused Automatically: {schedule.schedule_name}",
+                message=f"Schedule {schedule.schedule_code} was paused automatically. Reason: {reason}",
+                severity='HIGH',
+                entity_type='WORKFLOW_SCHEDULE',
+                entity_id=schedule.id,
+                status='UNREAD'
+            )
+            await self.adapter.send(notification, db)
+        await db_flush(db)

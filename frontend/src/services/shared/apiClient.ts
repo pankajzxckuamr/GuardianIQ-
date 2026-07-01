@@ -88,8 +88,8 @@ class ApiClient {
     }
 
     const body = JSON.parse(text);
-    if (body.success === false) {
-      throw new Error(body.error || body.message || 'API request failed');
+    if (body.success === false || body.status === "error" || (body.detail && body.success === undefined)) {
+      throw new Error(body.error || body.detail || 'API Error');
     }
     // Mimicking the old logic: return body.data ?? body
     return body.data !== undefined ? body.data : body;

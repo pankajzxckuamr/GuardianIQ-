@@ -9,6 +9,7 @@ interface Props {
 
 export const AgentAssignmentPanel: React.FC<Props> = ({ assignment, readonly }) => {
   const allowedToolsCount = assignment.allowed_tools_json ? assignment.allowed_tools_json.length : 0;
+  const allowedDataSourcesCount = assignment.allowed_data_sources_json ? assignment.allowed_data_sources_json.length : 0;
   const blockedOpsCount = assignment.blocked_operations_json ? assignment.blocked_operations_json.length : 0;
 
   return (
@@ -37,6 +38,9 @@ export const AgentAssignmentPanel: React.FC<Props> = ({ assignment, readonly }) 
         <div className={styles.panelRow}>
           <span className={styles.panelStat} title={assignment.allowed_tools_json?.join(', ')}>
             {allowedToolsCount} Allowed Tools
+          </span>
+          <span className={styles.panelStat} title={assignment.allowed_data_sources_json?.join(', ')}>
+            {allowedDataSourcesCount} Allowed Data Sources
           </span>
           <span className={styles.panelStat} title={assignment.blocked_operations_json?.join(', ')}>
             {blockedOpsCount} Blocked Operations

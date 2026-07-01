@@ -161,14 +161,19 @@ export const RunHistoryPage: React.FC = () => {
   return (
     <div className={styles.page}>
       <div className={styles.breadcrumb}>Orchestration &gt; Run History</div>
-      <ScreenGuide
-        id="run-history-guide"
-        title="Run History"
-        description="Monitor and audit all automated and manual workflow executions. Use the filters to find specific runs, and click a run code to view detailed execution steps and outputs."
-      />
       <PageHeader
         title="Run History"
         description="Monitor and audit all automated and manual workflow executions"
+        actions={
+          <ScreenGuide
+            content={
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Run History</h4>
+                <p style={{ margin: 0 }}>View a comprehensive log of all automated workflow executions. You can filter by status or risk level and select a run to see detailed execution traces.</p>
+              </div>
+            }
+          />
+        }
       />
 
       {/* Filters */}

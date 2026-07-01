@@ -85,14 +85,23 @@ export const RunDetailPage: React.FC = () => {
 
   return (
     <div className={styles.page}>
-      <button className={styles.clearBtn} onClick={() => window.history.state && window.history.state.idx > 0 ? navigate(-1) : navigate('/workflow-runs')} style={{ alignSelf: 'flex-start' }}>
+      <button className={styles.clearBtn} onClick={() => window.history.state && window.history.state.idx > 0 ? navigate(-1) : navigate('/workflow-runs')} style={{ alignSelf: 'flex-start', marginBottom: '16px' }}>
         <ArrowLeft size={14} /> Back
       </button>
 
-      <ScreenGuide
-        id="run-detail-guide"
-        title="Workflow Run Details"
-        description="Monitor the real-time execution steps of the run on the left, and view run metadata and audit history on the right."
+      <PageHeader
+        title={`Run ${run.run_code}`}
+        description={`Executed on ${run.started_at ? new Date(run.started_at).toLocaleString() : 'N/A'}`}
+        actions={
+          <ScreenGuide
+            content={
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Run Details</h4>
+                <p style={{ margin: 0 }}>View the complete execution trace for this workflow run. Review agent actions, API calls, and final outputs to understand how the result was generated.</p>
+              </div>
+            }
+          />
+        }
       />
 
       {/* Header */}

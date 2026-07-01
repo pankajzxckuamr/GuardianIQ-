@@ -4,6 +4,7 @@ import { scheduleApi } from '../api/phase2Client';
 import { WorkflowScheduleListItem } from '../types/phase2';
 import { ConfirmActionModal } from '../components/phase2/ConfirmActionModal';
 import { PageHeader } from '../components/common/PageHeader';
+import { ScreenGuide } from '../components/common/ScreenGuide';
 import { RegistryDataTable } from '../components/common/RegistryDataTable';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { ScheduleStatusBadge } from '../components/common/ScheduleStatusBadge';
@@ -276,11 +277,21 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
         title="Workflow Scheduler"
         description="Manage and monitor automated execution schedules"
         actions={
-          canCreate && (
-            <Button variant="primary" onClick={() => navigate('/workflow-scheduler/new')} icon={<Plus size={16} />}>
-              Create Schedule
-            </Button>
-          )
+          <>
+            {canCreate && (
+              <Button variant="primary" onClick={() => navigate('/workflow-scheduler/new')} icon={<Plus size={16} />}>
+                Create Schedule
+              </Button>
+            )}
+            <ScreenGuide
+              content={
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                  <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Workflow Scheduler</h4>
+                  <p style={{ margin: 0 }}>Manage and monitor automated execution schedules. You can create new schedules, view their status, and perform actions like pausing or resuming them.</p>
+                </div>
+              }
+            />
+          </>
         }
       />
 

@@ -4,6 +4,7 @@ import { notificationApi } from '../api/phase2Client';
 import { NotificationResponse } from '../types/phase2';
 import { useToast } from '../hooks/useToast';
 import { PageHeader } from '../components/common/PageHeader';
+import { ScreenGuide } from '../components/common/ScreenGuide';
 import { Button } from '../components/common/Button';
 import { Bell, Check, ExternalLink } from 'lucide-react';
 import styles from './phase2Shared.module.css';
@@ -148,6 +149,16 @@ export const NotificationsCenter: React.FC = () => {
       <PageHeader
         title="Notifications"
         description="Stay on top of approvals, failures, and high-risk workflow events"
+        actions={
+          <ScreenGuide
+            content={
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Notifications</h4>
+                <p style={{ margin: 0 }}>View alerts for workflow events, such as failed runs, tasks awaiting approval, or high-risk actions. Click on an alert to investigate further.</p>
+              </div>
+            }
+          />
+        }
       />
 
       <div className={styles.listPane}>

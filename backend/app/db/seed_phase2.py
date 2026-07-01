@@ -515,7 +515,7 @@ def seed_phase2_data():
             WorkflowNotification(
                 id=uuid4(),
                 tenant_id=admin_user.id,
-                recipient_user_id=admin_user.id,
+                recipient_user_id=mchang.id,
                 notification_type="APPROVAL_REQUIRED",
                 title="Schedule Approval Required",
                 message=f"Schedule '{sched_refund.schedule_name}' ({sched_refund.schedule_code}) requires authorization due to High risk tools.",
@@ -545,7 +545,7 @@ def seed_phase2_data():
             WorkflowNotification(
                 id=uuid4(),
                 tenant_id=admin_user.id,
-                recipient_user_id=admin_user.id,
+                recipient_user_id=mchang.id,
                 notification_type="HIGH_RISK_OUTPUT",
                 title="Critical Policy Violation Flagged",
                 message=f"Run '{run1.run_code}' flagged a critical risk score of 9.82. HIPAA PII exposure detected.",

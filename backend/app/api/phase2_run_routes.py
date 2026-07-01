@@ -39,6 +39,8 @@ async def list_runs(
     schedule_id: UUID | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
+    search: str | None = None,
+    quick: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     db: Session = Depends(get_db),
@@ -48,6 +50,35 @@ async def list_runs(
     try:
         query = select(WorkflowRun).where(WorkflowRun.is_deleted == False)
         
+        if search:
+            from app.modules.registry.models import RegistryWorkflow
+            query = query.outerjoin(Phase2WorkflowSchedule, WorkflowRun.schedule_id == Phase2WorkflowSchedule.id) \
+                         .outerjoin(RegistryWorkflow, WorkflowRun.workflow_id == RegistryWorkflow.id) \
+                         .where(
+                             sa.or_(
+                                 WorkflowRun.run_code.ilike(f"%{search}%"),
+                                 Phase2WorkflowSchedule.schedule_name.ilike(f"%{search}%"),
+                                 Phase2WorkflowSchedule.schedule_code.ilike(f"%{search}%"),
+                                 RegistryWorkflow.workflow_name.ilike(f"%{search}%")
+                             )
+                         )
+                         
+        if quick:
+            if quick == "failed":
+                query = query.where(WorkflowRun.run_status == "FAILED")
+            elif quick == "running":
+                query = query.where(WorkflowRun.run_status.in_(["RUNNING", "QUEUED", "RETRY_QUEUED"]))
+            elif quick == "high_risk":
+                query = query.where(WorkflowRun.risk_level.in_(["HIGH", "CRITICAL"]))
+            elif quick == "manual":
+                query = query.where(WorkflowRun.trigger_type == "MANUAL")
+            elif quick == "today":
+                today_start = datetime.combine(datetime.now(timezone.utc).date(), datetime.min.time()).replace(tzinfo=timezone.utc)
+                query = query.where(WorkflowRun.created_at >= today_start)
+            elif quick == "sla_breached":
+                from app.modules.workflow_execution.models import WorkflowRunFailure
+                query = query.join(WorkflowRunFailure, WorkflowRun.id == WorkflowRunFailure.run_id).where(WorkflowRunFailure.failure_type == "SLA_BREACH")
+
         if run_status:
             if "," in run_status:
                 status_list = [s.strip() for s in run_status.split(",")]

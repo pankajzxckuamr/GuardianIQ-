@@ -325,6 +325,43 @@ class WorkflowScheduleService:
         )
         db.add(history_rec)
 
+        # If created as PENDING_APPROVAL, create approval record and notifications
+        sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
+        if sched_status_str == "PENDING_APPROVAL" and schedule.approval_group_id:
+            approval = WorkflowScheduleApproval(
+                id=uuid4(),
+                tenant_id=schedule.tenant_id,
+                schedule_id=schedule.id,
+                approval_type="ACTIVATION",
+                approval_status="PENDING",
+                approval_group_id=schedule.approval_group_id,
+                submitted_by=actor_uuid,
+                created_by=actor_uuid,
+                updated_by=actor_uuid
+            )
+            db.add(approval)
+            
+            stmt = select(ApprovalGroupMember.user_id).where(ApprovalGroupMember.approval_group_id == schedule.approval_group_id)
+            from app.shared.db_compat import execute_statement
+            res = await execute_statement(db, stmt)
+            member_ids = [r[0] for r in res.fetchall()]
+            for member_id in member_ids:
+                notif = WorkflowNotification(
+                    id=uuid4(),
+                    tenant_id=schedule.tenant_id,
+                    recipient_user_id=member_id,
+                    notification_type="APPROVAL_REQUIRED",
+                    title="Schedule Approval Required",
+                    message=f"Approval is required for schedule {schedule.schedule_name} ({schedule.schedule_code}).",
+                    severity="HIGH",
+                    entity_type="WORKFLOW_SCHEDULE",
+                    entity_id=schedule.id,
+                    status="UNREAD",
+                    created_by=actor_uuid,
+                    updated_by=actor_uuid
+                )
+                db.add(notif)
+
         # 5. Publish event
         await self.event_service.publish_schedule_created(schedule.id, actor_uuid, db)
 
@@ -547,7 +584,7 @@ class WorkflowScheduleService:
                 title="Schedule Approval Required",
                 message=f"Approval is required for schedule {schedule.schedule_name} ({schedule.schedule_code}).",
                 severity="HIGH",
-                entity_type="workflow_schedules",
+                entity_type="WORKFLOW_SCHEDULE",
                 entity_id=schedule.id,
                 status="UNREAD",
                 created_by=actor_uuid,

@@ -55,6 +55,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
   const [tools, setTools] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [models, setModels] = useState<any[]>([]);
+  const [dataSources, setDataSources] = useState<any[]>([]);
   const [showConfirmDiff, setShowConfirmDiff] = useState(false);
   const [diffList, setDiffList] = useState<any[]>([]);
 
@@ -88,6 +89,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
     fetchWithAuth('/api/registry/tools?per_page=100').then(setTools).catch(() => {});
     fetchWithAuth('/api/registry/agents?per_page=100').then(setAgents).catch(() => {});
     fetchWithAuth('/api/registry/models?per_page=100').then(setModels).catch(() => {});
+    fetchWithAuth('/api/registry/data-sources?per_page=100').then(setDataSources).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -209,10 +211,11 @@ export const AgentAssignmentMatrix: React.FC = () => {
     const prevDataSources = selectedAssignment.allowed_data_sources_json || [];
     const nextDataSources = formData.allowed_data_sources_json || [];
     if (JSON.stringify([...prevDataSources].sort()) !== JSON.stringify([...nextDataSources].sort())) {
+      const getDsNames = (codes: string[]) => codes.map(c => dataSources.find(ds => ds.source_code === c || ds.id === c)?.source_name || c).join(', ') || 'None';
       diffs.push({
         field: 'Allowed Data Sources',
-        prev: prevDataSources.join(', ') || 'None',
-        next: nextDataSources.join(', ') || 'None'
+        prev: getDsNames(prevDataSources),
+        next: getDsNames(nextDataSources)
       });
     }
 
@@ -334,17 +337,22 @@ export const AgentAssignmentMatrix: React.FC = () => {
         title="Agent Assignment Matrix"
         description="Global overview of AI agents assigned to governance workflows"
         actions={
-          canEdit && (
-            <Button variant="primary" onClick={() => openDrawer('CREATE')} icon={<Plus size={16} />}>
-              Add Assignment
-            </Button>
-          )
+          <>
+            {canEdit && (
+              <Button variant="primary" onClick={() => openDrawer('CREATE')} icon={<Plus size={16} />}>
+                Add Assignment
+              </Button>
+            )}
+            <ScreenGuide
+              content={
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                  <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Agent Assignment Matrix</h4>
+                  <p style={{ margin: 0 }}>Manage global AI agent assignments and their security boundaries across all automated workflows. Ensure appropriate constraints and approval requirements are in place.</p>
+                </div>
+              }
+            />
+          </>
         }
-      />
-      <ScreenGuide
-        id="agent-matrix-guide"
-        title="Agent Assignment Matrix"
-        description="Manage global AI agent assignments and their security boundaries across all automated workflows. Ensure appropriate constraints and approval requirements are in place."
       />
 
       {/* Filters */}
@@ -454,6 +462,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
               blockedOperations={formData.blocked_operations_json}
               onChange={handleFormChange}
               toolOptions={tools}
+              dataSourceOptions={dataSources}
             />
 
             {hasWriteTool && (

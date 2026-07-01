@@ -508,10 +508,11 @@ export const CreateScheduleWizard: React.FC = () => {
             )}
             <div>
               <label className={styles.fieldLabel}>Model</label>
-              <select className={styles.formControl} value={formData.model_id} onChange={e => handleChange('model_id', e.target.value)}>
+              <select className={`${styles.formControl} ${backendErrors.model_id ? styles.errorControl : ''}`} value={formData.model_id} onChange={e => handleChange('model_id', e.target.value)}>
                 <option value="">Select a model</option>
                 {models.map(m => <option key={m.id} value={m.id}>{getModelLabel(m)}</option>)}
               </select>
+              {backendErrors.model_id && <span className={styles.errorText}>{backendErrors.model_id}</span>}
             </div>
             <div>
               <label className={styles.fieldLabel}>Execution Mode</label>
@@ -728,16 +729,74 @@ export const CreateScheduleWizard: React.FC = () => {
       <button className={styles.clearBtn} onClick={() => window.history.state && window.history.state.idx > 0 ? navigate(-1) : navigate('/workflow-scheduler')} style={{ alignSelf: 'flex-start' }}>
         <ArrowLeft size={14} /> Back
       </button>
-      <ScreenGuide
-        id="create-schedule-wizard-guide"
-        title="Create Schedule Wizard"
-        description="Follow this 6-step process to safely configure and deploy a governed automation schedule."
-      />
       <PageHeader
         title="Create Workflow Schedule"
         description="Configure a governed, automated execution schedule"
         actions={
-          <Button variant="secondary" size="sm" onClick={handleSaveDraft} disabled={!canSaveDraft}>Save Draft</Button>
+          <>
+            <Button variant="secondary" size="sm" onClick={handleSaveDraft} disabled={!canSaveDraft}>Save Draft</Button>
+            <ScreenGuide
+              content={
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                  <p style={{ margin: 0 }}>Follow this 6-step process to safely configure and deploy a governed automation schedule.</p>
+                  {currentStep === 0 && (
+                    <div>
+                      <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Select Workflow</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                        <li>Choose the base workflow that this schedule will execute.</li>
+                        <li>Provide a unique code and name for this schedule.</li>
+                      </ul>
+                    </div>
+                  )}
+                  {currentStep === 1 && (
+                    <div>
+                      <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Agent & Model</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                        <li>Select the primary AI agent responsible for execution.</li>
+                        <li>Assign an underlying LLM model for the agent to use.</li>
+                        <li>Define the execution mode (e.g., Read Only, Approval Required).</li>
+                      </ul>
+                    </div>
+                  )}
+                  {currentStep === 2 && (
+                    <div>
+                      <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Boundaries</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                        <li>Specify allowed tools and data sources.</li>
+                        <li>Define blocked operations to prevent unauthorized actions.</li>
+                      </ul>
+                    </div>
+                  )}
+                  {currentStep === 3 && (
+                    <div>
+                      <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Schedule Configuration</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                        <li>Set up the frequency (manual, daily, weekly, or custom cron).</li>
+                        <li>Configure runtime limits (max records, timeout).</li>
+                      </ul>
+                    </div>
+                  )}
+                  {currentStep === 4 && (
+                    <div>
+                      <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Governance Controls</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                        <li>Assign an approval group if required.</li>
+                        <li>Enable notifications and require justifications.</li>
+                      </ul>
+                    </div>
+                  )}
+                  {currentStep === 5 && (
+                    <div>
+                      <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Review & Submit</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                        <li>Review all configurations before submission.</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              }
+            />
+          </>
         }
       />
 

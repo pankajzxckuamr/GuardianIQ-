@@ -107,8 +107,17 @@ export const AuthorizationSimulator: React.FC = () => {
       <PageHeader
         title="Authorization Simulator"
         description="Evaluate RBAC and ABAC access decisions without granting or mutating permissions"
+        actions={
+          <ScreenGuide 
+            content={
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", paddingRight: "4px" }}>
+                <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.85rem" }}>Authorization Simulator</h4>
+                <p style={{ margin: 0 }}>Evaluate RBAC and ABAC access decisions for users and agents. This tool simulates policy evaluation without making any actual changes to permissions.</p>
+              </div>
+            }
+          />
+        }
       />
-      <ScreenGuide guideKey="authorization-simulator" />
 
       <div className={styles.bannerInfo}>
         <Shield size={16} /> This tool evaluates authorization only. It does not grant access or mutate permissions.
