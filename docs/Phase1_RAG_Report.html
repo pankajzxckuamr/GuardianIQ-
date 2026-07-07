@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase1_RAG_Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        h1, h2, h3, h4 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        table th, table td {
+            padding: 8px 13px;
+            border: 1px solid #dfe2e5;
+        }
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+        blockquote {
+            padding: 0 1em;
+            color: #6a737d;
+            border-left: 0.25em solid #dfe2e5;
+            margin: 0 0 16px 0;
+            background-color: #f9f9f9;
+        }
+        code {
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(27,31,35,0.05);
+            border-radius: 3px;
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        }
+        .alert-box {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border-left: 4px solid;
+            background-color: #f8f9fa;
+        }
+        .alert-note { border-color: #0969da; }
+        .alert-warning { border-color: #bf8700; }
+        .alert-danger { border-color: #cf222e; }
+        
+        @media print {
+            body {
+                padding: 0;
+                max-width: 100%;
+            }
+            table {
+                page-break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            h1, h2, h3 {
+                page-break-after: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Phase 1 RAG Report: GuardianIQ</h1>
+<p><strong>Project:</strong> GuardianIQ<br />
+<strong>Phase:</strong> 1 (Core Registries &amp; Foundation)<br />
+<strong>Report Generation Date:</strong> 2026-07-06  </p>
+<div class="alert-box alert-note"><b>NOTE:</b> *Phase 2 items such as workflow schedule, approval schedule, run schedule, and workflow notification are explicitly excluded from this report as requested.*</div>
+
+<h2>RAG Status Definitions</h2>
+<ul>
+<li>🟢 <strong>Green (On Track/Completed):</strong> Deliverables completed, testing passed, no major blockers.</li>
+<li>🟡 <strong>Amber (At Risk/Partial):</strong> Partial completion, minor issues identified, or testing partially passed/in progress.</li>
+<li>🔴 <strong>Red (Blocked/Delayed):</strong> Pending, blocked, or significant issues preventing completion.</li>
+</ul>
+<h2>Executive Summary</h2>
+<p>Overall, Phase 1 execution has been successfully completed. The foundational elements, database setups, auth mechanisms, and core registries have achieved a <strong>Green</strong> status. All early phase sign-offs, testing cycles, and late-stage acceptance preparations have been completed and signed off.</p>
+<h2>Detailed Task Report</h2>
+<table>
+<thead>
+<tr>
+<th>Day</th>
+<th>Date</th>
+<th>Activity</th>
+<th>Deliverable</th>
+<th>Testing Results</th>
+<th>RAG</th>
+<th>Remarks / Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>19-May-2026</td>
+<td>Kickoff and scope alignment</td>
+<td>Kickoff notes, scope baseline, role matrix</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Initial Phase 0 alignment reviewed.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>19-May-2026</td>
+<td>Architecture baseline</td>
+<td>Architecture decision note</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Architecture baseline reviewed.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>19-May-2026</td>
+<td>Repository and branching setup</td>
+<td>Repo structure and branch strategy</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Branch governance implemented.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>19-May-2026</td>
+<td>Detailed sprint board setup</td>
+<td>Execution board ready</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Sprint tracking artifact available.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>20-May-2026</td>
+<td>FastAPI project skeleton</td>
+<td>Backend skeleton running locally</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Backend foundation and health endpoints validated.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>20-May-2026</td>
+<td>React/Vite/Tailwind project skeleton</td>
+<td>Frontend shell running locally</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Foundation exists with Vite/Tailwind setup.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>20-May-2026</td>
+<td>PostgreSQL database provisioning</td>
+<td>Database instance and migration setup</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Alembic and database models exist.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>20-May-2026</td>
+<td>Auth/RBAC design</td>
+<td>Auth design and RBAC matrix v1</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>JWT auth, permissions, and RBAC structure validated.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>21-May-2026</td>
+<td>Core governance entities definition</td>
+<td>Shared entity dictionary v1</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Core governance entities implemented and mapped.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>21-May-2026</td>
+<td>API response and error standard</td>
+<td>API standards document and code helpers</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Standard response structure and validation implemented.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>21-May-2026</td>
+<td>Authentication baseline</td>
+<td>Auth APIs and middleware baseline</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Login/refresh/logout validated. Protected routes working.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>21-May-2026</td>
+<td>UI layout and route protection</td>
+<td>GuardianIQ UI shell with protected pages</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Protected routes and reusable layouts detected.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>22-May-2026</td>
+<td>Phase 0 base tables and migrations</td>
+<td>Base migrations and seed data</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Core migrations and base tables exist.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>22-May-2026</td>
+<td>Logging, audit and health foundation</td>
+<td>Logging and health baseline</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Structured logging, request ID, health check done.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>22-May-2026</td>
+<td>Phase 0 integration smoke test</td>
+<td>Phase 0 smoke test report</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Smoke-path validation completed.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>22-May-2026</td>
+<td>Phase 0 review and sign-off</td>
+<td>Phase 0 sign-off checklist</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Final sign-off completed.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>23-May-2026</td>
+<td>Registry entity schema finalization</td>
+<td>Phase 1 ERD and migration design</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Schemas finalized.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>23-May-2026</td>
+<td>Registry migrations – core entities</td>
+<td>Registry migration scripts</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Implemented migrations for core entities.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>23-May-2026</td>
+<td>Registry dashboard scaffold</td>
+<td>Registry dashboard UI scaffold</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Dashboard UI scaffold validated.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>23-May-2026</td>
+<td>Test strategy and data plan</td>
+<td>Phase 1 test plan</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Test strategy reviewed and finalized.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>24-May-2026</td>
+<td>AI Model Registry APIs</td>
+<td>AI Model Registry API set</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>APIs validated.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>24-May-2026</td>
+<td>AI Agent Registry APIs</td>
+<td>AI Agent Registry API set</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>APIs validated.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>24-May-2026</td>
+<td>AI Model and Agent list pages</td>
+<td>Model and Agent UI pages</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Dedicated frontend pages implemented.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>24-May-2026</td>
+<td>Daily build review and issue triage</td>
+<td>Day 6 issue/action log</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>No issues found.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>25-May-2026</td>
+<td>Tool and Connector Registry APIs</td>
+<td>Tool Registry APIs</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Registry API for Tools implemented.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>25-May-2026</td>
+<td>Workflow Registry APIs</td>
+<td>Workflow Registry APIs</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Registry APIs implemented with CRUD.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>25-May-2026</td>
+<td>Tool Catalog and Workflow pages</td>
+<td>Tool and Workflow UI pages</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Created frontend pages for workflow and tools.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>25-May-2026</td>
+<td>API validation testing cycle 1</td>
+<td>API test results cycle 1</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>API validation cycle completed.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>26-May-2026</td>
+<td>User, Role and Department Registry APIs</td>
+<td>User/Role/Department APIs</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Implemented role mapping, department ownership.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>26-May-2026</td>
+<td>Data Source Registry APIs</td>
+<td>Data Source Registry APIs</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Designed schema, migrations, endpoints.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>26-May-2026</td>
+<td>User, Role, Department and Data Source screens</td>
+<td>User/Role/Department/Data Source UI</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>UI screens constructed.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>26-May-2026</td>
+<td>Integration environment refresh</td>
+<td>Integrated dev build</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Pushed to GitHub, shared local stack.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>27-May-2026</td>
+<td>Relationship mapping APIs</td>
+<td>Registry relationship APIs</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>APIs implemented and tested.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>27-May-2026</td>
+<td>Registry relationship viewer</td>
+<td>Relationship viewer UI</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>UI designed and built.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>27-May-2026</td>
+<td>Registry audit logging</td>
+<td>Registry audit logs</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Audit events utility created and wired.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>27-May-2026</td>
+<td>UI integration testing cycle 1</td>
+<td>UI test results cycle 1</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>API error structures standardized.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>28-May-2026</td>
+<td>Global registry search and filters</td>
+<td>Search/filter capability</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Search bar, pagination, sorting implemented.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>28-May-2026</td>
+<td>Dashboard metrics and counts</td>
+<td>Live registry dashboard</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Dashboard cards bound to API data.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>28-May-2026</td>
+<td>Defect fixes and stabilization</td>
+<td>Stabilized Phase 1 build</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Defects fixed, error messages improved.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>28-May-2026</td>
+<td>Swagger and developer notes</td>
+<td>Developer documentation draft</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>README updated, relevant for Phase 1.</td>
+</tr>
+<tr>
+<td>11</td>
+<td>29-May-2026</td>
+<td>Full regression testing</td>
+<td>Regression report</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Testing completed, no vulnerabilities found.</td>
+</tr>
+<tr>
+<td>11</td>
+<td>29-May-2026</td>
+<td>Demo data and scenario setup</td>
+<td>Demo seed data</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Realistic sample data prepared and inserted.</td>
+</tr>
+<tr>
+<td>11</td>
+<td>29-May-2026</td>
+<td>Developer handover pack</td>
+<td>Handover pack</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Handover files, user guide, setup guide created.</td>
+</tr>
+<tr>
+<td>11</td>
+<td>29-May-2026</td>
+<td>Acceptance review preparation</td>
+<td>Acceptance pack</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Acceptance pack completed and signed off.</td>
+</tr>
+<tr>
+<td>12</td>
+<td>30-May-2026</td>
+<td>Final demo and walkthrough</td>
+<td>Final demo completed</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Proposed demo date set (11/06/2026).</td>
+</tr>
+<tr>
+<td>12</td>
+<td>30-May-2026</td>
+<td>Acceptance and sign-off</td>
+<td>Sign-off record</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Completed with Change log.</td>
+</tr>
+<tr>
+<td>12</td>
+<td>30-May-2026</td>
+<td>Policy &amp; Rule Engine readiness backlog</td>
+<td>Phase 2 implementation backlog</td>
+<td>N/A</td>
+<td>🟢</td>
+<td>Deferred to Phase 2 (as expected).</td>
+</tr>
+<tr>
+<td>12</td>
+<td>30-May-2026</td>
+<td>Package release candidate</td>
+<td>Release candidate and notes</td>
+<td>PASS</td>
+<td>🟢</td>
+<td>Uploaded to GitHub.</td>
+</tr>
+</tbody>
+</table>
+<h2>Change Log (Phase 1)</h2>
+<table>
+<thead>
+<tr>
+<th>Change ID</th>
+<th>Module</th>
+<th>Change Description</th>
+<th>What changed?</th>
+<th>Who changed it?</th>
+<th>When was it changed?</th>
+<th>Why was it changed?</th>
+<th>Suggestion</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CL-001</td>
+<td>Model Registry</td>
+<td>Make Provider field mandatory with frontend and backend validation</td>
+<td>Added 'required' validations on UI forms and strict Pydantic model checks on API routes.</td>
+<td>Aayush</td>
+<td></td>
+<td>to ensure data integrity and prevent incomplete provider entries in the registry.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-002</td>
+<td>Model Registry</td>
+<td>Replace Provider field with Provider Type, Provider Name, and Provider Details structure</td>
+<td>Split the single text field into structured data inputs (Type, Name, Details) in both UI and DB.</td>
+<td></td>
+<td></td>
+<td>To capture more granular, structured information about model providers.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-003</td>
+<td>Model Registry</td>
+<td>Add additional provider governance fields (Owner, Developed By, Training Data, Hosting, Security, Usage Controls, Evaluation Details, Responsible Person)</td>
+<td>Added fields: Owner, Developed By, Training Data, Hosting, Security, Usage Controls, Evaluation Details, Responsible Person.</td>
+<td></td>
+<td></td>
+<td>To meet strict compliance and comprehensive AI governance requirements.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-004</td>
+<td>Database</td>
+<td>Create registry.ai_model_providers table with provider metadata and governance attributes</td>
+<td>Created a dedicated SQL table to store the expanded provider metadata.</td>
+<td></td>
+<td></td>
+<td>To normalize the database schema and manage providers as independent, reusable entities.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-005</td>
+<td>Database</td>
+<td>Update AI Model Registry to use provider_id relationship instead of provider text field</td>
+<td>Replaced the raw text column with a foreign key linking to the new provider table.</td>
+<td></td>
+<td></td>
+<td>To establish proper referential integrity between AI models and their providers.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-006</td>
+<td>Workflow View</td>
+<td>Redesign Workflow lifecycle view to align with governance and operational workflow stages</td>
+<td>Updated the workflow detail UI to visually represent exact governance pipeline stages.</td>
+<td></td>
+<td></td>
+<td>To provide better visibility and tracking of a workflow's maturity and approval state.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-007</td>
+<td>Relationship View</td>
+<td>Redesign Relationship View to improve mapping between workflows, agents, models, tools, and data sources</td>
+<td>Enhanced the interactive node graph to better visualize complex asset linkages.</td>
+<td></td>
+<td></td>
+<td>To make it easier for users to understand deep asset interdependencies.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-008</td>
+<td>Dashboard</td>
+<td>audit metric card need to be dynamic</td>
+<td>Wired the audit metric card to fetch live data from the backend audit endpoints.</td>
+<td></td>
+<td></td>
+<td>To display accurate, real-time system metrics instead of static mock data.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-009</td>
+<td>Registry</td>
+<td>add registry all button</td>
+<td>Introduced a new "Register All" UI button and mapped it to batch processing routes.</td>
+<td></td>
+<td></td>
+<td>To significantly streamline the bulk onboarding process of multiple assets.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-010</td>
+<td>Execution</td>
+<td>Execution Dashboard Cumulative Metric Tiles</td>
+<td>Added summary tiles displaying total AWAITING_APPROVAL and COMPLETED workflows.</td>
+<td></td>
+<td></td>
+<td>To provide an immediate, at-a-glance summary of operational workflow bottlenecks.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-011</td>
+<td>Execution</td>
+<td>Rejection/Revocation Reason Auditing:</td>
+<td>Added a mandatory text reason modal before rejecting/revoking, storing the reason in the DB.</td>
+<td></td>
+<td></td>
+<td>For strict auditing and tracking of manual intervention decisions by administrators.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-012</td>
+<td>Execution</td>
+<td>Dashboard "Active Tenants" Dynamic</td>
+<td>Connected the tenant metric tile to live authentication session logs.</td>
+<td></td>
+<td></td>
+<td>To accurately reflect the true number of concurrent user sessions on the platform.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-013</td>
+<td>Left Pannel</td>
+<td>Collapsible Global Sidebar Navigation:</td>
+<td>Added a vertically centered toggle arrow to expand/collapse the left sidebar menu.</td>
+<td></td>
+<td></td>
+<td>To improve UX and maximize the available screen space for main dashboard content.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-014</td>
+<td>All pages</td>
+<td>Required a hint button in all the pages</td>
+<td>Placed a Hint Bulb on each modules to help users.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-015</td>
+<td>User&amp;Roles</td>
+<td>when new user is created, it saves new user without dept and role as per scope of project ideallythis has to be mandetory</td>
+<td>Made the required filed mandatory.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>Completed</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

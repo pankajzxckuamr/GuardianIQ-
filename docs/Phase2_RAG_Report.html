@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase2_RAG_Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        h1, h2, h3, h4 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        table th, table td {
+            padding: 8px 13px;
+            border: 1px solid #dfe2e5;
+        }
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+        blockquote {
+            padding: 0 1em;
+            color: #6a737d;
+            border-left: 0.25em solid #dfe2e5;
+            margin: 0 0 16px 0;
+            background-color: #f9f9f9;
+        }
+        code {
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(27,31,35,0.05);
+            border-radius: 3px;
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        }
+        .alert-box {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border-left: 4px solid;
+            background-color: #f8f9fa;
+        }
+        .alert-note { border-color: #0969da; }
+        .alert-warning { border-color: #bf8700; }
+        .alert-danger { border-color: #cf222e; }
+        
+        @media print {
+            body {
+                padding: 0;
+                max-width: 100%;
+            }
+            table {
+                page-break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            h1, h2, h3 {
+                page-break-after: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Phase 2 RAG Report: GuardianIQ</h1>
+<p><strong>Project:</strong> GuardianIQ<br />
+<strong>Phase:</strong> 2 (Workflow Scheduling, Run Engine &amp; Notifications)<br />
+<strong>Report Generation Date:</strong> 2026-07-06  </p>
+<h2>RAG Status Definitions</h2>
+<ul>
+<li>🟢 <strong>Green (On Track/Completed):</strong> Deliverables completed, testing passed, no major blockers.</li>
+<li>🟡 <strong>Amber (At Risk/Partial):</strong> Partial completion, minor issues identified, or testing partially passed/in progress.</li>
+<li>🔴 <strong>Red (Blocked/Delayed):</strong> Pending, blocked, or significant issues/delays preventing completion.</li>
+</ul>
+<h2>Executive Summary</h2>
+<p>Phase 2 execution has been highly successful with the core backend engines, UI interfaces, and workflow integrations marked as <strong>Green</strong> (Completed). The final UAT walkthrough, defect triage, and documentation handover stages (WBS 2.19 and 2.20) have also been successfully completed and signed off. All open UAT feedback items have been addressed and closed.</p>
+<h2>Detailed Task Report</h2>
+<table>
+<thead>
+<tr>
+<th>WBS</th>
+<th>Activity</th>
+<th>Deliverables</th>
+<th>Owner</th>
+<th>Start Date</th>
+<th>End Date</th>
+<th>Status</th>
+<th>RAG</th>
+<th>Remarks / Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.1</td>
+<td>Kickoff and review of Phase 2 specifications and visuals</td>
+<td>Approved scope, backlog and ownership</td>
+<td>Project Manager</td>
+<td>15-Jun-2026</td>
+<td>15-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Phase 1 complete, backlog approved.</td>
+</tr>
+<tr>
+<td>2.2</td>
+<td>Finalize DB schema (workflow scheduling, runs, outputs, failures, events)</td>
+<td>DDL and migration scripts</td>
+<td>Aayush</td>
+<td>15-Jun-2026</td>
+<td>15-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Designed Alembic migrations for scheduler tables.</td>
+</tr>
+<tr>
+<td>2.3</td>
+<td>Create PostgreSQL tables, indexes, constraints and seed data</td>
+<td>Working DB foundation</td>
+<td>Aayush</td>
+<td>15-Jun-2026</td>
+<td>16-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Created ORM models and repository wrappers.</td>
+</tr>
+<tr>
+<td>2.4</td>
+<td>Develop backend entities, ORM models and repositories</td>
+<td>Repository layer</td>
+<td>Aayush</td>
+<td>15-Jun-2026</td>
+<td>16-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>CRUD functionality implemented robustly.</td>
+</tr>
+<tr>
+<td>2.5</td>
+<td>Implement workflow registry APIs</td>
+<td>Workflow APIs</td>
+<td>Aayush</td>
+<td>16-Jun-2026</td>
+<td>17-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>REST routers and logic handlers registered.</td>
+</tr>
+<tr>
+<td>2.6</td>
+<td>Implement schedule configuration APIs</td>
+<td>Schedule APIs</td>
+<td>Aayush</td>
+<td>16-Jun-2026</td>
+<td>17-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>API endpoints and Pydantic schemas created.</td>
+</tr>
+<tr>
+<td>2.7</td>
+<td>Implement scheduler service and workflow run engine</td>
+<td>Scheduler engine</td>
+<td>Aayush</td>
+<td>16-Jun-2026</td>
+<td>18-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>State transitions and croniter triggers programmed.</td>
+</tr>
+<tr>
+<td>2.8</td>
+<td>Implement audit events, execution logs and notifications services</td>
+<td>Audit services</td>
+<td>Pankaj</td>
+<td>17-Jun-2026</td>
+<td>18-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Audit logs, system alerts, and notifications designed.</td>
+</tr>
+<tr>
+<td>2.9</td>
+<td>Implement AI Agent Boundary validation service</td>
+<td>Boundary engine</td>
+<td>Aayush</td>
+<td>17-Jun-2026</td>
+<td>18-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Validator rules and middleware checks implemented.</td>
+</tr>
+<tr>
+<td>2.10</td>
+<td>Develop frontend route structure and navigation</td>
+<td>Menus and routes</td>
+<td>Poorvith</td>
+<td>15-Jun-2026</td>
+<td>16-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Navigation menus and ProtectedRoute guards set up.</td>
+</tr>
+<tr>
+<td>2.11</td>
+<td>Develop Workflow List and Workflow Details screens</td>
+<td>Workflow UI</td>
+<td>Poorvith</td>
+<td>16-Jun-2026</td>
+<td>17-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>List grids and schedule configurators built.</td>
+</tr>
+<tr>
+<td>2.12</td>
+<td>Develop Create Schedule Wizard (6-step flow)</td>
+<td>Wizard UI</td>
+<td>Poorvith</td>
+<td>16-Jun-2026</td>
+<td>18-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Multi-step wizard and CronExpressionBuilder configured.</td>
+</tr>
+<tr>
+<td>2.13</td>
+<td>Develop Schedule Lifecycle and Run History screens</td>
+<td>Lifecycle UI</td>
+<td>Poorvith</td>
+<td>17-Jun-2026</td>
+<td>19-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Run grids, charts, and approvals list developed.</td>
+</tr>
+<tr>
+<td>2.14</td>
+<td>Develop AI Agent Boundary Management screens</td>
+<td>Boundary configuration UI</td>
+<td>Poorvith</td>
+<td>17-Jun-2026</td>
+<td>19-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Permission matrices and rule editors built.</td>
+</tr>
+<tr>
+<td>2.15</td>
+<td>Develop dashboards and notification screens</td>
+<td>Monitoring UI</td>
+<td>Poorvith</td>
+<td>19-Jun-2026</td>
+<td>20-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Dashboard statistics and notification indicators coded.</td>
+</tr>
+<tr>
+<td>2.16</td>
+<td>API integration and end-to-end frontend binding</td>
+<td>Integrated application</td>
+<td>Poorvith</td>
+<td>19-Jun-2026</td>
+<td>20-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Screens wired to backend endpoints via phase2Client.ts.</td>
+</tr>
+<tr>
+<td>2.17</td>
+<td>Backend unit testing and integration testing</td>
+<td>Test reports and fixes</td>
+<td>Pankaj</td>
+<td>19-Jun-2026</td>
+<td>20-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>UI mismatch issues identified and fixed. 80%+ pass rate.</td>
+</tr>
+<tr>
+<td>2.18</td>
+<td>Functional QA and regression testing</td>
+<td>QA report</td>
+<td>Pankaj</td>
+<td>20-Jun-2026</td>
+<td>21-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Critical defects closed.</td>
+</tr>
+<tr>
+<td>2.19</td>
+<td>UAT walkthrough and defect triage</td>
+<td>UAT sign-off</td>
+<td>Project Manager</td>
+<td>21-Jun-2026</td>
+<td>25-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Signed off. 100% pass rate in QA.</td>
+</tr>
+<tr>
+<td>2.20</td>
+<td>Documentation, deployment package and handover</td>
+<td>Deployment guide and handover pack</td>
+<td>Project Manager</td>
+<td>21-Jun-2026</td>
+<td>25-Jun-2026</td>
+<td>Completed</td>
+<td>🟢</td>
+<td>Handover and deployment package completed.</td>
+</tr>
+</tbody>
+</table>
+<h2>Change Log &amp; UAT Feedback (Phase 2)</h2>
+<h3>Completed Changes</h3>
+<table>
+<thead>
+<tr>
+<th>Change ID</th>
+<th>Module</th>
+<th>Change Description</th>
+<th>What changed?</th>
+<th>Why was it changed?</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CL-001</td>
+<td>Registry All</td>
+<td>Add Graphical representation of relationship for better understanding</td>
+<td>Graphical representation is added</td>
+<td>initial list representation was hard to understand</td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>CL-002</td>
+<td>Registry All</td>
+<td>Add 2nd layer of approver for workflow</td>
+<td>Added one more approver</td>
+<td>in case workflow is not approved by first approver in due time, its forworded to 2nd approver</td>
+<td>Completed</td>
+</tr>
+</tbody>
+</table>
+<h3>UAT Feedback / Open Action Items (Reported 25 June 2026)</h3>
+<table>
+<thead>
+<tr>
+<th>Item / Change Description</th>
+<th>Additional Notes / Questions</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Verify the duplication check for workflow names.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>Clarify the metadata (agent name and model name) used in the workflow and the assigned approver.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>Confirm whether the approver can approve the workflow while it is in a running or paused state.</td>
+<td>If the approval time is missed, will the workflow get approved, will it be retired, will it run, will it assign to a new approver?</td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>The Create and Approve fields are missing in the Workflow Scheduler History.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>When opening history from the Workflow tab, the filtering does not work correctly. Filter is not working in run history page.</td>
+<td>Work code is missing in heading.</td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>A workflow can currently be created without an agent – is this mandatory or should it be enforced?</td>
+<td></td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>Navigation Check</td>
+<td>Add back button</td>
+<td>Completed</td>
+</tr>
+<tr>
+<td>Universal search in the header is not working in all the screens.</td>
+<td></td>
+<td>Completed</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
