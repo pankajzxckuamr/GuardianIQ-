@@ -365,7 +365,8 @@ class RoleLookup(BaseModel):
 # ---------------------------------------------------------
 
 class GuardianUserBase(BaseModel):
-    full_name: str
+    name: Optional[str] = None
+    full_name: Optional[str] = None
     department_id: UUID
     role_id: UUID
     approval_limit_level: Optional[str] = None
@@ -375,6 +376,7 @@ class GuardianUserCreate(GuardianUserBase):
     email: str = Field(..., min_length=5)
 
 class GuardianUserUpdate(BaseModel):
+    name: Optional[str] = None
     full_name: Optional[str] = None
     department_id: Optional[UUID] = None
     role_id: Optional[UUID] = None
@@ -399,7 +401,8 @@ class GuardianUserListResponse(BaseModel):
 
 class GuardianUserLookup(BaseModel):
     id: UUID
-    full_name: str
+    name: Optional[str] = None
+    full_name: Optional[str] = None
     email: str
     class Config: from_attributes = True
 

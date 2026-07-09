@@ -20,3 +20,22 @@ def get_db():
 
     finally:
         db.close()
+
+
+from sqlalchemy import event
+from sqlalchemy.orm import Session
+
+@event.listens_for(Session, "before_flush")
+def receive_before_flush(session, flush_context, instances):
+    try:
+        from app.modules.auth.models import User
+        # To avoid circular imports, User is imported locally.
+        admin_user = session.query(User).filter(User.email == "admin@guardianiq.com").first()
+        if admin_user:
+            default_tenant_id = admin_user.id
+            for obj in session.new:
+                if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id") is None:
+                    obj.tenant_id = default_tenant_id
+    except Exception:
+        pass
+

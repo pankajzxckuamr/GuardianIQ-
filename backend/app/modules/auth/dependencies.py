@@ -38,7 +38,7 @@ def get_current_user(
         raise credentials_exception
 
     user = db.query(User).filter(
-        User.id == int(user_id)
+        User.id == user_id
     ).first()
 
     if user is None:
@@ -52,6 +52,8 @@ def get_current_user(
             detail="Token has been revoked"
         )
 
+    from app.core.middleware import set_user_context
+    set_user_context(str(user.id), user.email)
     return user
 
 

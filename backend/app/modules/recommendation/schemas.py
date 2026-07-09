@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
 from app.shared.enums.recommendation_status import RecommendationStatus
 from app.shared.enums.risk_level import RiskLevel
 from app.shared.enums.source_type import SourceType
@@ -12,8 +13,8 @@ class RecommendationBase(BaseModel):
     risk_level: Optional[RiskLevel] = RiskLevel.LOW
     status: Optional[RecommendationStatus] = RecommendationStatus.NEW
     recommended_action: Optional[str] = None
-    agent_id: Optional[int] = None
-    policy_id: Optional[int] = None
+    agent_id: Optional[UUID] = None
+    policy_id: Optional[UUID] = None
 
 class RecommendationCreate(RecommendationBase):
     pass
@@ -26,8 +27,8 @@ class RecommendationUpdate(BaseModel):
     risk_level: Optional[RiskLevel] = None
     status: Optional[RecommendationStatus] = None
     recommended_action: Optional[str] = None
-    agent_id: Optional[int] = None
-    policy_id: Optional[int] = None
+    agent_id: Optional[UUID] = None
+    policy_id: Optional[UUID] = None
 
 class RecommendationResponse(RecommendationBase):
     id: int

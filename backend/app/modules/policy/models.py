@@ -1,11 +1,9 @@
-from sqlalchemy import Column, Integer, String, JSON
+from sqlalchemy import Column, String, JSON
 from app.db.session import Base
+from app.shared.mixins import WorkflowBaseMixin
 
-
-class Policy(Base):
+class Policy(Base, WorkflowBaseMixin):
     __tablename__ = "policies"
-
-    id = Column(Integer, primary_key=True, index=True)
 
     policy_name = Column(
         String,
@@ -35,7 +33,4 @@ class Policy(Base):
     )
 
     conditions = Column(JSON)
-
     actions = Column(JSON)
-
-    created_by = Column(Integer)

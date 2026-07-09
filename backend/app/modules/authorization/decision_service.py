@@ -16,15 +16,18 @@ class GovernanceEventService:
     @staticmethod
     async def publish_event(event_type: str, payload: dict, db) -> None:
         """Publishes a security event to the registry audit events log."""
+        meta = {
+            "change_summary": payload.get("change_summary") or f"Authorization denied for action {payload.get('action')}",
+            "before_json": payload.get("before_json"),
+            "after_json": payload.get("after_json") or payload
+        }
         stmt = sa.insert(RegistryAuditEvent).values(
-            id=uuid4(),
-            entity_type=payload.get("entity_type", "authorization_decision"),
-            entity_id=payload.get("entity_id") or uuid4(),
             event_type=event_type,
-            changed_by=payload.get("subject_user_id"),
-            change_summary=payload.get("change_summary") or f"Authorization denied for action {payload.get('action')}",
-            before_json=payload.get("before_json"),
-            after_json=payload.get("after_json") or payload,
+            entity_type=payload.get("entity_type", "authorization_decision"),
+            entity_id=str(payload.get("entity_id")) if payload.get("entity_id") else None,
+            actor_user_id=payload.get("subject_user_id"),
+            action=payload.get("action") or "EVALUATE",
+            event_metadata=meta,
             created_at=datetime.now(timezone.utc)
         )
         await execute_statement(db, stmt)
@@ -42,23 +45,7 @@ class AuthorizationDecisionService:
             g_user = guardian_res.scalar()
             
             if g_user:
-                # Query integer user RBAC roles
-                roles_stmt = (
-                    select(Role.role_code)
-                    .join(user_roles, user_roles.c.role_id == Role.id)
-                    .join(User, User.id == user_roles.c.user_id)
-                    .where(User.email == g_user.email)
-                )
-                roles_res = await execute_statement(db, roles_stmt)
-                user_roles_list = [r[0] for r in roles_res.fetchall()]
-                
-                # Query registry role from registry_roles
-                from app.modules.registry.models import RegistryRole
-                reg_role_stmt = select(RegistryRole.role_code).where(RegistryRole.id == g_user.role_id)
-                reg_role_res = await execute_statement(db, reg_role_stmt)
-                reg_role_code = reg_role_res.scalar()
-                if reg_role_code and reg_role_code not in user_roles_list:
-                    user_roles_list.append(reg_role_code)
+                user_roles_list = [r.role_code for r in g_user.roles]
 
         subject_dict = {
             "user_id": request.subject_user_id,

@@ -493,9 +493,28 @@ def lookup_roles(db: Session) -> List[RegistryRole]:
 # ---------------------------------------------------------
 
 def create_user(db: Session, data: dict) -> GuardianUser:
-    user = GuardianUser(**data)
-    db.add(user)
+    role_id = data.pop("role_id", None)
+    email = data.get("email")
+    user = db.query(GuardianUser).filter(GuardianUser.email == email).first()
+    if user:
+        for k, v in data.items():
+            if v is not None and hasattr(user, k):
+                setattr(user, k, v)
+    else:
+        if "name" not in data or not data["name"]:
+            data["name"] = data.get("full_name") or "User"
+        user = GuardianUser(**data)
+        db.add(user)
+    
     db.flush()
+    
+    if role_id:
+        from app.modules.auth.models import Role as AuthRole
+        role = db.query(AuthRole).filter(AuthRole.id == role_id).first()
+        if role and role not in user.roles:
+            user.roles.append(role)
+            db.flush()
+            
     return user
 
 def get_user_by_id(db: Session, user_id: UUID) -> Optional[GuardianUser]:
@@ -520,10 +539,17 @@ def list_users(db: Session, filters: dict, page: int, page_size: int, sort_by: s
     return items, total
 
 def update_user(db: Session, user: GuardianUser, data: dict) -> GuardianUser:
+    role_id = data.pop("role_id", None)
     for key, value in data.items():
         if value is not None and hasattr(user, key):
             setattr(user, key, value)
     db.flush()
+    if role_id:
+        from app.modules.auth.models import Role as AuthRole
+        role = db.query(AuthRole).filter(AuthRole.id == role_id).first()
+        if role:
+            user.roles = [role]
+            db.flush()
     return user
 
 def change_user_status(db: Session, user: GuardianUser, new_status: str) -> GuardianUser:
@@ -669,18 +695,29 @@ def global_search(db: Session, term: str) -> dict:
     }
 
 def get_entity_name(db: Session, entity_type: str, entity_id: UUID) -> str:
-    table_map = {
-        "MODEL": (RegistryAIModel, "model_name"),
-        "AGENT": (RegistryAIAgent, "agent_name"),
-        "TOOL": (RegistryTool, "tool_name"),
-        "WORKFLOW": (RegistryWorkflow, "workflow_name"),
-        "DATA_SOURCE": (RegistryDataSource, "source_name"),
-        "USER": (GuardianUser, "full_name"),
-        "DEPARTMENT": (RegistryDepartment, "department_name"),
-        "ROLE": (RegistryRole, "role_name")
-    }
-    if entity_type not in table_map: return "Unknown"
-    model, name_col = table_map[entity_type]
+    from app.db.session import Base
+    dynamic_table_map = {}
+    for mapper in Base.registry.mappers:
+        cls = mapper.class_
+        if hasattr(cls, "__object_type__"):
+            dynamic_table_map[cls.__object_type__] = cls
+            
+    resolved_key = entity_type
+    if entity_type == "MODEL":
+        resolved_key = "AI_MODEL"
+        
+    model = dynamic_table_map.get(resolved_key)
+    if not model: return "Unknown"
+    
+    name_col = getattr(model, "__name_column__", None)
+    if not name_col:
+        if hasattr(model, "name"):
+            name_col = "name"
+        elif hasattr(model, "full_name"):
+            name_col = "full_name"
+        else:
+            return "Unknown"
+            
     result = db.execute(select(getattr(model, name_col)).filter(model.id == entity_id)).scalar_one_or_none()
     return result or "Unknown"
 

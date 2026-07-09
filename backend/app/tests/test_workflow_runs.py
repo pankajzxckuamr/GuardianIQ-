@@ -36,43 +36,71 @@ class WorkflowRunTests(unittest.TestCase):
 
         # Clean up existing test records to prevent UniqueViolation from previous failed runs
         try:
-            aud_guardian = self.db.query(GuardianUser).filter(GuardianUser.email == "auditor@guardianiq.com").first()
-            if aud_guardian:
-                from app.modules.authorization.models import WorkflowAuthorizationDecision
-                self.db.query(WorkflowAuthorizationDecision).filter(
-                    sa.or_(
-                        WorkflowAuthorizationDecision.subject_user_id == aud_guardian.id,
-                        WorkflowAuthorizationDecision.tenant_id == aud_guardian.id
-                    )
-                ).delete()
-                self.db.query(GuardianUser).filter(GuardianUser.id == aud_guardian.id).delete()
+            for email in ["auditor@guardianiq.com", "nonperm.user@guardianiq.com"]:
+                u = self.db.query(User).filter(User.email == email).first()
+                if u:
+                    from app.modules.authorization.models import WorkflowAuthorizationDecision
+                    from app.modules.auth.models import user_roles
+                    self.db.query(WorkflowAuthorizationDecision).filter(
+                        sa.or_(
+                            WorkflowAuthorizationDecision.subject_user_id == u.id,
+                            WorkflowAuthorizationDecision.tenant_id == u.id
+                        )
+                    ).delete(synchronize_session=False)
+                    self.db.execute(user_roles.delete().where(user_roles.c.user_id == u.id))
+                    self.db.query(User).filter(User.id == u.id).delete(synchronize_session=False)
+            self.db.commit()
 
-            aud_user = self.db.query(User).filter(User.email == "auditor@guardianiq.com").first()
-            if aud_user:
-                from app.modules.auth.models import user_roles
-                self.db.execute(user_roles.delete().where(user_roles.c.user_id == aud_user.id))
-                self.db.query(User).filter(User.id == aud_user.id).delete()
+            test_workflow = self.db.query(RegistryWorkflow).filter(RegistryWorkflow.workflow_code == "WF-RUN-TEST").first()
+            test_agent = self.db.query(RegistryAIAgent).filter(RegistryAIAgent.agent_code == "AG-RUN-TEST").first()
+            test_model = self.db.query(RegistryAIModel).filter(RegistryAIModel.model_code == "MOD-RUN-TEST").first()
+            test_tool = self.db.query(RegistryTool).filter(RegistryTool.tool_code == "TL-WRITE").first()
+
+            filter_conds = []
+            if test_model:
+                filter_conds.append(WorkflowScheduleAgentAssignment.model_id == test_model.id)
+            if test_agent:
+                filter_conds.append(WorkflowScheduleAgentAssignment.agent_id == test_agent.id)
+            if filter_conds:
+                self.db.query(WorkflowScheduleAgentAssignment).filter(sa.or_(*filter_conds)).delete(synchronize_session=False)
+
+            if test_workflow:
+                schedules = self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.workflow_id == test_workflow.id).all()
+                for sched in schedules:
+                    runs = self.db.query(WorkflowRun).filter(WorkflowRun.schedule_id == sched.id).all()
+                    for r in runs:
+                        self.db.query(WorkflowRunFailure).filter(WorkflowRunFailure.run_id == r.id).delete(synchronize_session=False)
+                        self.db.query(WorkflowRunOutput).filter(WorkflowRunOutput.run_id == r.id).delete(synchronize_session=False)
+                        self.db.query(WorkflowRunStep).filter(WorkflowRunStep.run_id == r.id).delete(synchronize_session=False)
+                        self.db.query(WorkflowRun).filter(WorkflowRun.id == r.id).delete(synchronize_session=False)
+                    self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.schedule_id == sched.id).delete(synchronize_session=False)
+                    self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.id == sched.id).delete(synchronize_session=False)
 
             old_schedules = self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.schedule_code == "SCH-RUN-TEST").all()
             for old_sched in old_schedules:
                 runs = self.db.query(WorkflowRun).filter(WorkflowRun.schedule_id == old_sched.id).all()
                 for r in runs:
-                    self.db.query(WorkflowRunFailure).filter(WorkflowRunFailure.run_id == r.id).delete()
-                    self.db.query(WorkflowRunOutput).filter(WorkflowRunOutput.run_id == r.id).delete()
-                    self.db.query(WorkflowRunStep).filter(WorkflowRunStep.run_id == r.id).delete()
-                    self.db.query(WorkflowRun).filter(WorkflowRun.id == r.id).delete()
-                self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.schedule_id == old_sched.id).delete()
-                self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.id == old_sched.id).delete()
+                    self.db.query(WorkflowRunFailure).filter(WorkflowRunFailure.run_id == r.id).delete(synchronize_session=False)
+                    self.db.query(WorkflowRunOutput).filter(WorkflowRunOutput.run_id == r.id).delete(synchronize_session=False)
+                    self.db.query(WorkflowRunStep).filter(WorkflowRunStep.run_id == r.id).delete(synchronize_session=False)
+                    self.db.query(WorkflowRun).filter(WorkflowRun.id == r.id).delete(synchronize_session=False)
+                self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.schedule_id == old_sched.id).delete(synchronize_session=False)
+                self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.id == old_sched.id).delete(synchronize_session=False)
 
             old_group = self.db.query(ApprovalGroup).filter(ApprovalGroup.name == "Run Test Group").first()
             if old_group:
-                self.db.query(ApprovalGroupMember).filter(ApprovalGroupMember.approval_group_id == old_group.id).delete()
-                self.db.query(ApprovalGroup).filter(ApprovalGroup.id == old_group.id).delete()
+                self.db.query(ApprovalGroupMember).filter(ApprovalGroupMember.approval_group_id == old_group.id).delete(synchronize_session=False)
+                self.db.query(ApprovalGroup).filter(ApprovalGroup.id == old_group.id).delete(synchronize_session=False)
 
-            self.db.query(RegistryTool).filter(RegistryTool.tool_code == "TL-WRITE").delete()
-            self.db.query(RegistryAIModel).filter(RegistryAIModel.model_code == "MOD-RUN-TEST").delete()
-            self.db.query(RegistryAIAgent).filter(RegistryAIAgent.agent_code == "AG-RUN-TEST").delete()
-            self.db.query(RegistryWorkflow).filter(RegistryWorkflow.workflow_code == "WF-RUN-TEST").delete()
+            if test_tool:
+                self.db.delete(test_tool)
+            if test_model:
+                self.db.delete(test_model)
+            if test_agent:
+                self.db.delete(test_agent)
+            if test_workflow:
+                self.db.delete(test_workflow)
+
             self.db.commit()
         except Exception as e:
             self.db.rollback()
@@ -399,27 +427,26 @@ class WorkflowRunTests(unittest.TestCase):
         # Mask test: if headers contain invalid or low privilege token, raw_output_json is masked
         # Login as non-permission auditor
         non_perm_headers = {}
-        auditor_user = self.db.query(User).filter(User.email == "auditor@guardianiq.com").first()
+        auditor_user = self.db.query(User).filter(User.email == "nonperm.user@guardianiq.com").first()
         if not auditor_user:
             admin_user = self.db.query(User).filter(User.email == "admin@guardianiq.com").first()
             auditor_user = User(
-                email="auditor@guardianiq.com",
-                name="auditor",
-                full_name="Compliance Auditor",
+                email="nonperm.user@guardianiq.com",
+                name="nonperm",
+                full_name="Non-Perm User",
                 hashed_password=admin_user.hashed_password
             )
             self.db.add(auditor_user)
             self.db.commit()
 
-        auditor_guardian = self.db.query(GuardianUser).filter(GuardianUser.email == "auditor@guardianiq.com").first()
+        auditor_guardian = self.db.query(GuardianUser).filter(GuardianUser.email == "nonperm.user@guardianiq.com").first()
         if not auditor_guardian:
             admin_guardian = self.db.query(GuardianUser).filter(GuardianUser.email == "admin@guardianiq.com").first()
             auditor_guardian = GuardianUser(
                 id=uuid4(),
-                email="auditor@guardianiq.com",
-                full_name="Compliance Auditor",
+                email="nonperm.user@guardianiq.com",
+                full_name="Non-Perm User",
                 department_id=admin_guardian.department_id,
-                role_id=admin_guardian.role_id,
                 status="ACTIVE"
             )
             self.db.add(auditor_guardian)
@@ -427,7 +454,7 @@ class WorkflowRunTests(unittest.TestCase):
 
         login_response_aud = self.client.post(
             "/api/auth/login",
-            data={"username": "auditor@guardianiq.com", "password": "Admin@1234!"}
+            data={"username": "nonperm.user@guardianiq.com", "password": "Admin@1234!"}
         )
         if login_response_aud.status_code == 200:
             token = login_response_aud.json()["access_token"]

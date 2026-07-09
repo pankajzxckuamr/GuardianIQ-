@@ -150,7 +150,8 @@ def login(
     # ── (and any OAuth2 client) can extract it from the response.     ──
     # We also include StandardResponse fields so the frontend client   ──
     # can consume the same response without special-casing.            ──
-    return JSONResponse(content={
+    from fastapi.encoders import jsonable_encoder
+    return JSONResponse(content=jsonable_encoder({
         # OAuth2 / RFC 6749 required fields at root
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -172,7 +173,7 @@ def login(
                 "roles": [role.role_code for role in user.roles]
             }
         }
-    })
+    }))
 
 
 

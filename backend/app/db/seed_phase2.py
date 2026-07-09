@@ -24,10 +24,12 @@ import pytz
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app.db.session import SessionLocal
-from app.modules.registry.models import (
-    RegistryDepartment, GuardianUser, RegistryRole, RegistryDataSource,
-    RegistryAIModel, RegistryAIAgent, RegistryTool, RegistryWorkflow
-)
+from app.modules.auth.models import User, Role
+from app.modules.department.models import Department
+from app.modules.datasource.models import DataSource
+from app.modules.ai_model.models import AIModel
+from app.modules.agent.models import Agent
+from app.modules.registry.models import Tool, Workflow
 from app.modules.workflow_scheduler.models import (
     ApprovalGroup, Phase2WorkflowSchedule, WorkflowScheduleAgentAssignment,
     WorkflowScheduleApproval, WorkflowScheduleHistory, ApprovalGroupMember
@@ -48,39 +50,39 @@ def seed_phase2_data():
         print("[INFO] Starting Phase 2 Seeding...")
 
         # 1. Fetch required registry elements
-        admin_user = db.query(GuardianUser).filter(GuardianUser.email == "admin@guardianiq.com").first()
-        reviewer_user = db.query(GuardianUser).filter(GuardianUser.email == "reviewer@guardianiq.com").first()
-        auditor_user = db.query(GuardianUser).filter(GuardianUser.email == "auditor@guardianiq.com").first()
-        sjenkins = db.query(GuardianUser).filter(GuardianUser.email == "sjenkins@guardianiq.com").first()
-        mchang = db.query(GuardianUser).filter(GuardianUser.email == "mchang@guardianiq.com").first()
-        erodriguez = db.query(GuardianUser).filter(GuardianUser.email == "erodriguez@guardianiq.com").first()
+        admin_user = db.query(User).filter(User.email == "admin@guardianiq.com").first()
+        reviewer_user = db.query(User).filter(User.email == "reviewer@guardianiq.com").first()
+        auditor_user = db.query(User).filter(User.email == "auditor@guardianiq.com").first()
+        sjenkins = db.query(User).filter(User.email == "sjenkins@guardianiq.com").first()
+        mchang = db.query(User).filter(User.email == "mchang@guardianiq.com").first()
+        erodriguez = db.query(User).filter(User.email == "erodriguez@guardianiq.com").first()
 
         if not all([admin_user, reviewer_user, sjenkins, mchang, erodriguez]):
             print("[ERROR] Some required registry users are missing. Please run compliance scenario seeds first!")
             return
 
         # Fetch workflows
-        wf_onboarding = db.query(RegistryWorkflow).filter(RegistryWorkflow.workflow_code == "WF-ONBOARDING-PIPELINE").first()
-        wf_refund = db.query(RegistryWorkflow).filter(RegistryWorkflow.workflow_code == "WF-AUTO-REFUND").first()
-        wf_fraud = db.query(RegistryWorkflow).filter(RegistryWorkflow.workflow_code == "WF-FRAUD-FREEZE").first()
+        wf_onboarding = db.query(Workflow).filter(Workflow.workflow_code == "WF-ONBOARDING-PIPELINE").first()
+        wf_refund = db.query(Workflow).filter(Workflow.workflow_code == "WF-AUTO-REFUND").first()
+        wf_fraud = db.query(Workflow).filter(Workflow.workflow_code == "WF-FRAUD-FREEZE").first()
 
         # Fetch agents
-        agent_onboard = db.query(RegistryAIAgent).filter(RegistryAIAgent.agent_code == "AGENT-ONBOARD-01").first()
-        agent_refund = db.query(RegistryAIAgent).filter(RegistryAIAgent.agent_code == "AGENT-REFUND-BOT").first()
-        agent_fraud = db.query(RegistryAIAgent).filter(RegistryAIAgent.agent_code == "AGENT-FRAUD-SENTINEL").first()
+        agent_onboard = db.query(Agent).filter(Agent.agent_code == "AGENT-ONBOARD-01").first()
+        agent_refund = db.query(Agent).filter(Agent.agent_code == "AGENT-REFUND-BOT").first()
+        agent_fraud = db.query(Agent).filter(Agent.agent_code == "AGENT-FRAUD-SENTINEL").first()
 
         # Fetch models
-        model_onboard = db.query(RegistryAIModel).filter(RegistryAIModel.model_code == "LLM-COMPLIANCE-DOCS").first()
-        model_refund = db.query(RegistryAIModel).filter(RegistryAIModel.model_code == "LLM-SUPPORT-001").first()
-        model_fraud = db.query(RegistryAIModel).filter(RegistryAIModel.model_code == "ML-FRAUD-DETECT-V4").first()
+        model_onboard = db.query(AIModel).filter(AIModel.model_code == "LLM-COMPLIANCE-DOCS").first()
+        model_refund = db.query(AIModel).filter(AIModel.model_code == "LLM-SUPPORT-001").first()
+        model_fraud = db.query(AIModel).filter(AIModel.model_code == "ML-FRAUD-DETECT-V4").first()
 
         # Fetch tools
-        tool_refund = db.query(RegistryTool).filter(RegistryTool.tool_code == "API-REFUND-STRIPE").first()
-        tool_fraud = db.query(RegistryTool).filter(RegistryTool.tool_code == "API-ACCOUNT-FREEZE").first()
+        tool_refund = db.query(Tool).filter(Tool.tool_code == "API-REFUND-STRIPE").first()
+        tool_fraud = db.query(Tool).filter(Tool.tool_code == "API-ACCOUNT-FREEZE").first()
 
         # Fetch data sources
-        ds_onboard = db.query(RegistryDataSource).filter(RegistryDataSource.source_code == "DS-HR-WORKDAY").first()
-        ds_fraud = db.query(RegistryDataSource).filter(RegistryDataSource.source_code == "DS-FIN-LEDGER").first()
+        ds_onboard = db.query(DataSource).filter(DataSource.source_code == "DS-HR-WORKDAY").first()
+        ds_fraud = db.query(DataSource).filter(DataSource.source_code == "DS-FIN-LEDGER").first()
 
         # 2. Cleanup Phase 2 tables
         print("[INFO] Cleaning up old Phase 2 data...")

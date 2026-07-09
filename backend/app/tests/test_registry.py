@@ -270,6 +270,14 @@ class RegistryIntegrationTests(unittest.TestCase):
         self.assertTrue(len(role_data["data"]) > 0, "No roles found in test database lookup")
         valid_role_id = role_data["data"][0]["id"]
 
+        # Clean up any leftover test users first
+        from app.modules.registry.models import GuardianUser
+        for email in ["test.no.dept@guardianiq.com", "test.no.role@guardianiq.com", "test.valid@guardianiq.com"]:
+            user_to_del = self.db.query(GuardianUser).filter(GuardianUser.email == email).first()
+            if user_to_del:
+                self.db.delete(user_to_del)
+        self.db.commit()
+
         # 1. Create a user without department_id (should fail validation)
         user_payload_no_dept = {
             "email": "test.no.dept@guardianiq.com",

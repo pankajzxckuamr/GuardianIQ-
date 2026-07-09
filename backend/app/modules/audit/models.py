@@ -1,10 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, JSON
-
-
+from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
-
 from app.db.session import Base
-
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
@@ -23,7 +20,7 @@ class AuditEvent(Base):
 
     entity_id = Column(String(100), nullable=True)
 
-    actor_user_id = Column(Integer)
+    actor_user_id = Column(UUID(as_uuid=True))
 
     action = Column(
         String,

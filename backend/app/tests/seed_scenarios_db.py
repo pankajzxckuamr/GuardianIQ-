@@ -12,9 +12,25 @@ from app.modules.registry.models import (
     RegistryWorkflow, RegistryRelationship
 )
 
+from sqlalchemy import event
+from app.modules.auth.models import User, Role
+
 def seed_scenarios():
     db = SessionLocal()
+    
+    # Auto-supply tenant_id for models that require it
+    @event.listens_for(db, "before_flush")
+    def receive_before_flush(session, flush_context, instances):
+        admin_user = session.query(User).filter(User.email == "admin@guardianiq.com").first()
+        if admin_user:
+            default_tenant_id = admin_user.id
+            for obj in session.new:
+                if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id") is None:
+                    obj.tenant_id = default_tenant_id
+
     try:
+        from app.db.seed import seed
+        seed()
         # Helper to get or create department
         def get_or_create_dept(code, name):
             dept = db.query(RegistryDepartment).filter_by(department_code=code).first()
@@ -207,23 +223,25 @@ def seed_scenarios():
 
         # Helper to create relationship
         def create_relationship_if_not_exists(src_type, src_id, target_type, target_id, rel_type):
+            from datetime import datetime, timezone
             existing = db.query(RegistryRelationship).filter_by(
-                source_entity_type=src_type,
-                source_entity_id=src_id,
-                target_entity_type=target_type,
-                target_entity_id=target_id,
+                source_type=src_type,
+                source_id=str(src_id),
+                target_type=target_type,
+                target_id=str(target_id),
                 relationship_type=rel_type,
                 status="ACTIVE"
             ).first()
             if not existing:
                 rel = RegistryRelationship(
                     id=uuid4(),
-                    source_entity_type=src_type,
-                    source_entity_id=src_id,
-                    target_entity_type=target_type,
-                    target_entity_id=target_id,
+                    source_type=src_type,
+                    source_id=str(src_id),
+                    target_type=target_type,
+                    target_id=str(target_id),
                     relationship_type=rel_type,
-                    status="ACTIVE"
+                    status="ACTIVE",
+                    effective_from=datetime.now(timezone.utc)
                 )
                 db.add(rel)
                 print(f"Created Relationship: {src_type} ({src_id}) -> {rel_type} -> {target_type} ({target_id})")

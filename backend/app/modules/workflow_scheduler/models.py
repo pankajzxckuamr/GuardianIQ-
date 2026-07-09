@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Integer, Numeric, Text, TIMESTAMP, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, Text, TIMESTAMP, ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.db.session import Base
@@ -22,7 +22,7 @@ class Phase2WorkflowSchedule(Base, WorkflowBaseMixin):
         UniqueConstraint('tenant_id', 'schedule_name', name='uix_tenant_schedule_name'),
     )
 
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("registry_workflows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     schedule_code = Column(String(100), nullable=False)
     schedule_name = Column(String(255), nullable=False)
     schedule_type = Column(String(50), nullable=False)
@@ -35,17 +35,17 @@ class Phase2WorkflowSchedule(Base, WorkflowBaseMixin):
     concurrency_policy = Column(String(50), server_default="SKIP_IF_RUNNING", nullable=True, default="SKIP_IF_RUNNING")
     max_runtime_seconds = Column(Integer, server_default="1800", nullable=True, default=1800)
     retry_policy_json = Column(JSONB, server_default='{"max_retries":1,"retry_delay_seconds":300}', nullable=True, default=None)
-    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=False)
-    owner_department_id = Column(UUID(as_uuid=True), ForeignKey("registry_departments.id"), nullable=True)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True)
     approval_required = Column(Boolean, server_default="FALSE", nullable=True, default=False)
     approval_group_id = Column(UUID(as_uuid=True), ForeignKey("approval_groups.id"), nullable=True)
     risk_level = Column(String(50), server_default="MEDIUM", nullable=True, default="MEDIUM")
     schedule_status = Column(String(50), server_default="DRAFT", nullable=True, default="DRAFT")
 
     # Relationships
-    workflow = relationship("RegistryWorkflow", foreign_keys=[workflow_id])
-    owner_user = relationship("GuardianUser", foreign_keys=[owner_user_id])
-    owner_department = relationship("RegistryDepartment", foreign_keys=[owner_department_id])
+    workflow = relationship("Workflow", foreign_keys=[workflow_id])
+    owner_user = relationship("User", foreign_keys=[owner_user_id])
+    owner_department = relationship("Department", foreign_keys=[owner_department_id])
     approval_group = relationship("ApprovalGroup", back_populates="schedules")
     
     agent_assignments = relationship(
@@ -63,8 +63,8 @@ class WorkflowScheduleAgentAssignment(Base, WorkflowBaseMixin):
 
 
     schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id", ondelete="CASCADE"), nullable=False)
-    agent_id = Column(UUID(as_uuid=True), ForeignKey("registry_ai_agents.id"), nullable=False)
-    model_id = Column(UUID(as_uuid=True), ForeignKey("registry_ai_models.id"), nullable=True)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False)
+    model_id = Column(UUID(as_uuid=True), ForeignKey("ai_models.id"), nullable=True)
     assignment_role = Column(String(50), server_default="PRIMARY", nullable=True, default="PRIMARY")
     execution_mode = Column(String(50), server_default="RECOMMEND_ONLY", nullable=True, default="RECOMMEND_ONLY")
     confidence_threshold = Column(Numeric(5, 2), nullable=True)
@@ -76,8 +76,8 @@ class WorkflowScheduleAgentAssignment(Base, WorkflowBaseMixin):
 
     # Relationships
     schedule = relationship("Phase2WorkflowSchedule", back_populates="agent_assignments")
-    agent = relationship("RegistryAIAgent", foreign_keys=[agent_id])
-    model = relationship("RegistryAIModel", foreign_keys=[model_id])
+    agent = relationship("Agent", foreign_keys=[agent_id])
+    model = relationship("AIModel", foreign_keys=[model_id])
 
 
 class WorkflowScheduleApproval(Base, WorkflowBaseMixin):
@@ -86,18 +86,18 @@ class WorkflowScheduleApproval(Base, WorkflowBaseMixin):
 
     schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id"), nullable=False)
     approval_type = Column(String(100), server_default="ACTIVATION", nullable=True, default="ACTIVATION")
-    approver_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
+    approver_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     approval_group_id = Column(UUID(as_uuid=True), ForeignKey("approval_groups.id"), nullable=True)
     approval_status = Column(String(50), server_default="PENDING", nullable=True, default="PENDING")
     decision_reason = Column(Text, nullable=True)
     decided_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    submitted_by = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
+    submitted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Relationships
     schedule = relationship("Phase2WorkflowSchedule", back_populates="approvals")
-    approver_user = relationship("GuardianUser", foreign_keys=[approver_user_id])
+    approver_user = relationship("User", foreign_keys=[approver_user_id])
     approval_group = relationship("ApprovalGroup", back_populates="approvals", foreign_keys=[approval_group_id])
-    submitter_user = relationship("GuardianUser", foreign_keys=[submitted_by])
+    submitter_user = relationship("User", foreign_keys=[submitted_by])
 
 
 class WorkflowScheduleHistory(Base, WorkflowBaseMixin):
@@ -109,12 +109,12 @@ class WorkflowScheduleHistory(Base, WorkflowBaseMixin):
     change_summary = Column(Text, nullable=True)
     before_json = Column(JSONB, server_default="{}", nullable=True, default=None)
     after_json = Column(JSONB, server_default="{}", nullable=True, default=None)
-    changed_by = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
-    changed_at = Column(TIMESTAMP(timezone=True), server_default="CURRENT_TIMESTAMP", nullable=True)
+    changed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    changed_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
     schedule = relationship("Phase2WorkflowSchedule", back_populates="history")
-    changed_by_user = relationship("GuardianUser", foreign_keys=[changed_by])
+    changed_by_user = relationship("User", foreign_keys=[changed_by])
 
 
 class ApprovalGroupMember(Base):
@@ -122,9 +122,9 @@ class ApprovalGroupMember(Base):
 
 
     approval_group_id = Column(UUID(as_uuid=True), ForeignKey("approval_groups.id", ondelete="CASCADE"), primary_key=True, nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id", ondelete="CASCADE"), primary_key=True, nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, nullable=False)
 
     # Relationships
     approval_group = relationship("ApprovalGroup", backref="members")
-    user = relationship("GuardianUser", backref="approval_groups")
+    user = relationship("User", backref="approval_groups")
 

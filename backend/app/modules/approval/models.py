@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 from app.shared.enums.approval_status import ApprovalStatus
@@ -13,7 +14,7 @@ class Approval(Base):
     reviewed_at = Column(DateTime, nullable=True, default=lambda: datetime.now(timezone.utc))
     
     recommendation_id = Column(Integer, ForeignKey("recommendations.id"), nullable=False)
-    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Relationships
     recommendation = relationship("Recommendation", backref="approvals")

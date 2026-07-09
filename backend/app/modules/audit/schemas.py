@@ -1,8 +1,7 @@
 from typing import Optional
 from datetime import datetime
-
+from uuid import UUID
 from pydantic import BaseModel
-
 
 class AuditEventCreate(BaseModel):
     event_type: str
@@ -11,7 +10,7 @@ class AuditEventCreate(BaseModel):
 
     entity_id: Optional[str] = None
 
-    actor_user_id: Optional[int] = None
+    actor_user_id: Optional[UUID] = None
 
     action: str
 
@@ -23,7 +22,7 @@ class AuditEventResponse(BaseModel):
     event_type: str
     entity_type: str
     entity_id: Optional[str] = None
-    actor_user_id: Optional[int] = None
+    actor_user_id: Optional[UUID] = None
     actor_username: Optional[str] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None

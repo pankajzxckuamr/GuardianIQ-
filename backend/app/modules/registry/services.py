@@ -755,12 +755,18 @@ def create_relationship(db: Session, payload: schemas.RelationshipCreate, curren
         raise HTTPException(400, detail=ResponseHelper.error(message="Relationship not allowed for selected entities", error_code="VALIDATION_ERROR").model_dump())
         
     def check_entity(entity_type, entity_id):
-        table_map = {
-            "MODEL": RegistryAIModel, "AGENT": RegistryAIAgent, "TOOL": RegistryTool,
-            "WORKFLOW": RegistryWorkflow, "DATA_SOURCE": RegistryDataSource,
-            "USER": GuardianUser, "DEPARTMENT": RegistryDepartment, "ROLE": RegistryRole
-        }
-        model = table_map.get(entity_type)
+        from app.db.session import Base
+        dynamic_table_map = {}
+        for mapper in Base.registry.mappers:
+            cls = mapper.class_
+            if hasattr(cls, "__object_type__"):
+                dynamic_table_map[cls.__object_type__] = cls
+        
+        resolved_key = entity_type
+        if entity_type == "MODEL":
+            resolved_key = "AI_MODEL"
+            
+        model = dynamic_table_map.get(resolved_key)
         if not model: raise HTTPException(400, detail=ResponseHelper.error(message=f"Invalid entity type: {entity_type}", error_code="VALIDATION_ERROR").model_dump())
         
         entity = db.execute(select(model).filter_by(id=entity_id)).scalar_one_or_none()

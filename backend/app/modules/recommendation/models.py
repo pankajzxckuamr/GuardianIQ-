@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 from app.shared.enums.recommendation_status import RecommendationStatus
@@ -17,8 +18,8 @@ class Recommendation(Base):
     status = Column(SQLEnum(RecommendationStatus), nullable=False, default=RecommendationStatus.NEW, index=True)
     recommended_action = Column(String, nullable=True)
     
-    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=True)
-    policy_id = Column(Integer, ForeignKey("policies.id"), nullable=True)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=True)
+    policy_id = Column(UUID(as_uuid=True), ForeignKey("policies.id"), nullable=True)
 
     # Relationships
     agent = relationship("Agent", backref="recommendations")

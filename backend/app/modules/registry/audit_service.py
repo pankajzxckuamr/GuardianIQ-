@@ -29,14 +29,19 @@ def write_registry_audit(
     from app.modules.registry.repositories import resolve_user_uuid
     changed_by = resolve_user_uuid(db, changed_by)
 
+    meta = {
+        "change_summary": change_summary,
+        "before_json": sanitize(before_json),
+        "after_json": sanitize(after_json)
+    }
+
     audit_event = RegistryAuditEvent(
-        entity_type=entity_type,
+        event_type=f"{entity_type}_{event_type}".upper(),
+        entity_type=entity_type.lower(),
         entity_id=entity_id,
-        event_type=event_type,
-        changed_by=changed_by,
-        change_summary=change_summary,
-        before_json=sanitize(before_json),
-        after_json=sanitize(after_json)
+        actor_user_id=changed_by,
+        action=event_type,
+        event_metadata=meta
     )
     
     db.add(audit_event)

@@ -22,16 +22,31 @@ async def async_client():
         yield ac
 
 @pytest.fixture
-def admin_token():
-    return "mock_admin_token"
+async def admin_token(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={"username": "admin@guardianiq.com", "password": "Admin@1234!"}
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
 
 @pytest.fixture
-def auditor_token():
-    return "mock_auditor_token"
+async def auditor_token(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={"username": "auditor@guardianiq.demo", "password": "Admin@1234!"}
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
 
 @pytest.fixture
-def risk_manager_token():
-    return "mock_risk_manager_token"
+async def risk_manager_token(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={"username": "risk@guardianiq.demo", "password": "Admin@1234!"}
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
 
 # --- HELPER FUNCTIONS ---
 async def create_mock_schedule(client: AsyncClient, token: str, status="DRAFT", risk_level="MEDIUM"):

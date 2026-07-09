@@ -1,10 +1,14 @@
+from uuid import uuid4
 from sqlalchemy import (
     Column,
     Integer,
     String,
     ForeignKey,
-    Table
+    Table,
+    TIMESTAMP,
+    text
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -13,43 +17,48 @@ from app.db.session import Base
 user_roles = Table(
     "user_roles",
     Base.metadata,
-    Column("user_id", ForeignKey("users.id")),
-    Column("role_id", ForeignKey("roles.id"))
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id")),
+    Column("role_id", UUID(as_uuid=True), ForeignKey("roles.id"))
 )
 
 
 role_permissions = Table(
     "role_permissions",
     Base.metadata,
-    Column("role_id", ForeignKey("roles.id")),
+    Column("role_id", UUID(as_uuid=True), ForeignKey("roles.id")),
     Column("permission_id", ForeignKey("permissions.id"))
 )
 
 
 class User(Base):
     __tablename__ = "users"
+    __object_type__ = "USER"
+    __name_column__ = "full_name"
 
-    id = Column(Integer, primary_key=True, index=True)
-
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String, nullable=False)
-    
     full_name = Column(String(200), nullable=True)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
     
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True)
+    approval_limit_level = Column(String(50), nullable=True)
     status = Column(String(30), nullable=False, default='ACTIVE')
     
-    from sqlalchemy import TIMESTAMP, text
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
-
-    email = Column(String, unique=True, nullable=False)
-
-    hashed_password = Column(String, nullable=False)
 
     roles = relationship(
         "Role",
         secondary=user_roles,
         back_populates="users"
     )
+
+    @property
+    def role_id(self):
+        if self.roles:
+            return self.roles[0].id
+        return None
 
     @property
     def role_code(self) -> str:
@@ -67,13 +76,12 @@ class User(Base):
 
 class Role(Base):
     __tablename__ = "roles"
+    __object_type__ = "ROLE"
+    __name_column__ = "role_name"
 
-    id = Column(Integer, primary_key=True, index=True)
-
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     role_code = Column(String, unique=True, nullable=False)
-
     role_name = Column(String, nullable=False)
-
     description = Column(String)
 
     users = relationship(
@@ -93,13 +101,11 @@ class Permission(Base):
     __tablename__ = "permissions"
 
     id = Column(Integer, primary_key=True, index=True)
-
     permission_code = Column(
         String,
         unique=True,
         nullable=False
     )
-
     description = Column(String)
 
     roles = relationship(

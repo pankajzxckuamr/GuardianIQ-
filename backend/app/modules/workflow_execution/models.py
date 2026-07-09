@@ -9,10 +9,10 @@ class WorkflowRun(Base, WorkflowBaseMixin):
 
 
     schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id"), nullable=False)
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("registry_workflows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     run_code = Column(String(120), nullable=False)
     trigger_type = Column(String(50), nullable=False)
-    triggered_by_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=True)
+    triggered_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     triggered_by_actor_type = Column(String(50), server_default="SYSTEM", nullable=True, default="SYSTEM")
     run_status = Column(String(50), server_default="QUEUED", nullable=True, default="QUEUED")
     started_at = Column(TIMESTAMP(timezone=True), nullable=True)
@@ -25,8 +25,8 @@ class WorkflowRun(Base, WorkflowBaseMixin):
 
     # Relationships
     schedule = relationship("Phase2WorkflowSchedule", back_populates="runs")
-    workflow = relationship("RegistryWorkflow", foreign_keys=[workflow_id])
-    triggered_by_user = relationship("GuardianUser", foreign_keys=[triggered_by_user_id])
+    workflow = relationship("Workflow", foreign_keys=[workflow_id])
+    triggered_by_user = relationship("User", foreign_keys=[triggered_by_user_id])
     
     steps = relationship("WorkflowRunStep", back_populates="run", cascade="all, delete-orphan")
     outputs = relationship("WorkflowRunOutput", back_populates="run", cascade="all, delete-orphan")

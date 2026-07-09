@@ -336,11 +336,11 @@ class AuthorizationIntegrationTests(unittest.TestCase):
             self.db.query(RegistryAuditEvent)
             .filter(
                 RegistryAuditEvent.event_type == "AUTHORIZATION_DENIED",
-                RegistryAuditEvent.changed_by == self.auditor_uuid
+                RegistryAuditEvent.actor_user_id == self.auditor_uuid
             )
             .order_by(RegistryAuditEvent.created_at.desc())
             .first()
         )
         self.assertIsNotNone(audit_rec)
-        self.assertIn("Authorization denied", audit_rec.change_summary)
+        self.assertIn("Authorization denied", audit_rec.event_metadata.get("change_summary", ""))
         self.audits_to_cleanup.append(audit_rec.id)

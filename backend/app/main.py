@@ -56,6 +56,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from app.shared.audit_listeners import setup_audit_listeners
+setup_audit_listeners()
+
 # ── CORS ── Allow frontend dev server + any localhost port ────────────────────
 app.add_middleware(
     CORSMiddleware,
@@ -102,7 +105,7 @@ app.include_router(registry_router)
 app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
 
 # Feature flag for Phase 2 endpoints
-if os.getenv("PHASE2_SCHEDULER_ENABLED", "False").lower() == "true":
+if os.getenv("PHASE2_SCHEDULER_ENABLED", "True").lower() == "true":
     app.include_router(phase2_auth_router)
     app.include_router(phase2_scheduler_router)
     app.include_router(phase2_run_router)

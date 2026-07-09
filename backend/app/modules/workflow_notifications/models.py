@@ -8,7 +8,7 @@ class WorkflowNotification(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_notifications"
 
 
-    recipient_user_id = Column(UUID(as_uuid=True), ForeignKey("guardian_users.id"), nullable=False)
+    recipient_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     notification_type = Column(String(100), nullable=True)
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=True)
@@ -20,4 +20,4 @@ class WorkflowNotification(Base, WorkflowBaseMixin):
     acknowledged_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Relationships
-    recipient_user = relationship("GuardianUser", foreign_keys=[recipient_user_id])
+    recipient_user = relationship("User", foreign_keys=[recipient_user_id])

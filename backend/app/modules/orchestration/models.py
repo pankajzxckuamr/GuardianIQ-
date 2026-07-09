@@ -8,13 +8,13 @@ from app.db.session import Base
 class WorkflowExecution(Base):
     __tablename__ = "orchestration_workflow_executions"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("registry_workflows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     status = Column(String, nullable=False, default="PENDING")
     is_dry_run = Column(Boolean, default=False)
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
-    workflow = relationship("RegistryWorkflow", primaryjoin="WorkflowExecution.workflow_id == RegistryWorkflow.id", foreign_keys=[workflow_id])
+    workflow = relationship("Workflow", primaryjoin="WorkflowExecution.workflow_id == Workflow.id", foreign_keys=[workflow_id])
 
     @property
     def workflow_name(self):
@@ -23,7 +23,7 @@ class WorkflowExecution(Base):
 class WorkflowSchedule(Base):
     __tablename__ = "orchestration_workflow_schedules"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    workflow_id = Column(UUID(as_uuid=True), ForeignKey("registry_workflows.id"), nullable=False)
+    workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False)
     cron_expression = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     next_run_at = Column(DateTime, nullable=True)

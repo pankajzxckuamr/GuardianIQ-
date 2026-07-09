@@ -30,3 +30,7 @@ Thumbs.db
 # Logs
 logs/
 backend/logs/
+
+# Scratch
+scratch/
+
