@@ -140,3 +140,49 @@ async def evaluate_context(subject: dict, object_context: dict, action: str, db)
             failed_conditions.append("User scope is insufficient for output sensitivity level")
 
     return allowed, failed_conditions
+
+# --- Phase 3 Relationship ABAC ---
+async def check_relationship_modification_access(subject: dict, object_type: str, object_id: str, db) -> tuple[bool, str]:
+    """
+    To modify a relationship or responsibility:
+    - User must be a GOVERNANCE_ADMIN or SUPER_ADMIN
+    - OR User must be an active OWNER of the source object in object_responsibilities
+    - OR User's department matches the department of the source object (simplification for MVP)
+    """
+    user_roles = [r.upper() for r in subject.get("roles", [])]
+    if "GOVERNANCE_ADMIN" in user_roles or "SUPER_ADMIN" in user_roles:
+        return True, ""
+        
+    user_id = subject.get("user_id")
+    user_dept = subject.get("department_id")
+    tenant_id = subject.get("tenant_id")
+    
+    # Check if user is an active owner in object_responsibilities
+    stmt = select(sa.text("1")).select_from(sa.table("object_responsibilities")).where(
+        sa.and_(
+            sa.text(f"object_type = '{object_type}'"),
+            sa.text(f"object_id = '{object_id}'"),
+            sa.text("actor_type = 'USER'"),
+            sa.text(f"actor_id = '{user_id}'"),
+            sa.text("responsibility_type = 'OWNER'"),
+            sa.text("status = 'ACTIVE'")
+        )
+    )
+    is_owner = await execute_statement(db, stmt)
+    if is_owner.scalar():
+        return True, ""
+        
+    # Check if department matches (assuming valid tables have department_id)
+    if user_dept and object_type in ["ai_models", "agents", "workflows", "tools", "departments", "users"]:
+        try:
+            dept_stmt = select(sa.text("department_id")).select_from(sa.table(object_type)).where(
+                sa.text(f"id = '{object_id}'")
+            )
+            obj_dept = await execute_statement(db, dept_stmt)
+            obj_dept_id = obj_dept.scalar()
+            if obj_dept_id and str(obj_dept_id) == str(user_dept):
+                return True, ""
+        except Exception:
+            pass # Fallback to deny if table doesn't have department_id
+            
+    return False, f"User lacks GOVERNANCE_ADMIN role, OWNER responsibility, or department match for {object_type}/{object_id}"

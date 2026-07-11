@@ -3,8 +3,10 @@
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "../components/common/PageHeader";
 import { RelationshipViewer } from "../components/registry/RelationshipViewer";
+import { RegistryDataTable } from "../components/common/RegistryDataTable";
+import { Badge } from "../components/common/Badge";
 import * as registryService from "../services/registry/registryService";
-import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network } from "lucide-react";
+import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2 } from "lucide-react";
 import styles from "./RegistryRelationshipsPage.module.css";
 
 interface EntitySelectItem {
@@ -14,6 +16,16 @@ interface EntitySelectItem {
 }
 
 export const RegistryRelationshipsPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<"LIST" | "EXPLORER">("LIST");
+  
+  // List View State
+  const [relationships, setRelationships] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [totalList, setTotalList] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  
+  // Explorer View State
   const [selectedCategory, setSelectedCategory] = useState<string>("MODEL");
   const [entities, setEntities] = useState<EntitySelectItem[]>([]);
   const [selectedEntityId, setSelectedEntityId] = useState<string>("");
@@ -33,8 +45,29 @@ export const RegistryRelationshipsPage: React.FC = () => {
     { type: "DEPARTMENT", label: "Departments", icon: <Building2 size={20} /> }
   ];
 
-  // Load entities when category changes
+  // Load Relationships List
   useEffect(() => {
+    if (activeTab !== "LIST") return;
+    
+    async function fetchList() {
+      setLoadingList(true);
+      try {
+        const res = await registryService.listRelationships({ page, per_page: pageSize });
+        setRelationships(res.data?.items || []);
+        setTotalList(res.data?.total || 0);
+      } catch (err) {
+        console.error("Failed to load relationships list", err);
+      } finally {
+        setLoadingList(false);
+      }
+    }
+    fetchList();
+  }, [activeTab, page, pageSize]);
+
+  // Load entities when category changes in Explorer
+  useEffect(() => {
+    if (activeTab !== "EXPLORER") return;
+
     async function loadEntities() {
       setLoadingEntities(true);
       setEntities([]);
@@ -96,82 +129,140 @@ export const RegistryRelationshipsPage: React.FC = () => {
     }
 
     loadEntities();
-  }, [selectedCategory]);
+  }, [selectedCategory, activeTab]);
+
+  const listColumns = [
+    {
+      header: "Type",
+      accessor: (row: any) => <Badge variant="info" label={row.relationship_type} />
+    },
+    {
+      header: "Source Type",
+      accessor: (row: any) => <Badge variant="neutral" label={row.source_type} />
+    },
+    {
+      header: "Target Type",
+      accessor: (row: any) => <Badge variant="neutral" label={row.target_type} />
+    },
+    {
+      header: "Status",
+      accessor: (row: any) => <Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} label={row.status} />
+    },
+    {
+      header: "Effective From",
+      accessor: "effective_from"
+    }
+  ];
 
   return (
     <div className={styles.page}>
       {/* Text Breadcrumb */}
-      <div className={styles.breadcrumb}>Registry &gt; Relationships Explorer</div>
+      <div className={styles.breadcrumb}>Registry &gt; Relationships Management</div>
 
       <PageHeader
-        title="Registry Relationships Explorer"
-        description="Visualize system connection trees, linkages, outgoing data targets, and incoming triggers"
+        title="Registry Relationships"
+        description="Manage and visualize system connection trees, linkages, outgoing data targets, and incoming triggers"
       />
 
-      <div className={styles.explorerPanel}>
-        <h3 className={styles.panelTitle}>1. Select Target Category</h3>
-        
-        {/* Category Cards Selector Grid */}
-        <div className={styles.categoryGrid}>
-          {categories.map((cat) => (
-            <div
-              key={cat.type}
-              onClick={() => setSelectedCategory(cat.type)}
-              className={`${styles.categoryCard} ${selectedCategory === cat.type ? styles.categoryCardActive : ""}`}
-            >
-              <div className={styles.iconWrapper}>{cat.icon}</div>
-              <span className={styles.cardTitle}>{cat.label}</span>
-            </div>
-          ))}
-        </div>
+      <div className={styles.tabsContainer} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+        <button 
+          onClick={() => setActiveTab("LIST")}
+          style={{ background: 'transparent', border: 'none', color: activeTab === 'LIST' ? '#fff' : 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderBottom: activeTab === 'LIST' ? '2px solid #3b82f6' : 'none' }}
+        >
+          <List size={18} /> Directory List
+        </button>
+        <button 
+          onClick={() => setActiveTab("EXPLORER")}
+          style={{ background: 'transparent', border: 'none', color: activeTab === 'EXPLORER' ? '#fff' : 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderBottom: activeTab === 'EXPLORER' ? '2px solid #3b82f6' : 'none' }}
+        >
+          <Share2 size={18} /> Graph Explorer
+        </button>
+      </div>
 
-        {/* Target Entity Select */}
-        <div className={styles.selectorContainer}>
-          <label htmlFor="entitySelect" className={styles.label}>
-            2. Choose Active {categories.find(c => c.type === selectedCategory)?.label || "Asset"}
-          </label>
-          {loadingEntities ? (
-            <div className={styles.loadingSpinner}>
-              <span>Loading registered assets...</span>
+      {activeTab === "LIST" && (
+        <RegistryDataTable
+          data={relationships}
+          columns={listColumns}
+          loading={loadingList}
+          totalCount={totalList}
+          currentPage={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          emptyStateTitle="No Relationships Found"
+          emptyStateDesc="There are no active relationships matching your criteria."
+        />
+      )}
+
+      {activeTab === "EXPLORER" && (
+        <>
+          <div className={styles.explorerPanel}>
+            <h3 className={styles.panelTitle}>1. Select Target Category</h3>
+            
+            {/* Category Cards Selector Grid */}
+            <div className={styles.categoryGrid}>
+              {categories.map((cat) => (
+                <div
+                  key={cat.type}
+                  onClick={() => setSelectedCategory(cat.type)}
+                  className={`${styles.categoryCard} ${selectedCategory === cat.type ? styles.categoryCardActive : ""}`}
+                >
+                  <div className={styles.iconWrapper}>{cat.icon}</div>
+                  <span className={styles.cardTitle}>{cat.label}</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            <select
-              id="entitySelect"
-              value={selectedEntityId}
-              onChange={(e) => setSelectedEntityId(e.target.value)}
-              className={styles.select}
-              disabled={entities.length === 0}
-            >
-              {entities.length === 0 ? (
-                <option value="">No registered items found in this category</option>
+
+            {/* Target Entity Select */}
+            <div className={styles.selectorContainer}>
+              <label htmlFor="entitySelect" className={styles.label}>
+                2. Choose Active {categories.find(c => c.type === selectedCategory)?.label || "Asset"}
+              </label>
+              {loadingEntities ? (
+                <div className={styles.loadingSpinner}>
+                  <span>Loading registered assets...</span>
+                </div>
               ) : (
-                entities.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ({item.code})
-                  </option>
-                ))
+                <select
+                  id="entitySelect"
+                  value={selectedEntityId}
+                  onChange={(e) => setSelectedEntityId(e.target.value)}
+                  className={styles.select}
+                  disabled={entities.length === 0}
+                >
+                  {entities.length === 0 ? (
+                    <option value="">No registered items found in this category</option>
+                  ) : (
+                    entities.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.code})
+                      </option>
+                    ))
+                  )}
+                </select>
               )}
-            </select>
-          )}
-        </div>
-      </div>
-
-      {/* Render RelationshipViewer once target is active */}
-      <div className={styles.viewerContainer}>
-        {selectedEntityId ? (
-          <RelationshipViewer entityType={selectedCategory} entityId={selectedEntityId} />
-        ) : (
-          <div className={styles.emptyState}>
-            <Network size={36} style={{ color: "rgba(255, 255, 255, 0.15)", marginBottom: "0.75rem" }} />
-            <h4 className={styles.emptyTitle}>Select an Entity to Trace Links</h4>
-            <p className={styles.emptyDesc}>
-              Choose a governance category above and select an active registered item to load its linkage paths, dependency graphs, and relationships.
-            </p>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Render RelationshipViewer once target is active */}
+          <div className={styles.viewerContainer}>
+            {selectedEntityId ? (
+              <RelationshipViewer entityType={selectedCategory} entityId={selectedEntityId} />
+            ) : (
+              <div className={styles.emptyState}>
+                <Network size={36} style={{ color: "rgba(255, 255, 255, 0.15)", marginBottom: "0.75rem" }} />
+                <h4 className={styles.emptyTitle}>Select an Entity to Trace Links</h4>
+                <p className={styles.emptyDesc}>
+                  Choose a governance category above and select an active registered item to load its linkage paths, dependency graphs, and relationships.
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 };
 
 export default RegistryRelationshipsPage;
+

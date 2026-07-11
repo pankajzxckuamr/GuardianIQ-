@@ -20,7 +20,7 @@ departments_router = APIRouter()
 roles_router = APIRouter()
 users_router = APIRouter()
 data_sources_router = APIRouter()
-relationships_router = APIRouter()
+from app.modules.relationship.api import router as relationships_router
 audit_router = APIRouter()
 search_router = APIRouter()
 register_all_router = APIRouter()

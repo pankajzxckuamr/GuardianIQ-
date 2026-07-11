@@ -20,6 +20,11 @@ class AuthorizationIntegrationTests(unittest.TestCase):
         from app.modules.registry.seed import seed_registry_data
         seed_registry_data(self.db)
 
+        # Clean up any pre-existing test schedules to avoid unique constraint violations
+        test_codes = ["SCH-LOW-001", "SCH-HIGH-001", "SCH-EXEC-001", "SCH-AUDIT-001"]
+        self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.schedule_code.in_(test_codes)).delete(synchronize_session=False)
+        self.db.commit()
+
         # Login as admin to get auth token
         login_response = self.client.post(
             "/api/auth/login",

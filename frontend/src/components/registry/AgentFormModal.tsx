@@ -9,6 +9,8 @@ import { EntityStatus } from "../../services/registry/registryTypes";
 import { RelationshipViewer } from "./RelationshipViewer";
 import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
+import { ObjectRelationshipPanel } from "./ObjectRelationshipPanel";
+import { ResponsibilityPanel } from "./ResponsibilityPanel";
 import WizardShell from "../common/WizardShell";
 import styles from "./AgentFormModal.module.css";
 
@@ -743,10 +745,21 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
             </form>
           )}
 
-          {activeTab === "relationships" && (
-            <RelationshipViewer entityType="AGENT" entityId={agentId!} />
+          {activeTab === "relationships" && agentId && (
+            <div className={styles.relationshipsTab}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                <ObjectRelationshipPanel objectType="agents" objectId={agentId} />
+                <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+                <ResponsibilityPanel objectType="agents" objectId={agentId} />
+                <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+                <div>
+                  <h4 style={{ color: '#fff', marginBottom: '1rem' }}>Impact Graph</h4>
+                  <RelationshipViewer entityType="AGENT" entityId={agentId} />
+                </div>
+              </div>
+            </div>
           )}
-
+          
           {activeTab === "audit" && (
             <AuditTrailViewer entityType="AGENT" entityId={agentId!} />
           )}

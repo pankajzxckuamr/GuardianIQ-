@@ -357,24 +357,6 @@ export function deleteRole(id: string): Promise<ApiResponse<void>> {
   );
 }
 
-// Relationships
-export function createRelationship(payload: any): Promise<ApiResponse<RegistryRelationship>> {
-  return wrapResponse<RegistryRelationship>(
-    serverClient.post(`${BASE_PATH}/relationships`, payload)
-  );
-}
-
-export function listRelationships(entityType: string, entityId: string): Promise<ApiResponse<RegistryRelationship[]>> {
-  return wrapResponse<RegistryRelationship[]>(
-    serverClient.get(`${BASE_PATH}/relationships`, { params: { entity_type: entityType, entity_id: entityId } })
-  );
-}
-
-export function deleteRelationship(id: string): Promise<ApiResponse<void>> {
-  return wrapResponse<void>(
-    serverClient.delete(`${BASE_PATH}/relationships/${id}`)
-  );
-}
 
 // Audit Trail
 export function getAuditTrail(entityType: string, entityId: string, params?: any): Promise<ApiResponse<ListResponse<RegistryAuditEvent>>> {
@@ -425,6 +407,96 @@ export function createRegisterAll(payload: any): Promise<ApiResponse<any>> {
 export function deleteRegisterAll(id: string): Promise<ApiResponse<void>> {
   return wrapResponse<void>(
     serverClient.delete(`${BASE_PATH}/register-all/${id}`)
+  );
+}
+
+// --- Relationships (Phase 3) ---
+
+export function listRelationships(params?: any): Promise<ApiResponse<ListResponse<RegistryRelationship>>> {
+  return wrapResponse<ListResponse<RegistryRelationship>>(
+    serverClient.get(`${BASE_PATH}/relationships`, { params })
+  );
+}
+
+export function createRelationship(payload: any): Promise<ApiResponse<RegistryRelationship>> {
+  return wrapResponse<RegistryRelationship>(
+    serverClient.post(`${BASE_PATH}/relationships`, payload)
+  );
+}
+
+export function updateRelationship(id: string, payload: any): Promise<ApiResponse<RegistryRelationship>> {
+  return wrapResponse<RegistryRelationship>(
+    serverClient.put(`${BASE_PATH}/relationships/${id}`, payload)
+  );
+}
+
+export function revokeRelationship(id: string, reason: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.delete(`${BASE_PATH}/relationships/${id}`, { params: { reason } })
+  );
+}
+
+export function deleteRelationship(id: string): Promise<ApiResponse<void>> {
+  return revokeRelationship(id, "Deleted via UI");
+}
+
+export function suspendRelationship(id: string, reason: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.post(`${BASE_PATH}/relationships/${id}/suspend`, null, { params: { reason } })
+  );
+}
+
+export function approveRelationship(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.post(`${BASE_PATH}/relationships/${id}/approve`)
+  );
+}
+
+export function activateRelationship(id: string): Promise<ApiResponse<void>> {
+  return wrapResponse<void>(
+    serverClient.post(`${BASE_PATH}/relationships/${id}/activate`)
+  );
+}
+
+export function getRelationshipGraph(objectType: string, objectId: string, depth: number = 2): Promise<ApiResponse<any>> {
+  return wrapResponse<any>(
+    serverClient.get(`${BASE_PATH}/relationships/graph/${objectType}/${objectId}`, { params: { depth } })
+  );
+}
+
+export function getImpactAnalysis(objectType: string, objectId: string, changeType: string = 'UPDATE'): Promise<ApiResponse<any>> {
+  return wrapResponse<any>(
+    serverClient.get(`${BASE_PATH}/relationships/impact/${objectType}/${objectId}`, { params: { change_type: changeType } })
+  );
+}
+
+export function getRelationshipTypes(): Promise<ApiResponse<string[]>> {
+  return wrapResponse<string[]>(
+    serverClient.get(`${BASE_PATH}/relationships/types`)
+  );
+}
+
+export function getLifecycleStates(): Promise<ApiResponse<string[]>> {
+  return wrapResponse<string[]>(
+    serverClient.get(`${BASE_PATH}/relationships/states`)
+  );
+}
+
+export function getResponsibilityTypes(): Promise<ApiResponse<string[]>> {
+  return wrapResponse<string[]>(
+    serverClient.get(`${BASE_PATH}/relationships/responsibilities/types`)
+  );
+}
+
+export function assignResponsibility(payload: any): Promise<ApiResponse<any>> {
+  return wrapResponse<any>(
+    serverClient.post(`${BASE_PATH}/relationships/responsibilities`, payload)
+  );
+}
+
+export function getResponsibilities(objectType: string, objectId: string): Promise<ApiResponse<any[]>> {
+  return wrapResponse<any[]>(
+    serverClient.get(`${BASE_PATH}/relationships/responsibilities/${objectType}/${objectId}`)
   );
 }
 
