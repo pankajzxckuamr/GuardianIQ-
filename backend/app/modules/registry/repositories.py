@@ -617,18 +617,68 @@ def create_relationship(db: Session, data: dict) -> RegistryRelationship:
 def get_relationship_by_id(db: Session, rel_id: UUID) -> Optional[RegistryRelationship]:
     return db.execute(select(RegistryRelationship).filter_by(id=rel_id)).scalar_one_or_none()
 
+def map_entity_type_to_table(entity_type: str) -> str:
+    et = entity_type.lower()
+    if et in ["agent", "agents"]:
+        return "agents"
+    if et in ["model", "models", "ai_model", "ai_models"]:
+        return "ai_models"
+    if et in ["tool", "tools"]:
+        return "tools"
+    if et in ["workflow", "workflows"]:
+        return "workflows"
+    if et in ["data_source", "data_sources"]:
+        return "data_sources"
+    if et in ["department", "departments"]:
+        return "departments"
+    if et in ["user", "users"]:
+        return "users"
+    return et
+
+def map_table_to_object_type(table_name: str) -> str:
+    t = table_name.lower()
+    if t in ["agent", "agents"]:
+        return "AGENT"
+    if t in ["model", "models", "ai_model", "ai_models"]:
+        return "AI_MODEL"
+    if t in ["tool", "tools"]:
+        return "TOOL"
+    if t in ["workflow", "workflows"]:
+        return "WORKFLOW"
+    if t in ["data_source", "data_sources"]:
+        return "DATA_SOURCE"
+    if t in ["department", "departments"]:
+        return "DEPARTMENT"
+    if t in ["user", "users"]:
+        return "USER"
+    return table_name.upper()
+
 def check_duplicate_relationship(db: Session, source_type: str, source_id: UUID, target_type: str, target_id: UUID, rel_type: str) -> bool:
-    count = db.execute(select(sa.func.count()).select_from(RegistryRelationship).filter_by(
-        source_type=source_type, source_id=str(source_id),
-        target_type=target_type, target_id=str(target_id),
-        relationship_type=rel_type, status="ACTIVE"
+    src_db = map_entity_type_to_table(source_type)
+    tgt_db = map_entity_type_to_table(target_type)
+    count = db.execute(select(sa.func.count()).select_from(RegistryRelationship).filter(
+        RegistryRelationship.source_type.in_([src_db, source_type.upper(), source_type.lower()]),
+        RegistryRelationship.source_id == str(source_id),
+        RegistryRelationship.target_type.in_([tgt_db, target_type.upper(), target_type.lower()]),
+        RegistryRelationship.target_id == str(target_id),
+        RegistryRelationship.relationship_type == rel_type,
+        RegistryRelationship.status == "ACTIVE"
     )).scalar()
     return count > 0
 
 def list_relationships_for_entity(db: Session, entity_type: str, entity_id: UUID):
+    db_type = map_entity_type_to_table(entity_type)
     entity_id_str = str(entity_id)
-    outgoing = db.execute(select(RegistryRelationship).filter_by(source_type=entity_type, source_id=entity_id_str, status="ACTIVE")).scalars().all()
-    incoming = db.execute(select(RegistryRelationship).filter_by(target_type=entity_type, target_id=entity_id_str, status="ACTIVE")).scalars().all()
+    outgoing = db.execute(select(RegistryRelationship).filter(
+        RegistryRelationship.source_type.in_([db_type, entity_type.upper(), entity_type.lower()]),
+        RegistryRelationship.source_id == entity_id_str,
+        RegistryRelationship.status == "ACTIVE"
+    )).scalars().all()
+    incoming = db.execute(select(RegistryRelationship).filter(
+        RegistryRelationship.target_type.in_([db_type, entity_type.upper(), entity_type.lower()]),
+        RegistryRelationship.target_id == entity_id_str,
+        RegistryRelationship.status == "ACTIVE"
+    )).scalars().all()
     return outgoing, incoming
 
 def change_relationship_status(db: Session, rel: RegistryRelationship, new_status: str) -> RegistryRelationship:
@@ -657,17 +707,18 @@ def list_audit_events(db: Session, entity_type: str, entity_id: UUID, event_type
     
     items = []
     for audit, user in results:
+        meta = audit.event_metadata or {}
         audit_dict = {
             "id": audit.id,
             "entity_type": audit.entity_type,
             "entity_id": audit.entity_id,
             "event_type": audit.event_type,
-            "changed_by": audit.changed_by,
-            "changed_by_name": user.full_name if user else None,
+            "changed_by": audit.actor_user_id,
+            "changed_by_name": user.full_name if user else "System",
             "changed_by_email": user.email if user else None,
-            "before_json": audit.before_json,
-            "after_json": audit.after_json,
-            "change_summary": audit.change_summary,
+            "before_json": meta.get("before_json"),
+            "after_json": meta.get("after_json"),
+            "change_summary": meta.get("change_summary") or audit.action,
             "created_at": audit.created_at
         }
         items.append(audit_dict)
@@ -705,9 +756,7 @@ def get_entity_name(db: Session, entity_type: str, entity_id: UUID) -> str:
         if hasattr(cls, "__object_type__"):
             dynamic_table_map[cls.__object_type__] = cls
             
-    resolved_key = entity_type
-    if entity_type == "MODEL":
-        resolved_key = "AI_MODEL"
+    resolved_key = map_table_to_object_type(entity_type)
         
     model = dynamic_table_map.get(resolved_key)
     if not model: return "Unknown"
@@ -734,12 +783,13 @@ def delete_entity(db: Session, entity) -> None:
     db.flush()
 
 def delete_all_relationships_for_entity(db: Session, entity_type: str, entity_id: UUID) -> None:
+    db_type = map_entity_type_to_table(entity_type)
     entity_id_str = str(entity_id)
     db.execute(
         sa.delete(RegistryRelationship).filter(
             or_(
-                sa.and_(RegistryRelationship.source_type == entity_type, RegistryRelationship.source_id == entity_id_str),
-                sa.and_(RegistryRelationship.target_type == entity_type, RegistryRelationship.target_id == entity_id_str)
+                sa.and_(RegistryRelationship.source_type.in_([db_type, entity_type.upper(), entity_type.lower()]), RegistryRelationship.source_id == entity_id_str),
+                sa.and_(RegistryRelationship.target_type.in_([db_type, entity_type.upper(), entity_type.lower()]), RegistryRelationship.target_id == entity_id_str)
             )
         )
     )

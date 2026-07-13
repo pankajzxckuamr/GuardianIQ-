@@ -136,7 +136,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
         if (res.data) listData = res.data.map(r => ({ id: r.id, label: `${r.role_name} (${r.role_code})` }));
       } else if (tType === "MODEL") {
         const res = await registryService.listModels({ per_page: 100 });
-        if (res.data?.items) listData = res.data.items.map(m => ({ id: m.id, label: `${m.model_name} (v${m.model_version})` }));
+        if (res.data?.items) listData = res.data.items.map(m => ({ id: m.id, label: `${m.model_name}${m.version ? ` (v${m.version})` : ''}` }));
       } else if (tType === "AGENT") {
         const res = await registryService.listAgents({ per_page: 100 });
         if (res.data?.items) listData = res.data.items.map(a => ({ id: a.id, label: `${a.agent_name} (${a.agent_type})` }));
@@ -161,6 +161,18 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
     }
   };
 
+  const mapToBackendType = (type: string): string => {
+    const t = type.toUpperCase();
+    if (t === "AGENT" || t === "AGENTS") return "agents";
+    if (t === "MODEL" || t === "AI_MODELS") return "ai_models";
+    if (t === "TOOL" || t === "TOOLS") return "tools";
+    if (t === "WORKFLOW" || t === "WORKFLOWS") return "workflows";
+    if (t === "DATA_SOURCE" || t === "DATA_SOURCES") return "data_sources";
+    if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "departments";
+    if (t === "USER" || t === "USERS") return "users";
+    return type.toLowerCase();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!relationshipType || !targetEntityType || !targetEntityId) {
@@ -172,12 +184,11 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
     setGeneralError(null);
 
     const payload = {
-      source_entity_type: sourceEntityType.toUpperCase(),
-      source_entity_id: sourceEntityId,
-      target_entity_type: targetEntityType.toUpperCase(),
-      target_entity_id: targetEntityId,
-      relationship_type: relationshipType,
-      metadata_json: null
+      source_type: mapToBackendType(sourceEntityType),
+      source_id: sourceEntityId,
+      target_type: mapToBackendType(targetEntityType),
+      target_id: targetEntityId,
+      relationship_type: relationshipType.toLowerCase()
     };
 
     try {

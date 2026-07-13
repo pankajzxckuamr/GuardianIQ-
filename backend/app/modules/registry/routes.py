@@ -1053,8 +1053,7 @@ def get_audit_events(
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    if current_user.role_code not in ["ADMIN", "AUDITOR"]:
-        raise HTTPException(403, detail=ResponseHelper.error(message="Insufficient permission", error_code="FORBIDDEN", request_id=request_id).model_dump())
+    require_read_roles(current_user, request_id)
         
     items, total = repo.list_audit_events(db, entity_type, entity_id, event_type, page, page_size)
     total_pages = math.ceil(total / page_size) if total > 0 else 0

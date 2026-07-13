@@ -61,7 +61,7 @@ def get_validation_rules(request: Request, current_user = Depends(get_current_us
 
 
 # --- Core Relationship Endpoints ---
-@router.get("/")
+@router.get("")
 async def list_relationships(
     request: Request,
     page: int = Query(1, ge=1),
@@ -107,7 +107,7 @@ async def list_relationships(
         request_id=request_id
     )
 
-@router.post("/", summary="Create a relationship")
+@router.post("", summary="Create a relationship")
 async def create_relationship(
     request: Request,
     payload: GenericRelationshipCreate,

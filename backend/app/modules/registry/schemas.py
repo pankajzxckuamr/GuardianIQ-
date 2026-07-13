@@ -498,11 +498,11 @@ class RelationshipGroupedResponse(BaseModel):
 # ---------------------------------------------------------
 
 class AuditResponse(BaseModel):
-    id: UUID
+    id: int
     entity_type: str
     entity_id: UUID
     event_type: str
-    changed_by: UUID
+    changed_by: Optional[UUID] = None
     changed_by_name: Optional[str] = None
     changed_by_email: Optional[str] = None
     before_json: Optional[dict] = None

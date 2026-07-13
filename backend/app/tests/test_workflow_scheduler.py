@@ -529,7 +529,7 @@ class WorkflowSchedulerTests(unittest.TestCase):
                 self.assertIsNotNone(auditor_guardian)
                 
                 audit_event = self.db.query(RegistryAuditEvent).filter(
-                    RegistryAuditEvent.changed_by == auditor_guardian.id,
+                    RegistryAuditEvent.actor_user_id == auditor_guardian.id,
                     RegistryAuditEvent.event_type == "AUTHORIZATION_DENIED"
                 ).first()
                 self.assertIsNotNone(audit_event)

@@ -65,7 +65,7 @@ class User(Base):
         if not self.roles:
             return ""
         codes = [r.role_code for r in self.roles]
-        if "SUPER_ADMIN" in codes:
+        if "SUPER_ADMIN" in codes or "SYSTEM_ADMIN" in codes:
             return "ADMIN"
         if "GOVERNANCE_ADMIN" in codes:
             return "GOVERNANCE_MANAGER"

@@ -96,7 +96,7 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "effective_to": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
         }
         
-        response = self.client.post("/api/registry/relationships/", json=payload, headers=self.headers)
+        response = self.client.post("/api/registry/relationships", json=payload, headers=self.headers)
         self.assertEqual(response.status_code, 200, response.text)
         res_data = response.json()
         self.assertTrue(res_data["success"])
