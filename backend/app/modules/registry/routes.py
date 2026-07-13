@@ -891,51 +891,89 @@ def test_data_source_connection(
 # Relationships Endpoints
 # ---------------------------------------------------------
 
-@relationships_router.post("/relationships", summary="Create Relationship")
-def create_relationship(request: Request, payload: schemas.RelationshipCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    require_write_roles(current_user, request_id)
-    rel = services.create_relationship(db, payload, current_user)
-    db.commit()
-    return ResponseHelper.success(data=schemas.RelationshipResponse.model_validate(rel).model_dump(), message="Relationship created", request_id=request_id)
+# In Phase 3, creation is handled by GenericRelationship endpoints in app.modules.relationship.api.
 
-@relationships_router.get("/relationships", summary="Get Relationships for Entity")
-def get_relationships(request: Request, entity_type: str = Query(...), entity_id: UUID = Query(...), db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+@relationships_router.get("", summary="Get Relationships for Entity")
+def get_relationships(
+    request: Request,
+    entity_type: Optional[str] = Query(None),
+    entity_id: Optional[UUID] = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    source_type: Optional[str] = Query(None),
+    source_id: Optional[str] = Query(None),
+    target_type: Optional[str] = Query(None),
+    target_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    require_read_roles(current_user, request_id)
     
-    outgoing_rels, incoming_rels = repo.list_relationships_for_entity(db, entity_type, entity_id)
+    if entity_type and entity_id:
+        require_read_roles(current_user, request_id)
+        outgoing_rels, incoming_rels = repo.list_relationships_for_entity(db, entity_type, entity_id)
+        
+        outgoing_items = []
+        for rel in outgoing_rels:
+            name = repo.get_entity_name(db, rel.target_type, rel.target_id)
+            outgoing_items.append({
+                "id": rel.id, "relationship_type": rel.relationship_type,
+                "other_entity_type": rel.target_type, "other_entity_id": rel.target_id,
+                "other_entity_name": name, "status": rel.status
+            })
+            
+        incoming_items = []
+        for rel in incoming_rels:
+            name = repo.get_entity_name(db, rel.source_type, rel.source_id)
+            incoming_items.append({
+                "id": rel.id, "relationship_type": rel.relationship_type,
+                "other_entity_type": rel.source_type, "other_entity_id": rel.source_id,
+                "other_entity_name": name, "status": rel.status
+            })
+            
+        return ResponseHelper.success(
+            data=schemas.RelationshipGroupedResponse(outgoing=outgoing_items, incoming=incoming_items).model_dump(),
+            message="Relationships retrieved", request_id=request_id
+        )
+
+    # Otherwise, execute the new Phase 3 flat list relationships search
+    from sqlalchemy import select, func, and_
+    from app.modules.relationship.models import GenericRelationship
+    from app.modules.relationship.schemas import GenericRelationshipResponse
     
-    outgoing_items = []
-    for rel in outgoing_rels:
-        name = repo.get_entity_name(db, rel.target_entity_type, rel.target_entity_id)
-        outgoing_items.append({
-            "id": rel.id, "relationship_type": rel.relationship_type,
-            "other_entity_type": rel.target_entity_type, "other_entity_id": rel.target_entity_id,
-            "other_entity_name": name, "status": rel.status
-        })
-        
-    incoming_items = []
-    for rel in incoming_rels:
-        name = repo.get_entity_name(db, rel.source_entity_type, rel.source_entity_id)
-        incoming_items.append({
-            "id": rel.id, "relationship_type": rel.relationship_type,
-            "other_entity_type": rel.source_entity_type, "other_entity_id": rel.source_entity_id,
-            "other_entity_name": name, "status": rel.status
-        })
-        
+    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else current_user.id
+    
+    conditions = [GenericRelationship.tenant_id == tenant_id]
+    if source_type: conditions.append(GenericRelationship.source_type == source_type)
+    if source_id: conditions.append(GenericRelationship.source_id == source_id)
+    if target_type: conditions.append(GenericRelationship.target_type == target_type)
+    if target_id: conditions.append(GenericRelationship.target_id == target_id)
+    if status: conditions.append(GenericRelationship.status == status)
+    
+    stmt = select(GenericRelationship).where(and_(*conditions))
+    total_stmt = select(func.count()).select_from(GenericRelationship).where(and_(*conditions))
+    
+    total = db.execute(total_stmt).scalar()
+    stmt = stmt.order_by(GenericRelationship.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    items = list(db.execute(stmt).scalars().all())
+    
+    import math
+    total_pages = math.ceil(total / per_page) if total > 0 else 0
+    
     return ResponseHelper.success(
-        data=schemas.RelationshipGroupedResponse(outgoing=outgoing_items, incoming=incoming_items).model_dump(),
-        message="Relationships retrieved", request_id=request_id
+        data={
+            "items": [GenericRelationshipResponse.model_validate(item).model_dump() for item in items],
+            "total": total,
+            "page": page,
+            "page_size": per_page,
+            "total_pages": total_pages
+        },
+        message="Relationships retrieved",
+        request_id=request_id
     )
 
-@relationships_router.delete("/relationships/{id}", summary="Delete Relationship")
-def delete_relationship(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    require_write_roles(current_user, request_id)
-    rel = services.delete_relationship(db, id, current_user)
-    db.commit()
-    return ResponseHelper.success(data=schemas.RelationshipResponse.model_validate(rel).model_dump(), message="Relationship removed", request_id=request_id)
+# In Phase 3, relationship deletion is handled by app.modules.relationship.api.
 
 # ---------------------------------------------------------
 # Delete Endpoints
@@ -1160,7 +1198,7 @@ router.include_router(departments_router, tags=["Registry - Departments"])
 router.include_router(roles_router, tags=["Registry - Roles"])
 router.include_router(users_router, tags=["Registry - Users"])
 router.include_router(data_sources_router, tags=["Registry - Data Sources"])
-router.include_router(relationships_router, tags=["Registry - Relationships"])
+router.include_router(relationships_router, prefix="/relationships", tags=["Registry - Relationships"])
 router.include_router(audit_router, tags=["Registry - Audit"])
 router.include_router(search_router, tags=["Registry - Search"])
 router.include_router(register_all_router, tags=["Registry - Register All"])

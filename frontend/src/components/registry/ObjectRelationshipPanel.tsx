@@ -56,20 +56,24 @@ export const ObjectRelationshipPanel: React.FC<ObjectRelationshipPanelProps> = (
 
   const columns = [
     {
-      header: "Relationship Type",
-      accessor: (row: any) => <Badge variant="info" label={row.relationship_type} />
+      key: "relationship_type",
+      label: "Relationship Type",
+      render: (row: any) => <Badge variant="info" label={row.relationship_type} />
     },
     {
-      header: "Target Type",
-      accessor: (row: any) => <Badge variant="neutral" label={row.target_type} />
+      key: "target_type",
+      label: "Target Type",
+      render: (row: any) => <Badge variant="neutral" label={row.target_type} />
     },
     {
-      header: "Status",
-      accessor: (row: any) => <Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} label={row.status} />
+      key: "status",
+      label: "Status",
+      render: (row: any) => <Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} label={row.status} />
     },
     {
-      header: "Actions",
-      accessor: (row: any) => (
+      key: "actions",
+      label: "Actions",
+      render: (row: any) => (
         <div style={{ display: 'flex', gap: '8px' }}>
           {row.status === 'PROPOSED' && (
             <Button variant="ghost" size="sm" onClick={() => handleAction(row.id, 'approve')} title="Approve">
@@ -107,9 +111,12 @@ export const ObjectRelationshipPanel: React.FC<ObjectRelationshipPanelProps> = (
       <RegistryDataTable
         data={relationships}
         columns={columns}
-        loading={loading}
-        emptyStateTitle="No relationships"
-        emptyStateDesc="This object has no direct relationships."
+        isLoading={loading}
+        totalCount={relationships.length}
+        page={1}
+        pageSize={100}
+        onPageChange={() => {}}
+        emptyMessage="This object has no direct relationships."
       />
 
       {isAddModalOpen && (

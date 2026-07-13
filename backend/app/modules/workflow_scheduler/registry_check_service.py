@@ -63,11 +63,11 @@ class RegistryCheckService:
         # 2. Query direct AGENT -> TOOL relationships
         stmt2 = (
             sa.select(RegistryTool.tool_code, RegistryTool.tool_name)
-            .join(RegistryRelationship, RegistryRelationship.target_entity_id == RegistryTool.id)
+            .join(RegistryRelationship, RegistryRelationship.target_id == sa.cast(RegistryTool.id, sa.String))
             .where(
-                RegistryRelationship.source_entity_type == "AGENT",
-                RegistryRelationship.source_entity_id == agent_id,
-                RegistryRelationship.target_entity_type == "TOOL",
+                RegistryRelationship.source_type == "AGENT",
+                RegistryRelationship.source_id == str(agent_id),
+                RegistryRelationship.target_type == "TOOL",
                 RegistryRelationship.relationship_type == "USES",
                 RegistryRelationship.status == "ACTIVE",
                 RegistryTool.status == "ACTIVE"
@@ -81,11 +81,11 @@ class RegistryCheckService:
         # 3. Query indirect AGENT -> WORKFLOW -> TOOL relationships
         # First get workflows executed by agent
         stmt3_wf = (
-            sa.select(RegistryRelationship.target_entity_id)
+            sa.select(RegistryRelationship.target_id)
             .where(
-                RegistryRelationship.source_entity_type == "AGENT",
-                RegistryRelationship.source_entity_id == agent_id,
-                RegistryRelationship.target_entity_type == "WORKFLOW",
+                RegistryRelationship.source_type == "AGENT",
+                RegistryRelationship.source_id == str(agent_id),
+                RegistryRelationship.target_type == "WORKFLOW",
                 RegistryRelationship.relationship_type == "EXECUTES",
                 RegistryRelationship.status == "ACTIVE"
             )
@@ -96,11 +96,11 @@ class RegistryCheckService:
         if wf_ids:
             stmt3_tools = (
                 sa.select(RegistryTool.tool_code, RegistryTool.tool_name)
-                .join(RegistryRelationship, RegistryRelationship.target_entity_id == RegistryTool.id)
+                .join(RegistryRelationship, RegistryRelationship.target_id == sa.cast(RegistryTool.id, sa.String))
                 .where(
-                    RegistryRelationship.source_entity_type == "WORKFLOW",
-                    RegistryRelationship.source_entity_id.in_(wf_ids),
-                    RegistryRelationship.target_entity_type == "TOOL",
+                    RegistryRelationship.source_type == "WORKFLOW",
+                    RegistryRelationship.source_id.in_(wf_ids),
+                    RegistryRelationship.target_type == "TOOL",
                     RegistryRelationship.relationship_type == "USES",
                     RegistryRelationship.status == "ACTIVE",
                     RegistryTool.status == "ACTIVE"

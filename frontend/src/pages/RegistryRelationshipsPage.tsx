@@ -133,24 +133,29 @@ export const RegistryRelationshipsPage: React.FC = () => {
 
   const listColumns = [
     {
-      header: "Type",
-      accessor: (row: any) => <Badge variant="info" label={row.relationship_type} />
+      key: "relationship_type",
+      label: "Type",
+      render: (row: any) => <Badge variant="info" label={row.relationship_type} />
     },
     {
-      header: "Source Type",
-      accessor: (row: any) => <Badge variant="neutral" label={row.source_type} />
+      key: "source_type",
+      label: "Source Type",
+      render: (row: any) => <Badge variant="neutral" label={row.source_type} />
     },
     {
-      header: "Target Type",
-      accessor: (row: any) => <Badge variant="neutral" label={row.target_type} />
+      key: "target_type",
+      label: "Target Type",
+      render: (row: any) => <Badge variant="neutral" label={row.target_type} />
     },
     {
-      header: "Status",
-      accessor: (row: any) => <Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} label={row.status} />
+      key: "status",
+      label: "Status",
+      render: (row: any) => <Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} label={row.status} />
     },
     {
-      header: "Effective From",
-      accessor: "effective_from"
+      key: "effective_from",
+      label: "Effective From",
+      render: (row: any) => row.effective_from || "-"
     }
   ];
 
@@ -183,14 +188,12 @@ export const RegistryRelationshipsPage: React.FC = () => {
         <RegistryDataTable
           data={relationships}
           columns={listColumns}
-          loading={loadingList}
+          isLoading={loadingList}
           totalCount={totalList}
-          currentPage={page}
+          page={page}
           pageSize={pageSize}
           onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          emptyStateTitle="No Relationships Found"
-          emptyStateDesc="There are no active relationships matching your criteria."
+          emptyMessage="No Relationships Found. There are no active relationships matching your criteria."
         />
       )}
 

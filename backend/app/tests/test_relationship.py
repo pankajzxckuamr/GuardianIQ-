@@ -84,7 +84,7 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.db.close()
 
     async def test_relationship_lifecycle_and_graph(self):
-        # 1. Create a relationship via POST /api/registry/
+        # 1. Create a relationship via POST /api/registry/relationships/
         payload = {
             "source_type": "agents",
             "source_id": str(self.test_agent.id),
@@ -96,7 +96,7 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "effective_to": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
         }
         
-        response = self.client.post("/api/registry/", json=payload, headers=self.headers)
+        response = self.client.post("/api/registry/relationships/", json=payload, headers=self.headers)
         self.assertEqual(response.status_code, 200, response.text)
         res_data = response.json()
         self.assertTrue(res_data["success"])
@@ -107,61 +107,61 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res_data["data"]["source_type"], "agents")
         self.assertEqual(res_data["data"]["target_type"], "ai_models")
 
-        # 2. List relationships via GET /api/registry/
-        list_response = self.client.get("/api/registry/?source_type=agents", headers=self.headers)
+        # 2. List relationships via GET /api/registry/relationships
+        list_response = self.client.get("/api/registry/relationships?source_type=agents", headers=self.headers)
         self.assertEqual(list_response.status_code, 200)
         list_data = list_response.json()
         self.assertTrue(list_data["success"])
         items = list_data["data"]["items"]
         self.assertTrue(any(item["id"] == rel_id for item in items))
 
-        # 3. Update the relationship via PUT /api/registry/{id}
+        # 3. Update the relationship via PUT /api/registry/relationships/{id}
         update_payload = {
             "relationship_scope": "Updated Scope"
         }
-        update_response = self.client.put(f"/api/registry/{rel_id}", json=update_payload, headers=self.headers)
+        update_response = self.client.put(f"/api/registry/relationships/{rel_id}", json=update_payload, headers=self.headers)
         self.assertEqual(update_response.status_code, 200)
         update_data = update_response.json()
         self.assertEqual(update_data["data"]["relationship_scope"], "Updated Scope")
 
-        # 4. Approve the relationship via POST /api/registry/{id}/approve
-        approve_res = self.client.post(f"/api/registry/{rel_id}/approve", headers=self.headers)
+        # 4. Approve the relationship via POST /api/registry/relationships/{id}/approve
+        approve_res = self.client.post(f"/api/registry/relationships/{rel_id}/approve", headers=self.headers)
         self.assertEqual(approve_res.status_code, 200)
         
-        # 5. Activate the relationship via POST /api/registry/{id}/activate
-        activate_res = self.client.post(f"/api/registry/{rel_id}/activate", headers=self.headers)
+        # 5. Activate the relationship via POST /api/registry/relationships/{id}/activate
+        activate_res = self.client.post(f"/api/registry/relationships/{rel_id}/activate", headers=self.headers)
         self.assertEqual(activate_res.status_code, 200)
 
         # Verify status is active
-        get_list = self.client.get("/api/registry/", headers=self.headers)
+        get_list = self.client.get("/api/registry/relationships", headers=self.headers)
         items = get_list.json()["data"]["items"]
         rel_item = next(item for item in items if item["id"] == rel_id)
         self.assertEqual(rel_item["status"], "ACTIVE")
 
-        # 6. Suspend the relationship via POST /api/registry/{id}/suspend
-        suspend_res = self.client.post(f"/api/registry/{rel_id}/suspend?reason=Temporary+suspend", headers=self.headers)
+        # 6. Suspend the relationship via POST /api/registry/relationships/{id}/suspend
+        suspend_res = self.client.post(f"/api/registry/relationships/{rel_id}/suspend?reason=Temporary+suspend", headers=self.headers)
         self.assertEqual(suspend_res.status_code, 200)
 
-        # 7. Revoke/delete the relationship via DELETE /api/registry/{id}
-        revoke_res = self.client.delete(f"/api/registry/{rel_id}?reason=Revoked+reason", headers=self.headers)
+        # 7. Revoke/delete the relationship via DELETE /api/registry/relationships/{id}
+        revoke_res = self.client.delete(f"/api/registry/relationships/{rel_id}?reason=Revoked+reason", headers=self.headers)
         self.assertEqual(revoke_res.status_code, 200)
 
-        # 8. Get Graph View via GET /api/registry/graph/{object_type}/{object_id}
-        graph_res = self.client.get(f"/api/registry/graph/agents/{self.test_agent.id}", headers=self.headers)
+        # 8. Get Graph View via GET /api/registry/relationships/graph/{object_type}/{object_id}
+        graph_res = self.client.get(f"/api/registry/relationships/graph/agents/{self.test_agent.id}", headers=self.headers)
         self.assertEqual(graph_res.status_code, 200)
         graph_data = graph_res.json()
         self.assertTrue(graph_data["success"])
         self.assertEqual(graph_data["data"]["root"]["id"], str(self.test_agent.id))
 
-        # 9. Get Impact Analysis via GET /api/registry/impact/{object_type}/{object_id}
-        impact_res = self.client.get(f"/api/registry/impact/ai_models/{self.test_model.id}", headers=self.headers)
+        # 9. Get Impact Analysis via GET /api/registry/relationships/impact/{object_type}/{object_id}
+        impact_res = self.client.get(f"/api/registry/relationships/impact/ai_models/{self.test_model.id}", headers=self.headers)
         self.assertEqual(impact_res.status_code, 200)
         impact_data = impact_res.json()
         self.assertTrue(impact_data["success"])
         self.assertEqual(impact_data["data"]["root"]["id"], str(self.test_model.id))
 
     async def test_responsibilities_management(self):
-        # 1. Assign responsibility via POST /api/registry/responsibilities
+        # 1. Assign responsibility via POST /api/registry/relationships/responsibilities
         payload = {
             "object_type": "agents",
             "object_id": str(self.test_agent.id),
@@ -171,7 +171,7 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "is_primary": True,
             "effective_from": datetime.now(timezone.utc).isoformat()
         }
-        response = self.client.post("/api/registry/responsibilities", json=payload, headers=self.headers)
+        response = self.client.post("/api/registry/relationships/responsibilities", json=payload, headers=self.headers)
         self.assertEqual(response.status_code, 200, response.text)
         res_data = response.json()
         self.assertTrue(res_data["success"])
@@ -181,8 +181,8 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res_data["data"]["responsibility_type"], "OWNER")
         self.assertTrue(res_data["data"]["is_primary"])
 
-        # 2. Get responsibilities via GET /api/registry/responsibilities/{object_type}/{object_id}
-        get_res = self.client.get(f"/api/registry/responsibilities/agents/{self.test_agent.id}", headers=self.headers)
+        # 2. Get responsibilities via GET /api/registry/relationships/responsibilities/{object_type}/{object_id}
+        get_res = self.client.get(f"/api/registry/relationships/responsibilities/agents/{self.test_agent.id}", headers=self.headers)
         self.assertEqual(get_res.status_code, 200)
         get_data = get_res.json()
         self.assertTrue(get_data["success"])

@@ -42,6 +42,17 @@ const PERMITTED_COMBINATIONS: Record<string, { rel: string; target: string }[]> 
   ]
 };
 
+const NORMALIZE_TYPE: Record<string, string> = {
+  AGENTS: "AGENT",
+  MODELS: "MODEL",
+  WORKFLOWS: "WORKFLOW",
+  TOOLS: "TOOL",
+  DATA_SOURCES: "DATA_SOURCE",
+  DEPARTMENTS: "DEPARTMENT",
+  USERS: "USER",
+  ROLES: "ROLE"
+};
+
 export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
   isOpen,
   onClose,
@@ -51,8 +62,11 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
 }) => {
   const { showToast } = useToast();
   
+  // Normalize plural type to singular (e.g., 'agents' -> 'AGENT')
+  const normalizedSourceType = NORMALIZE_TYPE[sourceEntityType.toUpperCase()] || sourceEntityType.toUpperCase();
+  
   // Available combinations based on source type
-  const allowedOptions = PERMITTED_COMBINATIONS[sourceEntityType.toUpperCase()] || [];
+  const allowedOptions = PERMITTED_COMBINATIONS[normalizedSourceType] || [];
   
   // Form State
   const [relationshipType, setRelationshipType] = useState("");

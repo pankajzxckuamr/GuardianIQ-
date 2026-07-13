@@ -619,15 +619,16 @@ def get_relationship_by_id(db: Session, rel_id: UUID) -> Optional[RegistryRelati
 
 def check_duplicate_relationship(db: Session, source_type: str, source_id: UUID, target_type: str, target_id: UUID, rel_type: str) -> bool:
     count = db.execute(select(sa.func.count()).select_from(RegistryRelationship).filter_by(
-        source_entity_type=source_type, source_entity_id=source_id,
-        target_entity_type=target_type, target_entity_id=target_id,
+        source_type=source_type, source_id=str(source_id),
+        target_type=target_type, target_id=str(target_id),
         relationship_type=rel_type, status="ACTIVE"
     )).scalar()
     return count > 0
 
 def list_relationships_for_entity(db: Session, entity_type: str, entity_id: UUID):
-    outgoing = db.execute(select(RegistryRelationship).filter_by(source_entity_type=entity_type, source_entity_id=entity_id, status="ACTIVE")).scalars().all()
-    incoming = db.execute(select(RegistryRelationship).filter_by(target_entity_type=entity_type, target_entity_id=entity_id, status="ACTIVE")).scalars().all()
+    entity_id_str = str(entity_id)
+    outgoing = db.execute(select(RegistryRelationship).filter_by(source_type=entity_type, source_id=entity_id_str, status="ACTIVE")).scalars().all()
+    incoming = db.execute(select(RegistryRelationship).filter_by(target_type=entity_type, target_id=entity_id_str, status="ACTIVE")).scalars().all()
     return outgoing, incoming
 
 def change_relationship_status(db: Session, rel: RegistryRelationship, new_status: str) -> RegistryRelationship:
@@ -640,9 +641,11 @@ def change_relationship_status(db: Session, rel: RegistryRelationship, new_statu
 # ---------------------------------------------------------
 
 def list_audit_events(db: Session, entity_type: str, entity_id: UUID, event_type: Optional[str], page: int, page_size: int) -> Tuple[List[dict], int]:
-    query = select(RegistryAuditEvent, GuardianUser).outerjoin(GuardianUser, RegistryAuditEvent.changed_by == GuardianUser.id).filter(
-        RegistryAuditEvent.entity_type == entity_type,
-        RegistryAuditEvent.entity_id == entity_id
+    # entity_id is stored as VARCHAR/string in some tables, let's filter after converting or supporting both
+    entity_id_str = str(entity_id)
+    query = select(RegistryAuditEvent, GuardianUser).outerjoin(GuardianUser, RegistryAuditEvent.actor_user_id == GuardianUser.id).filter(
+        RegistryAuditEvent.entity_type == entity_type.lower(),
+        RegistryAuditEvent.entity_id == entity_id_str
     )
     if event_type:
         query = query.filter(RegistryAuditEvent.event_type == event_type)
@@ -731,11 +734,12 @@ def delete_entity(db: Session, entity) -> None:
     db.flush()
 
 def delete_all_relationships_for_entity(db: Session, entity_type: str, entity_id: UUID) -> None:
+    entity_id_str = str(entity_id)
     db.execute(
         sa.delete(RegistryRelationship).filter(
             or_(
-                sa.and_(RegistryRelationship.source_entity_type == entity_type, RegistryRelationship.source_entity_id == entity_id),
-                sa.and_(RegistryRelationship.target_entity_type == entity_type, RegistryRelationship.target_entity_id == entity_id)
+                sa.and_(RegistryRelationship.source_type == entity_type, RegistryRelationship.source_id == entity_id_str),
+                sa.and_(RegistryRelationship.target_type == entity_type, RegistryRelationship.target_id == entity_id_str)
             )
         )
     )
