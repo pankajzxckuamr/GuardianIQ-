@@ -40,12 +40,42 @@ class ValidationEngine:
         self.tenant_id = tenant_id
 
     def _check_entity_exists(self, entity_type: str, entity_id: str) -> bool:
-        valid_tables = {"ai_models", "agents", "tools", "workflows"}
+        normalized = entity_type.lower() if entity_type else ""
+        if normalized in {"model", "ai_model", "ai_models"}:
+            entity_type = "ai_models"
+        elif normalized in {"agent", "ai_agent", "agents"}:
+            entity_type = "agents"
+        elif normalized in {"tool", "tools"}:
+            entity_type = "tools"
+        elif normalized in {"workflow", "workflows"}:
+            entity_type = "workflows"
+        elif normalized in {"datasource", "data_source", "data_sources"}:
+            entity_type = "data_sources"
+        elif normalized in {"department", "departments"}:
+            entity_type = "departments"
+        elif normalized in {"user", "users"}:
+            entity_type = "users"
+        elif normalized in {"role", "roles"}:
+            entity_type = "roles"
+
+        valid_tables = {"ai_models", "agents", "tools", "workflows", "data_sources", "departments", "users", "roles"}
         if entity_type not in valid_tables:
             return False
             
-        stmt = text(f"SELECT 1 FROM {entity_type} WHERE id = :id AND tenant_id = :tenant_id AND status != 'ARCHIVED'")
-        res = self.db.execute(stmt, {"id": entity_id, "tenant_id": self.tenant_id}).scalar()
+        sql = f"SELECT 1 FROM {entity_type} WHERE id = :id"
+        params = {"id": entity_id}
+        
+        # Check tenant_id mapping
+        if entity_type not in {"users", "roles"}:
+            sql += " AND tenant_id = :tenant_id"
+            params["tenant_id"] = self.tenant_id
+            
+        # Check status mapping
+        if entity_type != "roles":
+            sql += " AND status != 'ARCHIVED'"
+            
+        stmt = text(sql)
+        res = self.db.execute(stmt, params).scalar()
         return bool(res)
 
     def validate_payload(self, request_id: str, payload: dict, is_update: bool = False, current_status: Optional[str] = None) -> List[ValidationResult]:

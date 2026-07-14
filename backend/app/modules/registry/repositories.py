@@ -401,7 +401,11 @@ def get_registry_summary(db: Session) -> dict:
 # ---------------------------------------------------------
 
 def create_department(db: Session, data: dict) -> RegistryDepartment:
-    dept = RegistryDepartment(**data)
+    parent_id = data.pop("parent_department_id", None)
+    filtered = {k: v for k, v in data.items() if hasattr(RegistryDepartment, k)}
+    if parent_id:
+        filtered["parent_id"] = parent_id
+    dept = RegistryDepartment(**filtered)
     db.add(dept)
     db.flush()
     return dept
@@ -447,7 +451,8 @@ def lookup_departments(db: Session) -> List[RegistryDepartment]:
 # ---------------------------------------------------------
 
 def create_role(db: Session, data: dict) -> RegistryRole:
-    role = RegistryRole(**data)
+    filtered = {k: v for k, v in data.items() if hasattr(RegistryRole, k)}
+    role = RegistryRole(**filtered)
     db.add(role)
     db.flush()
     return role
@@ -466,7 +471,7 @@ def list_roles(db: Session, filters: dict, page: int, page_size: int, sort_by: s
     if filters.get("status"):
         query = query.filter(RegistryRole.status == filters["status"])
 
-    order_column = getattr(RegistryRole, sort_by, RegistryRole.created_at)
+    order_column = getattr(RegistryRole, sort_by, None) or RegistryRole.id
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))
     
     total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()
@@ -531,7 +536,7 @@ def list_users(db: Session, filters: dict, page: int, page_size: int, sort_by: s
     if filters.get("status"):
         query = query.filter(GuardianUser.status == filters["status"])
 
-    order_column = getattr(GuardianUser, sort_by, GuardianUser.created_at)
+    order_column = getattr(GuardianUser, sort_by, None) or GuardianUser.id
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))
     
     total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()

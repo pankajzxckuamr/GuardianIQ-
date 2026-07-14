@@ -188,3 +188,57 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(get_data["success"])
         self.assertTrue(len(get_data["data"]) > 0)
         self.assertEqual(get_data["data"][0]["id"], resp_id)
+
+    async def test_relationship_filtering_and_standalone_validation(self):
+        # 1. Test standalone validation endpoint POST /api/registry/relationships/validate
+        valid_payload = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Dry-run Testing",
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        val_res = self.client.post("/api/registry/relationships/validate", json=valid_payload, headers=self.headers)
+        self.assertEqual(val_res.status_code, 200)
+        val_data = val_res.json()
+        self.assertTrue(val_data["success"])
+        self.assertTrue(val_data["data"]["valid"])
+        self.assertEqual(len(val_data["data"]["errors"]), 0)
+
+        # 2. Test validation failures
+        invalid_payload = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(uuid4()), # Non-existent model ID
+            "relationship_scope": "Dry-run Testing Fail",
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        val_res_fail = self.client.post("/api/registry/relationships/validate", json=invalid_payload, headers=self.headers)
+        self.assertEqual(val_res_fail.status_code, 200)
+        val_data_fail = val_res_fail.json()
+        self.assertTrue(val_data_fail["success"])
+        self.assertFalse(val_data_fail["data"]["valid"])
+        self.assertTrue(len(val_data_fail["data"]["errors"]) > 0)
+        self.assertIn("GRAPH_INTEGRITY-002", val_data_fail["data"]["errors"][0]["rule_id"])
+
+        # 3. Test list endpoint filtering by source_id
+        # Create a relationship first
+        create_res = self.client.post("/api/registry/relationships", json=valid_payload, headers=self.headers)
+        self.assertEqual(create_res.status_code, 200)
+        rel_id = create_res.json()["data"]["id"]
+        self.created_relationship_ids.append(rel_id)
+
+        # Query filtering by correct source_id
+        filter_res = self.client.get(f"/api/registry/relationships?source_type=agents&source_id={self.test_agent.id}", headers=self.headers)
+        self.assertEqual(filter_res.status_code, 200)
+        filter_data = filter_res.json()
+        self.assertTrue(any(item["id"] == rel_id for item in filter_data["data"]["items"]))
+
+        # Query filtering by incorrect/random source_id
+        filter_res_empty = self.client.get(f"/api/registry/relationships?source_type=agents&source_id={uuid4()}", headers=self.headers)
+        self.assertEqual(filter_res_empty.status_code, 200)
+        self.assertEqual(len(filter_res_empty.json()["data"]["items"]), 0)

@@ -98,7 +98,7 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await registryService.listRelationships({ entity_type: entityType, entity_id: entityId });
+      const res = await registryService.getRelationshipGraph(entityType, entityId);
       if (res.data) {
         const rawData = res.data as any;
         setOutgoing(rawData.outgoing || []);

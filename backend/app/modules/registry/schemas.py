@@ -325,7 +325,7 @@ class DepartmentLookup(BaseModel):
 
 class RoleBase(BaseModel):
     role_name: str
-    role_type: str
+    role_type: Optional[str] = "SYSTEM"
     permissions_json: dict = Field(default_factory=dict)
     status: EntityStatus = EntityStatus.ACTIVE
 
@@ -341,8 +341,8 @@ class RoleUpdate(BaseModel):
 class RoleResponse(RoleBase):
     id: UUID
     role_code: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     class Config: from_attributes = True
 
 class RoleListResponse(BaseModel):
@@ -386,6 +386,8 @@ class GuardianUserUpdate(BaseModel):
 class GuardianUserResponse(GuardianUserBase):
     id: UUID
     email: str
+    department_id: Optional[UUID] = None
+    role_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     class Config: from_attributes = True

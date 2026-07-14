@@ -1184,6 +1184,115 @@ def delete_register_all_session(
         request_id=request_id
     )
 
+
+# ---------------------------------------------------------
+# Audit Trail Endpoint
+# ---------------------------------------------------------
+@audit_router.get("/audit/{entity_type}/{entity_id}", summary="Get audit logs for governance entity")
+async def get_governance_entity_audit_trail(
+    request: Request,
+    entity_type: str,
+    entity_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    from uuid import UUID
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    
+    # 1. Map entity type names if necessary
+    normalized_type = entity_type.lower()
+    if normalized_type == "model": normalized_type = "ai_models"
+    elif normalized_type == "agent": normalized_type = "agents"
+    elif normalized_type == "tool": normalized_type = "tools"
+    elif normalized_type == "workflow": normalized_type = "workflows"
+    elif normalized_type == "datasource": normalized_type = "data_sources"
+    elif normalized_type == "department": normalized_type = "departments"
+    elif normalized_type == "user": normalized_type = "users"
+    elif normalized_type == "role": normalized_type = "roles"
+
+    # 2. Query audit_events directly or through relationship links
+    from app.modules.audit.models import AuditEvent
+    from app.modules.auth.models import User
+    import sqlalchemy as sa
+    from sqlalchemy import select
+
+    source_type_check = sa.func.json_extract_path_text(AuditEvent.event_metadata, 'payload', 'source_type') == normalized_type
+    source_id_check = sa.func.json_extract_path_text(AuditEvent.event_metadata, 'payload', 'source_id') == str(entity_id)
+    target_type_check = sa.func.json_extract_path_text(AuditEvent.event_metadata, 'payload', 'target_type') == normalized_type
+    target_id_check = sa.func.json_extract_path_text(AuditEvent.event_metadata, 'payload', 'target_id') == str(entity_id)
+
+    relationship_check = sa.and_(
+        AuditEvent.entity_type == 'generic_relationships',
+        sa.or_(
+            sa.and_(source_type_check, source_id_check),
+            sa.and_(target_type_check, target_id_check)
+        )
+    )
+
+    direct_check = sa.and_(
+        AuditEvent.entity_type == normalized_type,
+        sa.or_(
+            AuditEvent.entity_id == str(entity_id),
+            sa.func.json_extract_path_text(AuditEvent.event_metadata, 'entity_id') == str(entity_id)
+        )
+    )
+
+    stmt = (
+        select(AuditEvent, User.name, User.email)
+        .outerjoin(User, AuditEvent.actor_user_id == User.id)
+        .where(sa.or_(direct_check, relationship_check))
+        .order_by(AuditEvent.created_at.desc())
+    )
+
+    offset = (page - 1) * page_size
+    res = db.execute(stmt)
+    rows = list(res.fetchall())
+    total = len(rows)
+    
+    paginated_rows = rows[offset:offset+page_size]
+    
+    items = []
+    for event, actor_name, actor_email in paginated_rows:
+        meta = event.event_metadata or {}
+        payload = meta.get("payload") or {}
+        
+        summary = meta.get("event_summary")
+        if not summary:
+            summary = f"Action {event.action} on {event.entity_type}"
+            
+        items.append({
+            "id": str(event.id),
+            "entity_type": event.entity_type,
+            "entity_id": str(meta.get("entity_id") or ""),
+            "event_type": event.event_type,
+            "changed_by": str(event.actor_user_id or ""),
+            "changed_by_name": actor_name or "System",
+            "changed_by_email": actor_email or "",
+            "before_json": payload.get("before"),
+            "after_json": payload.get("after") if payload.get("after") else payload,
+            "change_summary": summary,
+            "created_at": event.created_at.isoformat() if event.created_at else None
+        })
+        
+    import math
+    pages = math.ceil(total / page_size) if page_size > 0 else 1
+    has_next = page < pages
+    
+    return ResponseHelper.success(
+        data={
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "has_next": has_next
+        },
+        message="Governance audit timeline retrieved",
+        request_id=request_id
+    )
+
+
 # ---------------------------------------------------------
 # Unified Registry Router
 # ---------------------------------------------------------

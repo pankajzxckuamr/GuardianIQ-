@@ -1,0 +1,58 @@
+GUARDIANIQ PHASE 3 - AUDIT RESOLUTION REPORT
+============================================
+Date: July 14, 2026
+Status: All fixes successfully implemented and verified.
+Backend Unit Tests: 53/53 Passed
+Frontend Typecheck: Zero compiler errors/warnings on modified files.
+
+This report summarizes what changed in the frontend and backend codebase to resolve the Phase 3 integration and compilation bugs.
+
+--------------------------------------------------------------------------------
+1. FRONTEND CHANGES
+--------------------------------------------------------------------------------
+
+A. AddRelationshipModal Component
+   - File Path: frontend/src/components/registry/AddRelationshipModal.tsx
+   - Previous State: Accessed 'm.version' on the AIModel interface, causing a TypeScript type compilation error.
+   - New State: Changed to 'm.model_version' to correctly match the AIModel interface definition in registryTypes.ts.
+
+B. ResponsibilityPanel Component
+   - File Path: frontend/src/components/registry/ResponsibilityPanel.tsx
+   - Previous State: Checked 'res.success' on the API response, causing a type check error since ApiResponse only defines status checks ('status: "success" | "error"').
+   - New State: Changed conditional check to 'res.status === "success"', resolving the type error.
+
+C. RegistryRelationshipsPage Page
+   - File Path: frontend/src/pages/RegistryRelationshipsPage.tsx
+   - Previous State: Declared 'const [pageSize, setPageSize] = useState(20);' but never read 'setPageSize', generating an unused variable warning.
+   - New State: Changed declaration to 'const [pageSize] = useState(20);', clearing the compiler warning.
+
+D. RelationshipViewer Component
+   - File Path: frontend/src/components/registry/RelationshipViewer.tsx
+   - Previous State: Fetched relationships using 'registryService.listRelationships({ entity_type: entityType, entity_id: entityId })'. The backend endpoint returned a flat paginated list with an 'items' key instead of 'incoming' and 'outgoing' lists, leaving the graph view completely blank.
+   - New State: Replaced the query call with 'registryService.getRelationshipGraph(entityType, entityId)'. This targets the backend graph endpoint which properly compiles and returns structured 'incoming' and 'outgoing' link lists.
+
+--------------------------------------------------------------------------------
+2. BACKEND CHANGES
+--------------------------------------------------------------------------------
+
+A. Relationship Router API
+   - File Path: backend/app/modules/relationship/api.py
+   - Previous State:
+     * The list_relationships endpoint ignored the 'source_id' query parameter, querying all active connections of that source type across the tenant (e.g. returning all relationships for all agents).
+     * Standalone validation endpoint 'POST /validate' was missing.
+   - New State:
+     * Updated 'list_relationships' to support optional 'source_id' and 'target_id' query parameters and added them to query filters.
+     * Added 'POST /validate' endpoint which runs validation logic via 'ValidationEngine.validate_payload' and commits results to the database without creating relationship links.
+
+B. Registry Router Routes
+   - File Path: backend/app/modules/registry/routes.py
+   - Previous State: Lacked a registry timeline route ('GET /api/registry/audit/...'), causing 404 errors when the UI tried to load audit timelines.
+   - New State: Implemented the 'GET /audit/{entity_type}/{entity_id}' timeline endpoint on the 'audit_router'. It runs a query joining the 'users' table to fetch change history records (both direct events and connection events where the entity was involved).
+
+C. Relationship Integration Tests
+   - File Path: backend/app/tests/test_relationship.py
+   - Previous State: Contained 2 tests covering basic lifecycle and responsibility management.
+   - New State: Appended 'test_relationship_filtering_and_standalone_validation' testing validate checks and list query filters, increasing the test suite to 53 passing tests.
+
+============================================
+END OF REPORT

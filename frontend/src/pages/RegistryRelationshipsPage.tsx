@@ -23,7 +23,7 @@ export const RegistryRelationshipsPage: React.FC = () => {
   const [loadingList, setLoadingList] = useState(false);
   const [totalList, setTotalList] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize] = useState(20);
   
   // Explorer View State
   const [selectedCategory, setSelectedCategory] = useState<string>("MODEL");

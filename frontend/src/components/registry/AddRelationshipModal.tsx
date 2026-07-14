@@ -136,7 +136,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
         if (res.data) listData = res.data.map(r => ({ id: r.id, label: `${r.role_name} (${r.role_code})` }));
       } else if (tType === "MODEL") {
         const res = await registryService.listModels({ per_page: 100 });
-        if (res.data?.items) listData = res.data.items.map(m => ({ id: m.id, label: `${m.model_name}${m.version ? ` (v${m.version})` : ''}` }));
+        if (res.data?.items) listData = res.data.items.map(m => ({ id: m.id, label: `${m.model_name}${m.model_version ? ` (v${m.model_version})` : ''}` }));
       } else if (tType === "AGENT") {
         const res = await registryService.listAgents({ per_page: 100 });
         if (res.data?.items) listData = res.data.items.map(a => ({ id: a.id, label: `${a.agent_name} (${a.agent_type})` }));

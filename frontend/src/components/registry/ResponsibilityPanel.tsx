@@ -94,7 +94,7 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
         is_primary: isPrimary
       };
       const res = await registryService.assignResponsibility(payload);
-      if (res.success) {
+      if (res.status === "success") {
         showToast("Responsibility assigned successfully", "success");
         setIsAssignModalOpen(false);
         loadResponsibilities();

@@ -67,7 +67,9 @@ async def list_relationships(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100, alias="per_page"),
     source_type: Optional[str] = None,
+    source_id: Optional[str] = None,
     target_type: Optional[str] = None,
+    target_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -81,7 +83,9 @@ async def list_relationships(
     
     conditions = [GenericRelationship.tenant_id == tenant_id]
     if source_type: conditions.append(GenericRelationship.source_type == source_type)
+    if source_id: conditions.append(GenericRelationship.source_id == source_id)
     if target_type: conditions.append(GenericRelationship.target_type == target_type)
+    if target_id: conditions.append(GenericRelationship.target_id == target_id)
     if status: conditions.append(GenericRelationship.status == status)
     
     stmt = select(GenericRelationship).where(and_(*conditions))
@@ -142,6 +146,37 @@ async def create_relationship(
         message="Relationship created",
         request_id=request_id
     )
+
+@router.post("/validate", summary="Dry-run validate a relationship payload")
+async def validate_relationship(
+    request: Request,
+    payload: GenericRelationshipCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.validators import ValidationEngine
+    validator = ValidationEngine(db, tenant_id)
+    
+    validation_results = validator.validate_payload(request_id, payload.model_dump())
+    failures = [{"rule_id": r.rule_id, "message": r.message, "severity": r.severity} for r in validation_results if r.status == "FAIL"]
+    
+    db.commit()
+    
+    if failures:
+        return ResponseHelper.success(
+            data={"valid": False, "errors": failures},
+            message="Payload validation failed",
+            request_id=request_id
+        )
+    return ResponseHelper.success(
+        data={"valid": True, "errors": []},
+        message="Payload validation passed",
+        request_id=request_id
+    )
+
 
 @router.put("/{id}", summary="Update a relationship")
 async def update_relationship(
@@ -303,6 +338,38 @@ async def get_responsibilities(
         request_id=request_id
     )
 
+def resolve_entity_name(db: Session, entity_type: str, entity_id: str) -> str:
+    try:
+        from sqlalchemy import text
+        normalized = entity_type.lower()
+        if normalized == "model": normalized = "ai_models"
+        elif normalized == "agent": normalized = "agents"
+        elif normalized == "tool": normalized = "tools"
+        elif normalized == "workflow": normalized = "workflows"
+        elif normalized == "datasource": normalized = "data_sources"
+        elif normalized == "department": normalized = "departments"
+        elif normalized == "user": normalized = "users"
+        elif normalized == "role": normalized = "roles"
+
+        name_cols = {
+            "ai_models": "model_name",
+            "agents": "agent_name",
+            "tools": "tool_name",
+            "workflows": "workflow_name",
+            "data_sources": "source_name",
+            "departments": "department_name",
+            "users": "name",
+            "roles": "role_name"
+        }
+        col = name_cols.get(normalized, "name")
+        res = db.execute(text(f"SELECT {col} FROM {normalized} WHERE id = '{entity_id}' LIMIT 1"))
+        val = res.scalar()
+        if val:
+            return str(val)
+    except Exception:
+        pass
+    return f"{entity_type} ({entity_id[:8]})"
+
 # --- Graph & Impact Endpoints ---
 @router.get("/graph/{object_type}/{object_id}", summary="Get relationship graph")
 async def get_relationship_graph(
@@ -322,16 +389,31 @@ async def get_relationship_graph(
     await audit.publish_graph_traversal(object_type, uuid.UUID(object_id) if len(object_id) == 36 else None, depth)
     
     service = RelationshipService(db, tenant_id, current_user.id)
-    # Simple direct retrieval for MVP graph
     outgoing = service.search_relationships(source_type=object_type, source_id=object_id)
     incoming = service.repo.find_reverse(db, tenant_id, target_type=object_type, target_id=object_id)
+    
+    outgoing_mapped = []
+    for r in outgoing:
+        d = GenericRelationshipResponse.model_validate(r).model_dump()
+        d["other_entity_type"] = r.target_type
+        d["other_entity_id"] = r.target_id
+        d["other_entity_name"] = resolve_entity_name(db, r.target_type, r.target_id)
+        outgoing_mapped.append(d)
+
+    incoming_mapped = []
+    for r in incoming:
+        d = GenericRelationshipResponse.model_validate(r).model_dump()
+        d["other_entity_type"] = r.source_type
+        d["other_entity_id"] = r.source_id
+        d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        incoming_mapped.append(d)
     
     db.commit() # To save audit events
     return ResponseHelper.success(
         data={
             "root": {"type": object_type, "id": object_id},
-            "outgoing": [GenericRelationshipResponse.model_validate(r).model_dump() for r in outgoing],
-            "incoming": [GenericRelationshipResponse.model_validate(r).model_dump() for r in incoming]
+            "outgoing": outgoing_mapped,
+            "incoming": incoming_mapped
         },
         message="Graph retrieved",
         request_id=request_id
@@ -355,11 +437,19 @@ async def get_impact_analysis(
     service = RelationshipService(db, tenant_id, current_user.id)
     incoming = service.repo.find_reverse(db, tenant_id, target_type=object_type, target_id=object_id)
     
+    incoming_mapped = []
+    for r in incoming:
+        d = GenericRelationshipResponse.model_validate(r).model_dump()
+        d["other_entity_type"] = r.source_type
+        d["other_entity_id"] = r.source_id
+        d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        incoming_mapped.append(d)
+        
     db.commit()
     return ResponseHelper.success(
         data={
             "root": {"type": object_type, "id": object_id},
-            "impacted_dependents": [GenericRelationshipResponse.model_validate(r).model_dump() for r in incoming]
+            "impacted_dependents": incoming_mapped
         },
         message="Impact analysis retrieved",
         request_id=request_id
