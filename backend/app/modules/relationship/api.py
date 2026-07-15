@@ -389,26 +389,70 @@ async def get_relationship_graph(
     await audit.publish_graph_traversal(object_type, uuid.UUID(object_id) if len(object_id) == 36 else None, depth)
     
     service = RelationshipService(db, tenant_id, current_user.id)
-    outgoing = service.search_relationships(source_type=object_type, source_id=object_id)
-    incoming = service.repo.find_reverse(db, tenant_id, target_type=object_type, target_id=object_id)
     
+    # Recursive outgoing traversal
+    visited_outgoing = set()
+    outgoing_relationships = []
+    
+    def traverse_outgoing(current_type: str, current_id: str, current_depth: int):
+        if current_depth > depth:
+            return
+        node_key = (current_type.lower(), current_id)
+        if node_key in visited_outgoing:
+            return
+        visited_outgoing.add(node_key)
+        
+        rels = service.search_relationships(source_type=current_type, source_id=current_id)
+        for r in rels:
+            outgoing_relationships.append(r)
+            traverse_outgoing(r.target_type, r.target_id, current_depth + 1)
+            
+    traverse_outgoing(object_type, object_id, 1)
+    
+    # Recursive incoming traversal
+    visited_incoming = set()
+    incoming_relationships = []
+    
+    def traverse_incoming(current_type: str, current_id: str, current_depth: int):
+        if current_depth > depth:
+            return
+        node_key = (current_type.lower(), current_id)
+        if node_key in visited_incoming:
+            return
+        visited_incoming.add(node_key)
+        
+        rels = service.repo.find_reverse(db, tenant_id, target_type=current_type, target_id=current_id)
+        for r in rels:
+            incoming_relationships.append(r)
+            traverse_incoming(r.source_type, r.source_id, current_depth + 1)
+            
+    traverse_incoming(object_type, object_id, 1)
+    
+    seen_outgoing_ids = set()
     outgoing_mapped = []
-    for r in outgoing:
+    for r in outgoing_relationships:
+        if r.id in seen_outgoing_ids:
+            continue
+        seen_outgoing_ids.add(r.id)
         d = GenericRelationshipResponse.model_validate(r).model_dump()
         d["other_entity_type"] = r.target_type
         d["other_entity_id"] = r.target_id
         d["other_entity_name"] = resolve_entity_name(db, r.target_type, r.target_id)
         outgoing_mapped.append(d)
 
+    seen_incoming_ids = set()
     incoming_mapped = []
-    for r in incoming:
+    for r in incoming_relationships:
+        if r.id in seen_incoming_ids:
+            continue
+        seen_incoming_ids.add(r.id)
         d = GenericRelationshipResponse.model_validate(r).model_dump()
         d["other_entity_type"] = r.source_type
         d["other_entity_id"] = r.source_id
         d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
         incoming_mapped.append(d)
     
-    db.commit() # To save audit events
+    db.commit() # Save audit events
     return ResponseHelper.success(
         data={
             "root": {"type": object_type, "id": object_id},
@@ -435,10 +479,32 @@ async def get_impact_analysis(
     await audit.publish_impact_analysis(object_type, uuid.UUID(object_id) if len(object_id) == 36 else None, 1, change_type)
     
     service = RelationshipService(db, tenant_id, current_user.id)
-    incoming = service.repo.find_reverse(db, tenant_id, target_type=object_type, target_id=object_id)
     
+    # Recursive impact traversal (incoming dependencies)
+    visited_impact = set()
+    impact_relationships = []
+    
+    def traverse_impact(current_type: str, current_id: str, current_depth: int):
+        if current_depth > 5: # standard limit for impact
+            return
+        node_key = (current_type.lower(), current_id)
+        if node_key in visited_impact:
+            return
+        visited_impact.add(node_key)
+        
+        rels = service.repo.find_reverse(db, tenant_id, target_type=current_type, target_id=current_id)
+        for r in rels:
+            impact_relationships.append(r)
+            traverse_impact(r.source_type, r.source_id, current_depth + 1)
+            
+    traverse_impact(object_type, object_id, 1)
+    
+    seen_impact_ids = set()
     incoming_mapped = []
-    for r in incoming:
+    for r in impact_relationships:
+        if r.id in seen_impact_ids:
+            continue
+        seen_impact_ids.add(r.id)
         d = GenericRelationshipResponse.model_validate(r).model_dump()
         d["other_entity_type"] = r.source_type
         d["other_entity_id"] = r.source_id
