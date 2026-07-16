@@ -186,3 +186,89 @@ async def check_relationship_modification_access(subject: dict, object_type: str
             pass # Fallback to deny if table doesn't have department_id
             
     return False, f"User lacks GOVERNANCE_ADMIN role, OWNER responsibility, or department match for {object_type}/{object_id}"
+
+
+def get_object_sensitivity(db, object_type: str, object_id: str) -> str:
+    try:
+        from sqlalchemy import text
+        normalized = object_type.lower()
+        if normalized == "model": normalized = "ai_models"
+        elif normalized == "agent": normalized = "agents"
+        elif normalized == "tool": normalized = "tools"
+        elif normalized == "workflow": normalized = "workflows"
+        elif normalized == "datasource" or normalized == "data_source": normalized = "data_sources"
+        elif normalized == "department": normalized = "departments"
+        elif normalized == "user": normalized = "users"
+        
+        # Only query tables that actually contain the columns to prevent Postgres transaction aborts
+        if normalized in ["tools", "data_sources"]:
+            try:
+                res = db.execute(text(f"SELECT sensitivity_level FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})
+                val = res.scalar()
+                if val:
+                    return str(val).upper()
+            except Exception:
+                pass
+                
+        if normalized in ["workflow_run_outputs", "workflow_run_failures"]:
+            try:
+                res = db.execute(text(f"SELECT severity FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})
+                val = res.scalar()
+                if val:
+                    return str(val).upper()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return "PUBLIC"
+
+
+async def check_node_read_clearance(subject: dict, object_type: str, object_id: str, db) -> bool:
+    user_roles = [r.upper() for r in subject.get("roles", [])]
+    if "SUPER_ADMIN" in user_roles or "SYSTEM_ADMIN" in user_roles or "GOVERNANCE_ADMIN" in user_roles:
+        return True
+
+    sens = get_object_sensitivity(db, object_type, object_id)
+    
+    SENSITIVITY_RANK = {
+        "PUBLIC": 1,
+        "INTERNAL": 2,
+        "RESTRICTED": 3,
+        "CONFIDENTIAL": 4
+    }
+    
+    if sens not in SENSITIVITY_RANK:
+        if sens in ["HIGH", "CRITICAL"]:
+            sens = "CONFIDENTIAL"
+        elif sens == "MEDIUM":
+            sens = "RESTRICTED"
+        elif sens == "LOW":
+            sens = "INTERNAL"
+        else:
+            sens = "PUBLIC"
+
+    ROLE_CLEARANCE = {
+        "SUPER_ADMIN": "CONFIDENTIAL",
+        "SYSTEM_ADMIN": "CONFIDENTIAL",
+        "GOVERNANCE_ADMIN": "CONFIDENTIAL",
+        "RISK_MANAGER": "CONFIDENTIAL",
+        "COMPLIANCE_OFFICER": "CONFIDENTIAL",
+        "AI_REVIEWER": "CONFIDENTIAL",
+        "AI_ASSET_OWNER": "CONFIDENTIAL",
+        "BUSINESS_APPROVER": "RESTRICTED",
+        "AUDITOR": "RESTRICTED",
+        "BUSINESS_USER": "INTERNAL"
+    }
+
+    user_max_rank = 1
+    for r in user_roles:
+        clearance = ROLE_CLEARANCE.get(r, "INTERNAL")
+        rank = SENSITIVITY_RANK.get(clearance.upper(), 2)
+        if rank > user_max_rank:
+            user_max_rank = rank
+            
+    output_rank = SENSITIVITY_RANK.get(sens, 1)
+    if output_rank > user_max_rank:
+        return False
+        
+    return True

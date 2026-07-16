@@ -242,3 +242,201 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         filter_res_empty = self.client.get(f"/api/registry/relationships?source_type=agents&source_id={uuid4()}", headers=self.headers)
         self.assertEqual(filter_res_empty.status_code, 200)
         self.assertEqual(len(filter_res_empty.json()["data"]["items"]), 0)
+
+    async def test_relationship_caching_and_invalidation(self):
+        # 1. Create relationship
+        payload = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Cache test scope",
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        res = self.client.post("/api/registry/relationships", json=payload, headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        rel_id = res.json()["data"]["id"]
+        self.created_relationship_ids.append(rel_id)
+
+        # Approve and activate so it is fully active
+        self.client.post(f"/api/registry/relationships/{rel_id}/approve", headers=self.headers)
+        self.client.post(f"/api/registry/relationships/{rel_id}/activate", headers=self.headers)
+
+        # Clear cache first to start clean
+        from app.modules.relationship.cache_service import MemoryCacheService
+        MemoryCacheService().clear()
+
+        # First request - caches
+        res1 = self.client.get(f"/api/registry/relationships/graph/agents/{self.test_agent.id}", headers=self.headers)
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(res1.json()["message"], "Graph retrieved")
+
+        # Second request - cached
+        res2 = self.client.get(f"/api/registry/relationships/graph/agents/{self.test_agent.id}", headers=self.headers)
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.json()["message"], "Graph retrieved (cached)")
+
+        # Invalidate via write action (suspend)
+        self.client.post(f"/api/registry/relationships/{rel_id}/suspend?reason=cache+invalidation+test", headers=self.headers)
+
+        # Third request - cache bypassed/regenerated
+        res3 = self.client.get(f"/api/registry/relationships/graph/agents/{self.test_agent.id}", headers=self.headers)
+        self.assertEqual(res3.status_code, 200)
+        self.assertEqual(res3.json()["message"], "Graph retrieved")
+
+    async def test_relationship_read_clearance_redaction(self):
+        # 1. Create a high-sensitivity tool in the database
+        from app.modules.registry.models import Tool
+        confidential_tool = Tool(
+            id=uuid4(),
+            tenant_id=self.tenant_id,
+            tool_code=f"conf-tool-{uuid4().hex[:6]}",
+            tool_name="Confidential Government Tool",
+            tool_category="GOVERNMENT",
+            access_mode="WRITE_ONLY",
+            sensitivity_level="CONFIDENTIAL",
+            allowed_operations_json=[],
+            status="ACTIVE"
+        )
+        self.db.add(confidential_tool)
+        self.db.commit()
+
+        # 2. Create a low-clearance user (BUSINESS_USER)
+        low_user_email = f"user-{uuid4().hex[:6]}@guardianiq.com"
+        low_role = self.db.query(Role).filter(Role.role_code == "BUSINESS_USER").first()
+        if not low_role:
+            low_role = Role(id=uuid4(), role_code="BUSINESS_USER", role_name="Business User")
+            self.db.add(low_role)
+            self.db.commit()
+
+        from app.core.security import hash_password
+        low_user = User(
+            id=uuid4(),
+            email=low_user_email,
+            name="Low Clearance User",
+            full_name="Low Clearance User",
+            hashed_password=hash_password("LowPass@1234!"),
+            status="ACTIVE"
+        )
+        low_user.roles.append(low_role)
+        self.db.add(low_user)
+        self.db.commit()
+
+        try:
+            # 3. Create relationship directly in DB under the low user's tenant
+            # (The low user's tenant_id == low_user.id per get_tenant_id logic)
+            from app.modules.relationship.models import GenericRelationship as RelModel
+            confidential_rel = RelModel(
+                id=uuid4(),
+                tenant_id=low_user.id,
+                source_type="agents",
+                source_id=str(self.test_agent.id),
+                relationship_type="uses_tool",
+                target_type="tools",
+                target_id=str(confidential_tool.id),
+                relationship_scope="Secure Scope",
+                status="ACTIVE",
+                effective_from=datetime.now(timezone.utc)
+            )
+            self.db.add(confidential_rel)
+            self.db.commit()
+
+            # Login as low-clearance user
+            login_res = self.client.post(
+                "/api/auth/login",
+                data={"username": low_user_email, "password": "LowPass@1234!"}
+            )
+            self.assertEqual(login_res.status_code, 200)
+            low_token = login_res.json()["access_token"]
+            low_headers = {"Authorization": f"Bearer {low_token}"}
+
+            # Clear cache first to guarantee fresh database query
+            from app.modules.relationship.cache_service import MemoryCacheService
+            MemoryCacheService().clear()
+
+            # Query graph as low clearance user
+            graph_res = self.client.get(f"/api/registry/relationships/graph/agents/{self.test_agent.id}", headers=low_headers)
+            self.assertEqual(graph_res.status_code, 200)
+            data = graph_res.json()["data"]
+            
+            # Verify that the confidential tool is redacted in outgoing relations list
+            outgoing = data["outgoing"]
+            tool_node = next(x for x in outgoing if x["other_entity_id"] == str(confidential_tool.id))
+            self.assertEqual(tool_node["other_entity_name"], "[REDACTED (Insufficient Clearance)]")
+            self.assertEqual(tool_node["metadata_json"], {})
+            self.assertIsNone(tool_node["relationship_scope"])
+        finally:
+            # Cleanup — delete relationship first to avoid FK violation
+            self.db.query(GenericRelationship).filter(GenericRelationship.tenant_id == low_user.id).delete()
+            self.db.commit()
+            self.db.delete(confidential_tool)
+            self.db.delete(low_user)
+            self.db.commit()
+
+    async def test_unauthorized_write_operations_blocked(self):
+        # 1. Create low-clearance user (BUSINESS_USER)
+        low_user_email = f"user-{uuid4().hex[:6]}@guardianiq.com"
+        low_role = self.db.query(Role).filter(Role.role_code == "BUSINESS_USER").first()
+        if not low_role:
+            low_role = Role(id=uuid4(), role_code="BUSINESS_USER", role_name="Business User")
+            self.db.add(low_role)
+            self.db.commit()
+
+        from app.core.security import hash_password
+        low_user = User(
+            id=uuid4(),
+            email=low_user_email,
+            name="Low User",
+            full_name="Low User",
+            hashed_password=hash_password("LowPass@1234!"),
+            status="ACTIVE"
+        )
+        low_user.roles.append(low_role)
+        self.db.add(low_user)
+        self.db.commit()
+
+        try:
+            # Login as low-clearance user
+            login_res = self.client.post(
+                "/api/auth/login",
+                data={"username": low_user_email, "password": "LowPass@1234!"}
+            )
+            self.assertEqual(login_res.status_code, 200)
+            low_token = login_res.json()["access_token"]
+            low_headers = {"Authorization": f"Bearer {low_token}"}
+
+            # Create a relationship belonging to low_user's tenant directly in DB
+            unauthorized_rel = GenericRelationship(
+                id=uuid4(),
+                tenant_id=low_user.id,
+                source_type="agents",
+                source_id=str(self.test_agent.id),
+                relationship_type="uses",
+                target_type="ai_models",
+                target_id=str(self.test_model.id),
+                relationship_scope="Unauthorized Scope",
+                status="PROPOSED",
+                effective_from=datetime.now(timezone.utc)
+            )
+            self.db.add(unauthorized_rel)
+            self.db.commit()
+
+            # 2. Verify write path blockages return 403 Forbidden
+            approve_res = self.client.post(f"/api/registry/relationships/{unauthorized_rel.id}/approve", headers=low_headers)
+            self.assertEqual(approve_res.status_code, 403)
+
+            activate_res = self.client.post(f"/api/registry/relationships/{unauthorized_rel.id}/activate", headers=low_headers)
+            self.assertEqual(activate_res.status_code, 403)
+
+            suspend_res = self.client.post(f"/api/registry/relationships/{unauthorized_rel.id}/suspend?reason=hack", headers=low_headers)
+            self.assertEqual(suspend_res.status_code, 403)
+
+            revoke_res = self.client.delete(f"/api/registry/relationships/{unauthorized_rel.id}?reason=hack", headers=low_headers)
+            self.assertEqual(revoke_res.status_code, 403)
+
+        finally:
+            # Cleanup rel and user
+            self.db.query(GenericRelationship).filter(GenericRelationship.tenant_id == low_user.id).delete()
+            self.db.delete(low_user)
+            self.db.commit()

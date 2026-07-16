@@ -141,6 +141,8 @@ async def create_relationship(
         )
         
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(
         data=GenericRelationshipResponse.model_validate(rel).model_dump(),
         message="Relationship created",
@@ -212,6 +214,8 @@ async def update_relationship(
         )
         
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(
         data=GenericRelationshipResponse.model_validate(rel).model_dump(),
         message="Relationship updated",
@@ -230,11 +234,23 @@ async def delete_relationship(
     tenant_id = get_tenant_id(current_user)
     service = RelationshipService(db, tenant_id, current_user.id)
     
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
     success = await service.revoke_relationship(id, reason)
     if not success:
         return ResponseHelper.error(message="Relationship not found or could not be revoked", status_code=404, request_id=request_id)
         
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(message="Relationship revoked", request_id=request_id)
 
 @router.post("/{id}/suspend", summary="Suspend a relationship")
@@ -249,11 +265,23 @@ async def suspend_relationship(
     tenant_id = get_tenant_id(current_user)
     service = RelationshipService(db, tenant_id, current_user.id)
     
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
     success = await service.suspend_relationship(id, reason)
     if not success:
         return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
         
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(message="Relationship suspended", request_id=request_id)
 
 @router.post("/{id}/approve", summary="Approve a relationship")
@@ -267,12 +295,25 @@ async def approve_relationship(
     tenant_id = get_tenant_id(current_user)
     service = RelationshipService(db, tenant_id, current_user.id)
     
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
     success = await service.approve_relationship(id)
     if not success:
         return ResponseHelper.error(message="Relationship not found or invalid state", status_code=404, request_id=request_id)
         
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(message="Relationship approved", request_id=request_id)
+
 
 @router.post("/{id}/activate", summary="Activate a relationship")
 async def activate_relationship(
@@ -285,11 +326,23 @@ async def activate_relationship(
     tenant_id = get_tenant_id(current_user)
     service = RelationshipService(db, tenant_id, current_user.id)
     
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
     success = await service.activate_relationship(id)
     if not success:
         return ResponseHelper.error(message="Relationship not found or invalid state", status_code=404, request_id=request_id)
         
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(message="Relationship activated", request_id=request_id)
 
 # --- Responsibility Endpoints ---
@@ -307,12 +360,14 @@ async def assign_responsibility(
     subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
     allowed, reason = await check_relationship_modification_access(subject, payload.object_type, payload.object_id, db)
     if not allowed:
-        return ResponseHelper.error(message="Access denied", data={"reason": reason}, status_code=403, request_id=request_id)
+        raise HTTPException(status_code=403, detail=reason)
         
     service = ResponsibilityService(db, tenant_id, current_user.id)
     
     resp = await service.assign_responsibility(payload)
     db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(
         data=ObjectResponsibilityResponse.model_validate(resp).model_dump(),
         message="Responsibility assigned",
@@ -383,18 +438,40 @@ async def get_relationship_graph(
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     tenant_id = get_tenant_id(current_user)
     
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    
+    # Root clearance check
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        raise HTTPException(status_code=403, detail="Access denied: Insufficient clearance for root object")
+        
     # Audit log the context build and traversal
     audit = RelationshipAuditService(db, current_user.id)
     await audit.publish_governance_context_built(object_type, uuid.UUID(object_id) if len(object_id) == 36 else None)
     await audit.publish_graph_traversal(object_type, uuid.UUID(object_id) if len(object_id) == 36 else None, depth)
     
+    from app.modules.relationship.cache_service import MemoryCacheService
+    cache_key = f"graph:{tenant_id}:{object_type}:{object_id}:{depth}:{current_user.id}"
+    cached = MemoryCacheService().get(cache_key)
+    if cached:
+        return ResponseHelper.success(
+            data=cached,
+            message="Graph retrieved (cached)",
+            request_id=request_id
+        )
+        
     service = RelationshipService(db, tenant_id, current_user.id)
     
     # Recursive outgoing traversal
     visited_outgoing = set()
     outgoing_relationships = []
     
-    def traverse_outgoing(current_type: str, current_id: str, current_depth: int):
+    async def traverse_outgoing(current_type: str, current_id: str, current_depth: int):
         if current_depth > depth:
             return
         node_key = (current_type.lower(), current_id)
@@ -402,18 +479,25 @@ async def get_relationship_graph(
             return
         visited_outgoing.add(node_key)
         
+        has_clearance = await check_node_read_clearance(subject, current_type, current_id, db)
+        if not has_clearance and current_depth > 1:
+            # Non-root nodes without clearance are skipped entirely
+            return
+            
         rels = service.search_relationships(source_type=current_type, source_id=current_id)
         for r in rels:
             outgoing_relationships.append(r)
-            traverse_outgoing(r.target_type, r.target_id, current_depth + 1)
+            # Only recurse deeper if the target node has clearance
+            if await check_node_read_clearance(subject, r.target_type, r.target_id, db):
+                await traverse_outgoing(r.target_type, r.target_id, current_depth + 1)
             
-    traverse_outgoing(object_type, object_id, 1)
+    await traverse_outgoing(object_type, object_id, 1)
     
     # Recursive incoming traversal
     visited_incoming = set()
     incoming_relationships = []
     
-    def traverse_incoming(current_type: str, current_id: str, current_depth: int):
+    async def traverse_incoming(current_type: str, current_id: str, current_depth: int):
         if current_depth > depth:
             return
         node_key = (current_type.lower(), current_id)
@@ -421,12 +505,17 @@ async def get_relationship_graph(
             return
         visited_incoming.add(node_key)
         
+        has_clearance = await check_node_read_clearance(subject, current_type, current_id, db)
+        if not has_clearance and current_depth > 1:
+            return
+            
         rels = service.repo.find_reverse(db, tenant_id, target_type=current_type, target_id=current_id)
         for r in rels:
             incoming_relationships.append(r)
-            traverse_incoming(r.source_type, r.source_id, current_depth + 1)
+            if await check_node_read_clearance(subject, r.source_type, r.source_id, db):
+                await traverse_incoming(r.source_type, r.source_id, current_depth + 1)
             
-    traverse_incoming(object_type, object_id, 1)
+    await traverse_incoming(object_type, object_id, 1)
     
     seen_outgoing_ids = set()
     outgoing_mapped = []
@@ -434,10 +523,21 @@ async def get_relationship_graph(
         if r.id in seen_outgoing_ids:
             continue
         seen_outgoing_ids.add(r.id)
+        
+        has_clear = await check_node_read_clearance(subject, r.target_type, r.target_id, db)
+        
         d = GenericRelationshipResponse.model_validate(r).model_dump()
         d["other_entity_type"] = r.target_type
         d["other_entity_id"] = r.target_id
-        d["other_entity_name"] = resolve_entity_name(db, r.target_type, r.target_id)
+        
+        if has_clear:
+            d["other_entity_name"] = resolve_entity_name(db, r.target_type, r.target_id)
+        else:
+            d["other_entity_name"] = "[REDACTED (Insufficient Clearance)]"
+            d["metadata_json"] = {}
+            d["scope_json"] = {}
+            d["relationship_scope"] = None
+            
         outgoing_mapped.append(d)
 
     seen_incoming_ids = set()
@@ -446,19 +546,102 @@ async def get_relationship_graph(
         if r.id in seen_incoming_ids:
             continue
         seen_incoming_ids.add(r.id)
+        
+        has_clear = await check_node_read_clearance(subject, r.source_type, r.source_id, db)
+        
         d = GenericRelationshipResponse.model_validate(r).model_dump()
         d["other_entity_type"] = r.source_type
         d["other_entity_id"] = r.source_id
-        d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        
+        if has_clear:
+            d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        else:
+            d["other_entity_name"] = "[REDACTED (Insufficient Clearance)]"
+            d["metadata_json"] = {}
+            d["scope_json"] = {}
+            d["relationship_scope"] = None
+            
         incoming_mapped.append(d)
+        
+    # Gather policies & evidence for traversed nodes
+    from app.modules.relationship.models import PolicyBinding, EvidenceLink
     
+    policies_mapped = []
+    evidence_mapped = []
+    
+    all_node_keys = visited_outgoing.union(visited_incoming)
+    all_node_keys.add((object_type.lower(), object_id))
+    
+    for (nt, nid) in all_node_keys:
+        if not await check_node_read_clearance(subject, nt, nid, db):
+            continue
+            
+        # Get active policies
+        p_bindings = db.query(PolicyBinding).filter(
+            PolicyBinding.tenant_id == tenant_id,
+            PolicyBinding.target_type == nt,
+            PolicyBinding.target_id == nid,
+            PolicyBinding.status == "ACTIVE"
+        ).all()
+        for pb in p_bindings:
+            policy_name = ""
+            try:
+                from sqlalchemy import text
+                policy_res = db.execute(text("SELECT policy_name FROM policies WHERE id = :id LIMIT 1"), {"id": pb.policy_id})
+                policy_name = policy_res.scalar() or ""
+            except Exception:
+                policy_name = f"Policy ({str(pb.policy_id)[:8]})"
+                
+            policies_mapped.append({
+                "id": str(pb.id),
+                "policy_id": str(pb.policy_id),
+                "policy_name": policy_name,
+                "target_type": pb.target_type,
+                "target_id": pb.target_id,
+                "binding_scope": pb.binding_scope,
+                "priority": pb.priority,
+                "is_mandatory": pb.is_mandatory,
+                "status": pb.status
+            })
+            
+        # Get evidence links
+        e_links = db.query(EvidenceLink).filter(
+            EvidenceLink.tenant_id == tenant_id,
+            EvidenceLink.target_type == nt,
+            EvidenceLink.target_id == nid
+        ).all()
+        for el in e_links:
+            evidence_name = ""
+            try:
+                from sqlalchemy import text
+                ev_res = db.execute(text("SELECT name FROM audit_events WHERE id = :id LIMIT 1"), {"id": el.evidence_id})
+                evidence_name = ev_res.scalar() or ""
+            except Exception:
+                evidence_name = f"Evidence ({str(el.evidence_id)[:8]})"
+                
+            evidence_mapped.append({
+                "id": str(el.id),
+                "evidence_id": str(el.evidence_id),
+                "evidence_name": evidence_name,
+                "target_type": el.target_type,
+                "target_id": el.target_id,
+                "link_type": el.link_type,
+                "confidence_score": float(el.confidence_score) if el.confidence_score is not None else None,
+                "source_system": el.source_system
+            })
+    
+    res_data = {
+        "root": {"type": object_type, "id": object_id},
+        "outgoing": outgoing_mapped,
+        "incoming": incoming_mapped,
+        "policies": policies_mapped,
+        "evidence": evidence_mapped
+    }
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().set(cache_key, res_data, ttl_seconds=300)
     db.commit() # Save audit events
     return ResponseHelper.success(
-        data={
-            "root": {"type": object_type, "id": object_id},
-            "outgoing": outgoing_mapped,
-            "incoming": incoming_mapped
-        },
+        data=res_data,
         message="Graph retrieved",
         request_id=request_id
     )
@@ -475,16 +658,37 @@ async def get_impact_analysis(
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     tenant_id = get_tenant_id(current_user)
     
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        return ResponseHelper.error(message="Access denied: Insufficient clearance for root object", status_code=403, request_id=request_id)
+        
     audit = RelationshipAuditService(db, current_user.id)
     await audit.publish_impact_analysis(object_type, uuid.UUID(object_id) if len(object_id) == 36 else None, 1, change_type)
     
+    from app.modules.relationship.cache_service import MemoryCacheService
+    cache_key = f"impact:{tenant_id}:{object_type}:{object_id}:{change_type}:{current_user.id}"
+    cached = MemoryCacheService().get(cache_key)
+    if cached:
+        return ResponseHelper.success(
+            data=cached,
+            message="Impact analysis retrieved (cached)",
+            request_id=request_id
+        )
+        
     service = RelationshipService(db, tenant_id, current_user.id)
     
     # Recursive impact traversal (incoming dependencies)
     visited_impact = set()
     impact_relationships = []
     
-    def traverse_impact(current_type: str, current_id: str, current_depth: int):
+    async def traverse_impact(current_type: str, current_id: str, current_depth: int):
         if current_depth > 5: # standard limit for impact
             return
         node_key = (current_type.lower(), current_id)
@@ -492,12 +696,15 @@ async def get_impact_analysis(
             return
         visited_impact.add(node_key)
         
+        if not await check_node_read_clearance(subject, current_type, current_id, db):
+            return
+            
         rels = service.repo.find_reverse(db, tenant_id, target_type=current_type, target_id=current_id)
         for r in rels:
             impact_relationships.append(r)
-            traverse_impact(r.source_type, r.source_id, current_depth + 1)
+            await traverse_impact(r.source_type, r.source_id, current_depth + 1)
             
-    traverse_impact(object_type, object_id, 1)
+    await traverse_impact(object_type, object_id, 1)
     
     seen_impact_ids = set()
     incoming_mapped = []
@@ -505,18 +712,158 @@ async def get_impact_analysis(
         if r.id in seen_impact_ids:
             continue
         seen_impact_ids.add(r.id)
+        
+        has_clear = await check_node_read_clearance(subject, r.source_type, r.source_id, db)
+        
         d = GenericRelationshipResponse.model_validate(r).model_dump()
         d["other_entity_type"] = r.source_type
         d["other_entity_id"] = r.source_id
-        d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        
+        if has_clear:
+            d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        else:
+            d["other_entity_name"] = "[REDACTED (Insufficient Clearance)]"
+            d["metadata_json"] = {}
+            d["scope_json"] = {}
+            d["relationship_scope"] = None
+            
         incoming_mapped.append(d)
         
+    res_data = {
+        "root": {"type": object_type, "id": object_id},
+        "impacted_dependents": incoming_mapped
+    }
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().set(cache_key, res_data, ttl_seconds=300)
     db.commit()
     return ResponseHelper.success(
-        data={
-            "root": {"type": object_type, "id": object_id},
-            "impacted_dependents": incoming_mapped
-        },
+        data=res_data,
         message="Impact analysis retrieved",
         request_id=request_id
     )
+
+@router.get("/objects/{object_type}/{object_id}/policies", summary="Resolve applicable policies for an object")
+async def resolve_policies(
+    request: Request,
+    object_type: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.models import PolicyBinding
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    
+    # Check read clearance
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        return ResponseHelper.error(message="Access denied", status_code=403, request_id=request_id)
+        
+    from app.modules.relationship.cache_service import MemoryCacheService
+    cache_key = f"policies:{tenant_id}:{object_type}:{object_id}:{current_user.id}"
+    cached = MemoryCacheService().get(cache_key)
+    if cached:
+        return ResponseHelper.success(data=cached, message="Policies resolved (cached)", request_id=request_id)
+        
+    p_bindings = db.query(PolicyBinding).filter(
+        PolicyBinding.tenant_id == tenant_id,
+        PolicyBinding.target_type == object_type.lower(),
+        PolicyBinding.target_id == object_id,
+        PolicyBinding.status == "ACTIVE"
+    ).all()
+    
+    policies_mapped = []
+    for pb in p_bindings:
+        policy_name = ""
+        try:
+            from sqlalchemy import text
+            policy_res = db.execute(text("SELECT policy_name FROM policies WHERE id = :id LIMIT 1"), {"id": pb.policy_id})
+            policy_name = policy_res.scalar() or ""
+        except Exception:
+            policy_name = f"Policy ({str(pb.policy_id)[:8]})"
+            
+        policies_mapped.append({
+            "id": str(pb.id),
+            "policy_id": str(pb.policy_id),
+            "policy_name": policy_name,
+            "target_type": pb.target_type,
+            "target_id": pb.target_id,
+            "binding_scope": pb.binding_scope,
+            "priority": pb.priority,
+            "is_mandatory": pb.is_mandatory,
+            "status": pb.status
+        })
+        
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().set(cache_key, policies_mapped, ttl_seconds=300)
+    return ResponseHelper.success(data=policies_mapped, message="Policies resolved", request_id=request_id)
+
+@router.get("/objects/{object_type}/{object_id}/evidence", summary="Resolve evidence for an object")
+async def resolve_evidence(
+    request: Request,
+    object_type: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.models import EvidenceLink
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    
+    # Check read clearance
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        return ResponseHelper.error(message="Access denied", status_code=403, request_id=request_id)
+        
+    from app.modules.relationship.cache_service import MemoryCacheService
+    cache_key = f"evidence:{tenant_id}:{object_type}:{object_id}:{current_user.id}"
+    cached = MemoryCacheService().get(cache_key)
+    if cached:
+        return ResponseHelper.success(data=cached, message="Evidence resolved (cached)", request_id=request_id)
+        
+    e_links = db.query(EvidenceLink).filter(
+        EvidenceLink.tenant_id == tenant_id,
+        EvidenceLink.target_type == object_type.lower(),
+        EvidenceLink.target_id == object_id
+    ).all()
+    
+    evidence_mapped = []
+    for el in e_links:
+        evidence_name = ""
+        try:
+            from sqlalchemy import text
+            ev_res = db.execute(text("SELECT name FROM audit_events WHERE id = :id LIMIT 1"), {"id": el.evidence_id})
+            evidence_name = ev_res.scalar() or ""
+        except Exception:
+            evidence_name = f"Evidence ({str(el.evidence_id)[:8]})"
+            
+        evidence_mapped.append({
+            "id": str(el.id),
+            "evidence_id": str(el.evidence_id),
+            "evidence_name": evidence_name,
+            "target_type": el.target_type,
+            "target_id": el.target_id,
+            "link_type": el.link_type,
+            "confidence_score": float(el.confidence_score) if el.confidence_score is not None else None,
+            "source_system": el.source_system
+        })
+        
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().set(cache_key, evidence_mapped, ttl_seconds=300)
+    return ResponseHelper.success(data=evidence_mapped, message="Evidence resolved", request_id=request_id)
