@@ -1,0 +1,57 @@
+/* src/components/registry/ObjectRelationshipPanel.module.css */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 1rem);
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md, 1rem);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary, #ffffff);
+  font-family: var(--font-family-display, 'Outfit', sans-serif);
+  font-size: var(--font-size-lg, 1.125rem);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.actions {
+  display: flex;
+  gap: var(--spacing-sm, 0.5rem);
+  align-items: center;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #94a3b8);
+  transition: all var(--transition-speed, 0.2s) var(--transition-smooth);
+}
+
+.actionBtn:hover {
+  color: var(--text-primary, #f8fafc);
+  transform: scale(1.05);
+}
+
+.actionBtnRevoke {
+  color: var(--color-danger, #ef4444);
+}
+
+.actionBtnRevoke:hover {
+  color: #ff6b6b;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--card-border, rgba(255, 255, 255, 0.1));
+  margin: var(--spacing-lg, 1.5rem) 0;
+}

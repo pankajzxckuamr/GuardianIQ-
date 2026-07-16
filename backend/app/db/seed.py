@@ -121,6 +121,11 @@ ROLE_PERMISSION_MAP = {
         "policy.read", "policy.write",
         "recommendation.read", "approval.review",
         "audit.read", "admin.manage_users",
+        "CREATE_WORKFLOW_SCHEDULE", "UPDATE_WORKFLOW_SCHEDULE", "SUBMIT_WORKFLOW_SCHEDULE",
+        "ACTIVATE_WORKFLOW_SCHEDULE", "PAUSE_WORKFLOW_SCHEDULE", "RESUME_WORKFLOW_SCHEDULE",
+        "RETIRE_WORKFLOW_SCHEDULE", "RUN_WORKFLOW_SCHEDULE", "VIEW_WORKFLOW_SCHEDULE",
+        "VIEW_WORKFLOW_RUN", "ASSIGN_AI_AGENT_TO_WORKFLOW", "VIEW_WORKFLOW_RUN_OUTPUT",
+        "CANCEL_WORKFLOW_RUN", "EVALUATE_AUTHORIZATION", "OVERRIDE_WORKFLOW_FAILURE",
     ],
     "GOVERNANCE_ADMIN": [
         "registry.read", "registry.write",

@@ -47,7 +47,8 @@ def run_alembic_upgrade():
     import app.db.base
     Base.metadata.create_all(bind=engine)
     print("Stamping database with Alembic head...")
-    result = subprocess.run(["python", "-m", "alembic", "stamp", "head"], capture_output=True, text=True)
+    import sys
+    result = subprocess.run([sys.executable, "-m", "alembic", "stamp", "head"], capture_output=True, text=True)
     if result.returncode != 0:
         print("Alembic stamp error:", result.stderr)
         sys.exit(1)

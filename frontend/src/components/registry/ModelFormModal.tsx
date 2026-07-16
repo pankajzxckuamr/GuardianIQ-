@@ -10,6 +10,8 @@ import { RelationshipViewer } from "./RelationshipViewer";
 import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
+import { ObjectRelationshipPanel } from "./ObjectRelationshipPanel";
+import { ResponsibilityPanel } from "./ResponsibilityPanel";
 import styles from "./ModelFormModal.module.css";
 
 const PROVIDER_TYPES = [
@@ -1202,8 +1204,17 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
             </form>
           )}
 
-          {activeTab === "relationships" && (
-            <RelationshipViewer entityType="MODEL" entityId={modelId!} />
+          {activeTab === "relationships" && modelId && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              <ObjectRelationshipPanel objectType="MODEL" objectId={modelId} />
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+              <ResponsibilityPanel objectType="MODEL" objectId={modelId} />
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+              <div>
+                <h4 style={{ color: '#fff', marginBottom: '1rem' }}>Impact Graph</h4>
+                <RelationshipViewer entityType="MODEL" entityId={modelId} />
+              </div>
+            </div>
           )}
 
           {activeTab === "audit" && (

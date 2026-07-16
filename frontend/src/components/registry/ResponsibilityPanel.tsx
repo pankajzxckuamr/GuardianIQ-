@@ -6,11 +6,25 @@ import { Modal } from "../common/Modal";
 import * as registryService from "../../services/registry/registryService";
 import { UserPlus } from "lucide-react";
 import { useToast } from "../../hooks/useToast";
+import styles from "./ResponsibilityPanel.module.css";
 
 interface ResponsibilityPanelProps {
   objectType: string;
   objectId: string;
 }
+
+const mapToBackendType = (type: string): string => {
+  const t = type.toUpperCase();
+  if (t === "AGENT" || t === "AGENTS") return "agents";
+  if (t === "MODEL" || t === "AI_MODELS" || t === "AI_MODEL") return "ai_models";
+  if (t === "TOOL" || t === "TOOLS") return "tools";
+  if (t === "WORKFLOW" || t === "WORKFLOWS") return "workflows";
+  if (t === "DATA_SOURCE" || t === "DATA_SOURCES") return "data_sources";
+  if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "departments";
+  if (t === "USER" || t === "USERS") return "users";
+  if (t === "ROLE" || t === "ROLES") return "roles";
+  return type.toLowerCase();
+};
 
 export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ objectType, objectId }) => {
   const [responsibilities, setResponsibilities] = useState<any[]>([]);
@@ -30,7 +44,8 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
   const loadResponsibilities = async () => {
     setLoading(true);
     try {
-      const res = await registryService.getResponsibilities(objectType, objectId);
+      const backendType = mapToBackendType(objectType);
+      const res = await registryService.getResponsibilities(backendType, objectId);
       setResponsibilities(res.data || []);
     } catch (err: any) {
       showToast(err.message || "Failed to load responsibilities", "error");
@@ -85,8 +100,9 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
     setSubmitting(true);
     setGeneralError(null);
     try {
+      const backendType = mapToBackendType(objectType);
       const payload = {
-        object_type: objectType,
+        object_type: backendType,
         object_id: objectId,
         actor_type: "USER" as const,
         actor_id: selectedUserId,
@@ -137,9 +153,9 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h4 style={{ margin: 0, color: '#fff', fontSize: '1.1rem' }}>Governance Responsibilities</h4>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h4 className={styles.title}>Governance Responsibilities</h4>
         <Button variant="secondary" size="sm" onClick={handleAssignClick}>
           <UserPlus size={16} style={{ marginRight: '8px' }} />
           Assign Responsibility
@@ -164,22 +180,22 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
           title="Assign Governance Responsibility"
           size="md"
         >
-          <form onSubmit={handleAssignSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '8px 0' }}>
+          <form onSubmit={handleAssignSubmit} className={styles.form}>
             {generalError && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '12px', borderRadius: '6px', fontSize: '0.875rem' }}>
+              <div className={styles.errorMessage}>
                 {generalError}
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', color: '#ccc', fontWeight: 500 }}>
-                Select User <span style={{ color: '#ef4444' }}>*</span>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Select User <span className={styles.required}>*</span>
               </label>
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
                 required
-                style={{ background: '#1e1f22', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', padding: '8px 12px', borderRadius: '6px', outline: 'none' }}
+                className={styles.select}
               >
                 <option value="">-- Choose User --</option>
                 {users.map(u => (
@@ -188,15 +204,15 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
               </select>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '0.85rem', color: '#ccc', fontWeight: 500 }}>
-                Responsibility Type <span style={{ color: '#ef4444' }}>*</span>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Responsibility Type <span className={styles.required}>*</span>
               </label>
               <select
                 value={respType}
                 onChange={(e) => setRespType(e.target.value)}
                 required
-                style={{ background: '#1e1f22', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', padding: '8px 12px', borderRadius: '6px', outline: 'none' }}
+                className={styles.select}
               >
                 <option value="">-- Choose Type --</option>
                 {respTypes.map(t => (
@@ -205,20 +221,20 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
               </select>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+            <div className={styles.checkboxContainer}>
               <input
                 type="checkbox"
                 id="isPrimary"
                 checked={isPrimary}
                 onChange={(e) => setIsPrimary(e.target.checked)}
-                style={{ width: '16px', height: '16px', accentColor: '#22c55e', cursor: 'pointer' }}
+                className={styles.checkbox}
               />
-              <label htmlFor="isPrimary" style={{ fontSize: '0.85rem', color: '#ccc', cursor: 'pointer' }}>
+              <label htmlFor="isPrimary" className={styles.checkboxLabel}>
                 Primary Assignment (Revokes existing primary owner if OWNER)
               </label>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+            <div className={styles.modalActions}>
               <Button variant="secondary" type="button" onClick={() => setIsAssignModalOpen(false)} disabled={submitting}>
                 Cancel
               </Button>
