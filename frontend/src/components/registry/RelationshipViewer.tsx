@@ -94,11 +94,25 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
   const isAdmin = currentUser?.is_superuser || 
     currentUser?.roles?.some(role => ["admin", "super_admin"].includes(role.toLowerCase()));
 
+  const mapToBackendType = (type: string): string => {
+    const t = type.toUpperCase();
+    if (t === "AGENT" || t === "AGENTS") return "agents";
+    if (t === "MODEL" || t === "AI_MODELS" || t === "AI_MODEL") return "ai_models";
+    if (t === "TOOL" || t === "TOOLS") return "tools";
+    if (t === "WORKFLOW" || t === "WORKFLOWS") return "workflows";
+    if (t === "DATA_SOURCE" || t === "DATA_SOURCES") return "data_sources";
+    if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "departments";
+    if (t === "USER" || t === "USERS") return "users";
+    if (t === "ROLE" || t === "ROLES") return "roles";
+    return type.toLowerCase();
+  };
+
   const fetchRelationships = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await registryService.getRelationshipGraph(entityType, entityId);
+      const backendType = mapToBackendType(entityType);
+      const res = await registryService.getRelationshipGraph(backendType, entityId);
       if (res.data) {
         const rawData = res.data as any;
         setOutgoing(rawData.outgoing || []);

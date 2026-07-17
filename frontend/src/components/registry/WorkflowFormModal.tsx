@@ -12,6 +12,8 @@ import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import WizardShell from "../common/WizardShell";
 import WorkflowNodeCanvas, { WorkflowStep } from "./WorkflowNodeCanvas";
 import InteractionGraphViewer from "./InteractionGraphViewer";
+import { ObjectRelationshipPanel } from "./ObjectRelationshipPanel";
+import { ResponsibilityPanel } from "./ResponsibilityPanel";
 import styles from "./WorkflowFormModal.module.css";
 
 
@@ -787,8 +789,17 @@ export const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
             </div>
           )}
 
-          {activeTab === "relationships" && (
-            <RelationshipViewer entityType="WORKFLOW" entityId={workflowId!} />
+          {activeTab === "relationships" && workflowId && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              <ObjectRelationshipPanel objectType="WORKFLOW" objectId={workflowId} />
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+              <ResponsibilityPanel objectType="WORKFLOW" objectId={workflowId} />
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+              <div>
+                <h4 style={{ color: '#fff', marginBottom: '1rem' }}>Impact Graph</h4>
+                <RelationshipViewer entityType="WORKFLOW" entityId={workflowId} />
+              </div>
+            </div>
           )}
 
           {activeTab === "audit" && (
