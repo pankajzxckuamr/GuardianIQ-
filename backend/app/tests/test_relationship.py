@@ -223,7 +223,7 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(val_data_fail["success"])
         self.assertFalse(val_data_fail["data"]["valid"])
         self.assertTrue(len(val_data_fail["data"]["errors"]) > 0)
-        self.assertIn("GRAPH_INTEGRITY-002", val_data_fail["data"]["errors"][0]["rule_id"])
+        self.assertIn("REL-VAL-031", val_data_fail["data"]["errors"][0]["rule_id"])
 
         # 3. Test list endpoint filtering by source_id
         # Create a relationship first
@@ -440,3 +440,207 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.db.query(GenericRelationship).filter(GenericRelationship.tenant_id == low_user.id).delete()
             self.db.delete(low_user)
             self.db.commit()
+
+    async def test_phase3_new_validation_rules(self):
+        # 1. Test REL-VAL-030 (Circular ownership)
+        from app.modules.department.models import Department
+        dept_a = Department(id=uuid4(), tenant_id=self.tenant_id, department_code="DEPT_A", department_name="Dept A", status="ACTIVE")
+        dept_b = Department(id=uuid4(), tenant_id=self.tenant_id, department_code="DEPT_B", department_name="Dept B", status="ACTIVE")
+        self.db.add(dept_a)
+        self.db.add(dept_b)
+        self.db.commit()
+
+        try:
+            # Create a relationship: dept_b OWNED_BY dept_a
+            rel_b_owned_by_a = GenericRelationship(
+                id=uuid4(),
+                tenant_id=self.tenant_id,
+                source_type="departments",
+                source_id=str(dept_b.id),
+                relationship_type="OWNED_BY",
+                target_type="departments",
+                target_id=str(dept_a.id),
+                status="ACTIVE",
+                effective_from=datetime.now(timezone.utc)
+            )
+            self.db.add(rel_b_owned_by_a)
+            self.db.commit()
+            self.created_relationship_ids.append(rel_b_owned_by_a.id)
+
+            # Now try to create circular link: dept_a OWNED_BY dept_b
+            circular_payload = {
+                "source_type": "departments",
+                "source_id": str(dept_a.id),
+                "relationship_type": "OWNED_BY",
+                "target_type": "departments",
+                "target_id": str(dept_b.id),
+                "relationship_scope": "Circular Test",
+                "effective_from": datetime.now(timezone.utc).isoformat()
+            }
+            res = self.client.post("/api/registry/relationships", json=circular_payload, headers=self.headers)
+            self.assertEqual(res.status_code, 200)
+            res_data = response_data = res.json()
+            self.assertFalse(res_data["success"])
+            self.assertTrue(any(e["rule_id"] == "REL-VAL-030" for e in res_data["data"]))
+
+            # 2. Test REL-VAL-017 (Agent to Tool must be USES_TOOL)
+            from app.modules.registry.models import Tool
+            test_tool = Tool(
+                id=uuid4(),
+                tenant_id=self.tenant_id,
+                tool_code=f"tool-{uuid4().hex[:6]}",
+                tool_name="Test Tool",
+                tool_category="DATABASE",
+                access_mode="READ_ONLY",
+                sensitivity_level="LOW",
+                allowed_operations_json=[],
+                status="ACTIVE"
+            )
+            self.db.add(test_tool)
+            self.db.commit()
+
+            try:
+                invalid_agent_tool_payload = {
+                    "source_type": "agents",
+                    "source_id": str(self.test_agent.id),
+                    "relationship_type": "uses", # should be USES_TOOL
+                    "target_type": "tools",
+                    "target_id": str(test_tool.id),
+                    "relationship_scope": "Tool Test",
+                    "effective_from": datetime.now(timezone.utc).isoformat()
+                }
+                res_tool = self.client.post("/api/registry/relationships", json=invalid_agent_tool_payload, headers=self.headers)
+                res_tool_data = res_tool.json()
+                self.assertFalse(res_tool_data["success"])
+                self.assertTrue(any(e["rule_id"] == "REL-VAL-017" for e in res_tool_data["data"]))
+            finally:
+                self.db.delete(test_tool)
+                self.db.commit()
+
+        finally:
+            self.db.delete(dept_a)
+            self.db.delete(dept_b)
+            self.db.commit()
+
+    async def test_phase3_new_endpoints(self):
+        # Create a test relationship for endpoint testing
+        payload = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Endpoint Testing Scope",
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        res_create = self.client.post("/api/registry/relationships", json=payload, headers=self.headers)
+        self.assertEqual(res_create.status_code, 200)
+        rel_id = res_create.json()["data"]["id"]
+        self.created_relationship_ids.append(rel_id)
+
+        # 1. Test GET /{id} details view
+        res_get = self.client.get(f"/api/registry/relationships/{rel_id}", headers=self.headers)
+        self.assertEqual(res_get.status_code, 200)
+        self.assertEqual(res_get.json()["data"]["relationship_scope"], "Endpoint Testing Scope")
+
+        # Test compatibility layer GET /api/v1/relationships/{id}
+        res_get_compat = self.client.get(f"/api/v1/relationships/{rel_id}", headers=self.headers)
+        self.assertEqual(res_get_compat.status_code, 200)
+        self.assertEqual(res_get_compat.json()["data"]["relationship_scope"], "Endpoint Testing Scope")
+
+        # 2. Test POST /{id}/submit transition to PENDING_APPROVAL
+        res_submit = self.client.post(f"/api/registry/relationships/{rel_id}/submit", headers=self.headers)
+        self.assertEqual(res_submit.status_code, 200)
+        
+        # Verify status is PENDING_APPROVAL
+        res_details = self.client.get(f"/api/registry/relationships/{rel_id}", headers=self.headers)
+        self.assertEqual(res_details.json()["data"]["status"], "PENDING_APPROVAL")
+
+        # 3. Test POST /{id}/expire manual expiration
+        res_expire = self.client.post(f"/api/registry/relationships/{rel_id}/expire", headers=self.headers)
+        self.assertEqual(res_expire.status_code, 200)
+        
+        # Verify status is EXPIRED
+        res_details2 = self.client.get(f"/api/registry/relationships/{rel_id}", headers=self.headers)
+        self.assertEqual(res_details2.json()["data"]["status"], "EXPIRED")
+
+        # 4. Test POST /bulk-validate dry-run list
+        bulk_payload = [
+            {
+                "source_type": "agents",
+                "source_id": str(self.test_agent.id),
+                "relationship_type": "uses",
+                "target_type": "ai_models",
+                "target_id": str(self.test_model.id),
+                "relationship_scope": "Bulk Valid Scope"
+            },
+            {
+                "source_type": "agents",
+                "source_id": str(self.test_agent.id),
+                "relationship_type": "uses",
+                "target_type": "ai_models",
+                "target_id": str(uuid4()), # non-existent ID -> invalid
+                "relationship_scope": "Bulk Invalid Scope"
+            }
+        ]
+        res_bulk = self.client.post("/api/registry/relationships/bulk-validate", json=bulk_payload, headers=self.headers)
+        self.assertEqual(res_bulk.status_code, 200)
+        bulk_data = res_bulk.json()["data"]
+        self.assertEqual(len(bulk_data), 2)
+        self.assertTrue(bulk_data[0]["valid"])
+        self.assertFalse(bulk_data[1]["valid"])
+
+        # 5. Test GET /responsibilities (tenant-wide responsibilities)
+        # Create a responsibility first
+        resp_payload = {
+            "object_type": "agents",
+            "object_id": str(self.test_agent.id),
+            "actor_type": "USER",
+            "actor_id": str(self.admin_id),
+            "responsibility_type": "OWNER",
+            "is_primary": True,
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        res_resp_create = self.client.post("/api/registry/relationships/responsibilities", json=resp_payload, headers=self.headers)
+        resp_id = res_resp_create.json()["data"]["id"]
+        self.created_responsibility_ids.append(resp_id)
+
+        res_resp_list = self.client.get("/api/registry/relationships/responsibilities", headers=self.headers)
+        self.assertEqual(res_resp_list.status_code, 200)
+        self.assertTrue(any(r["id"] == resp_id for r in res_resp_list.json()["data"]))
+
+        # 6. Test GET /objects/{object_type}/{object_id}/owners and /approvers
+        res_owners = self.client.get(f"/api/registry/relationships/objects/agents/{self.test_agent.id}/owners", headers=self.headers)
+        self.assertEqual(res_owners.status_code, 200)
+        self.assertTrue(any(r["id"] == resp_id for r in res_owners.json()["data"]))
+
+        res_approvers = self.client.get(f"/api/registry/relationships/objects/agents/{self.test_agent.id}/approvers", headers=self.headers)
+        self.assertEqual(res_approvers.status_code, 200)
+        self.assertEqual(len(res_approvers.json()["data"]), 0)
+
+        # 7. Test GET /objects/{object_type}/{object_id}/governance-context
+        res_context = self.client.get(f"/api/registry/relationships/objects/agents/{self.test_agent.id}/governance-context", headers=self.headers)
+        self.assertEqual(res_context.status_code, 200)
+        context_data = res_context.json()["data"]
+        self.assertEqual(context_data["status"], "ACTIVE")
+        self.assertEqual(context_data["risk_level"], "LOW")
+        self.assertTrue(any(o["id"] == resp_id for o in context_data["owners"]))
+
+    async def test_tenants_endpoint(self):
+        # 1. Test GET /api/tenants
+        res_list = self.client.get("/api/tenants?page=1&per_page=20", headers=self.headers)
+        self.assertEqual(res_list.status_code, 200)
+        list_data = res_list.json()
+        self.assertTrue(list_data["success"])
+        self.assertIn("items", list_data["data"])
+        self.assertTrue(len(list_data["data"]["items"]) >= 1)
+        
+        # 2. Test POST /api/tenants
+        payload = {"name": "Test Tenant", "slug": "test-tenant"}
+        res_create = self.client.post("/api/tenants", json=payload, headers=self.headers)
+        self.assertEqual(res_create.status_code, 200)
+        create_data = res_create.json()
+        self.assertTrue(create_data["success"])
+        self.assertEqual(create_data["data"]["name"], "Test Tenant")
+        self.assertEqual(create_data["data"]["slug"], "test-tenant")
+        self.assertIn("id", create_data["data"])

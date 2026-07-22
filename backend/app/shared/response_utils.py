@@ -40,6 +40,7 @@ class ResponseHelper:
         if data is None and "details" in kwargs:
             data = kwargs["details"]
         return StandardResponse(
+            success=False,
             status="error",
             request_id=request_id or get_request_id(),
             message=message,

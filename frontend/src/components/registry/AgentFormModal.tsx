@@ -427,7 +427,11 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       <div className={styles.formGroup}>
                         <label htmlFor="agent_code" className={styles.label}>
                           Agent Code <span className={styles.required}>*</span>
-                          <FieldInfo tooltip="Unique identifier code for this AI agent." />
+                          <FieldInfo 
+                            tooltip="Unique identifier code for this AI agent." 
+                            format="Alphanumeric uppercase, underscores, no spaces"
+                            example="AGENT_CODE_001"
+                          />
                         </label>
                         <input
                           type="text"
@@ -448,7 +452,11 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       <div className={styles.formGroup}>
                         <label htmlFor="agent_name" className={styles.label}>
                           Agent Name <span className={styles.required}>*</span>
-                          <FieldInfo tooltip="The common name used for this agent." />
+                          <FieldInfo 
+                            tooltip="The common name used for this agent." 
+                            format="String (1-100 characters)"
+                            example="Customer Support Agent"
+                          />
                         </label>
                         <input
                           type="text"
@@ -469,7 +477,11 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       <div className={styles.formGroup}>
                         <label htmlFor="agent_type" className={styles.label}>
                           Agent Type <span className={styles.required}>*</span>
-                          <FieldInfo tooltip="The functional category of this agent." />
+                          <FieldInfo 
+                            tooltip="The functional category of this agent." 
+                            format="Selection list"
+                            example="TRIAGE"
+                          />
                         </label>
                         <select
                           id="agent_type"
@@ -494,7 +506,14 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
 
                       {/* Department */}
                       <div className={styles.formGroup}>
-                        <label htmlFor="department_id" className={styles.label}>Department <FieldInfo tooltip="The department that owns or manages this agent." /></label>
+                        <label htmlFor="department_id" className={styles.label}>
+                          Department 
+                          <FieldInfo 
+                            tooltip="The department that owns or manages this agent." 
+                            format="Enterprise department lookup"
+                            example="Engineering"
+                          />
+                        </label>
                         <select
                           id="department_id"
                           name="department_id"
@@ -521,7 +540,14 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                     
                     {/* Description */}
                     <div className={styles.formGroupFull}>
-                      <label htmlFor="description" className={styles.label}>Description <FieldInfo tooltip="A detailed description of what the agent does." /></label>
+                      <label htmlFor="description" className={styles.label}>
+                        Description 
+                        <FieldInfo 
+                          tooltip="A detailed description of what the agent does." 
+                          format="Free-form text"
+                          example="Handles automated customer support queries."
+                        />
+                      </label>
                       <textarea
                         id="description"
                         name="description"
@@ -551,7 +577,11 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       <div className={styles.formGroup}>
                         <label htmlFor="execution_mode" className={styles.label}>
                           Execution Mode <span className={styles.required}>*</span>
-                          <FieldInfo tooltip="Controls how this agent is allowed to execute tasks." />
+                          <FieldInfo 
+                            tooltip="Controls how this agent is allowed to execute tasks." 
+                            format="Governance execution enum"
+                            example="APPROVAL_REQUIRED"
+                          />
                         </label>
                         <select
                           id="execution_mode"
@@ -577,7 +607,12 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       {/* Confidence Threshold */}
                       <div className={styles.formGroup}>
                         <label htmlFor="confidence_threshold" className={styles.label}>
-                          Confidence Threshold (%) <FieldInfo tooltip="The minimum confidence score required for this agent to act autonomously." />
+                          Confidence Threshold (%) 
+                          <FieldInfo 
+                            tooltip="The minimum confidence score required for this agent to act autonomously." 
+                            format="Integer (0 - 100)"
+                            example="85"
+                          />
                         </label>
                         <input
                           type="number"
@@ -596,7 +631,11 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       <div className={styles.formGroup}>
                         <label htmlFor="risk_level" className={styles.label}>
                           Risk Level <span className={styles.required}>*</span>
-                          <FieldInfo tooltip="The assessed risk level associated with this agent." />
+                          <FieldInfo 
+                            tooltip="The assessed risk level associated with this agent." 
+                            format="Governance risk level enum"
+                            example="MEDIUM"
+                          />
                         </label>
                         <select
                           id="risk_level"
@@ -638,7 +677,14 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                     <div className={styles.formGrid}>
                       {/* Owner User */}
                       <div className={styles.formGroup}>
-                        <label htmlFor="owner_user_id" className={styles.label}>Owner User <FieldInfo tooltip="The user primarily responsible for this agent." /></label>
+                        <label htmlFor="owner_user_id" className={styles.label}>
+                          Owner User 
+                          <FieldInfo 
+                            tooltip="The user primarily responsible for this agent." 
+                            format="User account lookup"
+                            example="John Doe (john.doe@example.com)"
+                          />
+                        </label>
                         <select
                           id="owner_user_id"
                           name="owner_user_id"
@@ -665,7 +711,14 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       {/* Status (Edit mode only) */}
                       {isEditMode && (
                         <div className={styles.formGroup}>
-                          <label htmlFor="status" className={styles.label}>Entity Status <FieldInfo tooltip="The current lifecycle status of the agent." /></label>
+                          <label htmlFor="status" className={styles.label}>
+                            Entity Status 
+                            <FieldInfo 
+                              tooltip="The current lifecycle status of the agent." 
+                              format="Lifecycle state enum"
+                              example="ACTIVE"
+                            />
+                          </label>
                           <select
                             id="status"
                             name="status"
@@ -688,7 +741,12 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                     {/* Capabilities JSON */}
                     <div className={styles.formGroupFull}>
                       <label htmlFor="capabilities_json" className={styles.label}>
-                        Capabilities JSON <FieldInfo tooltip="A JSON payload defining specific technical capabilities." />
+                        Capabilities JSON 
+                        <FieldInfo 
+                          tooltip="A JSON payload defining specific technical capabilities." 
+                          format="Valid JSON object string"
+                          example='{"allowed_apis": ["slack", "email"]}'
+                        />
                       </label>
                       <textarea
                         id="capabilities_json"

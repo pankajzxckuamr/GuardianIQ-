@@ -9,7 +9,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: help;
+  cursor: pointer;
   color: var(--text-secondary, #888);
   transition: color 0.2s ease;
 }

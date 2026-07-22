@@ -6,7 +6,11 @@ import { RelationshipViewer } from "../components/registry/RelationshipViewer";
 import { RegistryDataTable } from "../components/common/RegistryDataTable";
 import { Badge } from "../components/common/Badge";
 import * as registryService from "../services/registry/registryService";
-import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2 } from "lucide-react";
+import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2, CheckCircle, PlayCircle, PauseCircle, Trash2 } from "lucide-react";
+import { useRegistryFilters } from "../hooks/useRegistryFilters";
+import { useToast } from "../hooks/useToast";
+import { useAuth } from "../hooks/useAuth";
+import { Button } from "../components/common/Button";
 import styles from "./RegistryRelationshipsPage.module.css";
 
 interface EntitySelectItem {
@@ -16,14 +20,17 @@ interface EntitySelectItem {
 }
 
 export const RegistryRelationshipsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"LIST" | "EXPLORER">("LIST");
+  const [activeTab, setActiveTab] = useState<"LIST" | "EXPLORER" | "IMPACT">("LIST");
+  const { showToast } = useToast();
+  const { currentUser } = useAuth();
   
-  // List View State
+  // Filters & State mapping
+  const { filters, setFilter, paginationProps } = useRegistryFilters("created_at", 20);
+  const [searchTerm, setSearchTerm] = useState(filters.search || "");
   const [relationships, setRelationships] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [totalList, setTotalList] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [relationshipTypes, setRelationshipTypes] = useState<string[]>([]);
   
   // Explorer View State
   const [selectedCategory, setSelectedCategory] = useState<string>("MODEL");
@@ -31,9 +38,90 @@ export const RegistryRelationshipsPage: React.FC = () => {
   const [selectedEntityId, setSelectedEntityId] = useState<string>("");
   const [loadingEntities, setLoadingEntities] = useState(false);
 
+  // Impact Analysis State
+  const [loadingImpact, setLoadingImpact] = useState(false);
+  const [changeType, setChangeType] = useState<string>("UPDATE");
+  const [impactData, setImpactData] = useState<any>(null);
+
+  const mapCategoryToBackendType = (cat: string) => {
+    switch (cat) {
+      case "MODEL": return "ai_models";
+      case "AGENT": return "agents";
+      case "TOOL": return "tools";
+      case "WORKFLOW": return "workflows";
+      case "DATA_SOURCE": return "data_sources";
+      case "DEPARTMENT": return "departments";
+      default: return cat.toLowerCase();
+    }
+  };
+
+  const fetchImpact = async () => {
+    if (!selectedEntityId) return;
+    setLoadingImpact(true);
+    setImpactData(null);
+    try {
+      const backendType = mapCategoryToBackendType(selectedCategory);
+      const res = await registryService.getImpactAnalysis(backendType, selectedEntityId, changeType);
+      if (res.data) {
+        const dependents = res.data.impacted_dependents || [];
+        const mappedDeps = dependents.map((dep: any) => ({
+          id: dep.source_id,
+          name: dep.other_entity_name || dep.source_id,
+          type: dep.other_entity_type ? dep.other_entity_type.replace('_', ' ').toUpperCase() : 'UNKNOWN',
+          relationship_type: dep.relationship_type,
+          target_id: dep.target_id
+        }));
+
+        const direct_impacts = mappedDeps.filter((dep: any) => dep.target_id === selectedEntityId);
+        const indirect_impacts = mappedDeps.filter((dep: any) => dep.target_id !== selectedEntityId);
+        
+        const totalCount = direct_impacts.length + indirect_impacts.length;
+        let impact_level = "LOW";
+        if (totalCount > 0) {
+          if (changeType === "REVOKE") {
+            impact_level = "HIGH";
+          } else if (changeType === "SUSPEND") {
+            impact_level = "MEDIUM";
+          }
+        }
+
+        setImpactData({
+          impact_level,
+          direct_impact_count: direct_impacts.length,
+          indirect_impact_count: indirect_impacts.length,
+          direct_impacts,
+          indirect_impacts
+        });
+      }
+    } catch (err: any) {
+      showToast(err.message || "Failed to run impact analysis", "error");
+    } finally {
+      setLoadingImpact(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "IMPACT" && selectedEntityId) {
+      fetchImpact();
+    }
+  }, [activeTab, selectedEntityId, changeType]);
+
   // Set page document title
   useEffect(() => {
     document.title = "Relationships Explorer — GuardianIQ Registry";
+  }, []);
+
+  // Load relationship types for filtering options
+  useEffect(() => {
+    async function loadTypes() {
+      try {
+        const res = await registryService.getRelationshipTypes();
+        if (res.data) setRelationshipTypes(res.data);
+      } catch (err) {
+        console.error("Failed to load relationship types lookup", err);
+      }
+    }
+    loadTypes();
   }, []);
 
   const categories = [
@@ -46,27 +134,52 @@ export const RegistryRelationshipsPage: React.FC = () => {
   ];
 
   // Load Relationships List
-  useEffect(() => {
+  const fetchList = async () => {
     if (activeTab !== "LIST") return;
-    
-    async function fetchList() {
-      setLoadingList(true);
-      try {
-        const res = await registryService.listRelationships({ page, per_page: pageSize });
-        setRelationships(res.data?.items || []);
-        setTotalList(res.data?.total || 0);
-      } catch (err) {
-        console.error("Failed to load relationships list", err);
-      } finally {
-        setLoadingList(false);
-      }
+    setLoadingList(true);
+    try {
+      const res = await registryService.listRelationships({
+        page: filters.page,
+        per_page: filters.pageSize,
+        source_type: filters.source_type,
+        target_type: filters.target_type,
+        relationship_type: filters.relationship_type,
+        status: filters.status,
+        search: filters.search
+      });
+      setRelationships(res.data?.items || []);
+      setTotalList(res.data?.total || 0);
+    } catch (err) {
+      console.error("Failed to load relationships list", err);
+    } finally {
+      setLoadingList(false);
     }
-    fetchList();
-  }, [activeTab, page, pageSize]);
+  };
 
-  // Load entities when category changes in Explorer
   useEffect(() => {
-    if (activeTab !== "EXPLORER") return;
+    fetchList();
+  }, [
+    activeTab, 
+    filters.page, 
+    filters.pageSize, 
+    filters.source_type, 
+    filters.target_type, 
+    filters.relationship_type, 
+    filters.status,
+    filters.search
+  ]);
+
+  // Debounce free text search input
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setFilter("search", searchTerm);
+    }, 400);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, setFilter]);
+
+  // Load entities when category changes in Explorer or Impact tab
+  useEffect(() => {
+    if (activeTab !== "EXPLORER" && activeTab !== "IMPACT") return;
 
     async function loadEntities() {
       setLoadingEntities(true);
@@ -131,6 +244,39 @@ export const RegistryRelationshipsPage: React.FC = () => {
     loadEntities();
   }, [selectedCategory, activeTab]);
 
+  const handleAction = async (id: string, action: string) => {
+    try {
+      let res: any;
+      if (action === 'revoke') {
+        const reason = window.prompt("Please enter mandatory revocation reason:");
+        if (reason === null) return;
+        if (!reason.trim()) {
+          showToast("Revocation reason is mandatory", "error");
+          return;
+        }
+        res = await registryService.revokeRelationship(id, reason);
+      } else if (action === 'suspend') {
+        const reason = window.prompt("Please enter mandatory suspension reason:");
+        if (reason === null) return;
+        if (!reason.trim()) {
+          showToast("Suspension reason is mandatory", "error");
+          return;
+        }
+        res = await registryService.suspendRelationship(id, reason);
+      } else if (action === 'approve') {
+        res = await registryService.approveRelationship(id);
+      } else if (action === 'activate') {
+        res = await registryService.activateRelationship(id);
+      }
+      
+      const reqIdText = res?.request_id ? ` (Request ID: ${res.request_id})` : '';
+      showToast(`Relationship ${action}d successfully${reqIdText}`, "success");
+      fetchList();
+    } catch (err: any) {
+      showToast(err.message || `Failed to ${action} relationship`, "error");
+    }
+  };
+
   const listColumns = [
     {
       key: "relationship_type",
@@ -138,31 +284,100 @@ export const RegistryRelationshipsPage: React.FC = () => {
       render: (row: any) => <Badge variant="info" label={row.relationship_type} />
     },
     {
-      key: "source_type",
-      label: "Source Type",
-      render: (row: any) => <Badge variant="neutral" label={row.source_type} />
+      key: "source_name",
+      label: "Source Entity",
+      render: (row: any) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <span style={{ fontWeight: 500, color: "#fff" }}>{row.source_name || row.source_id}</span>
+          <span style={{ fontSize: "0.75rem", color: "rgba(255, 255, 255, 0.45)" }}>{row.source_type}</span>
+        </div>
+      )
     },
     {
-      key: "target_type",
-      label: "Target Type",
-      render: (row: any) => <Badge variant="neutral" label={row.target_type} />
+      key: "target_name",
+      label: "Target Entity",
+      render: (row: any) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <span style={{ fontWeight: 500, color: "#fff" }}>{row.target_name || row.target_id}</span>
+          <span style={{ fontSize: "0.75rem", color: "rgba(255, 255, 255, 0.45)" }}>{row.target_type}</span>
+        </div>
+      )
+    },
+    {
+      key: "relationship_scope",
+      label: "Scope",
+      render: (row: any) => row.relationship_scope || "-"
+    },
+    {
+      key: "responsibility_type",
+      label: "Responsibility",
+      render: (row: any) => row.responsibility_type ? <Badge variant="warning" label={row.responsibility_type} /> : "-"
     },
     {
       key: "status",
       label: "Status",
-      render: (row: any) => <Badge variant={row.status === 'ACTIVE' ? 'success' : 'neutral'} label={row.status} />
+      render: (row: any) => {
+        let variant: "success" | "neutral" | "warning" | "danger" | "info" = "neutral";
+        if (row.status === "ACTIVE") variant = "success";
+        else if (row.status === "PROPOSED" || row.status === "PENDING_APPROVAL") variant = "warning";
+        else if (row.status === "SUSPENDED" || row.status === "REVOKED") variant = "danger";
+        return <Badge variant={variant} label={row.status} />;
+      }
     },
     {
-      key: "effective_from",
-      label: "Effective From",
-      render: (row: any) => row.effective_from || "-"
+      key: "actions",
+      label: "Actions",
+      render: (row: any) => {
+        const isAdminOrOwner = currentUser?.is_superuser || 
+          currentUser?.roles?.some(role => ["admin", "super_admin", "governance_manager"].includes(role.toLowerCase()));
+        
+        if (!isAdminOrOwner) return null;
+        
+        return (
+          <div style={{ display: "flex", gap: "4px" }}>
+            {row.status === 'PROPOSED' && (
+              <Button variant="ghost" size="sm" onClick={() => handleAction(row.id, 'approve')} title="Approve" style={{ padding: "4px" }}>
+                <CheckCircle size={16} />
+              </Button>
+            )}
+            {row.status === 'PENDING_APPROVAL' && (
+              <Button variant="ghost" size="sm" onClick={() => handleAction(row.id, 'activate')} title="Activate" style={{ padding: "4px" }}>
+                <PlayCircle size={16} />
+              </Button>
+            )}
+            {row.status === 'ACTIVE' && (
+              <Button variant="ghost" size="sm" onClick={() => handleAction(row.id, 'suspend')} title="Suspend" style={{ padding: "4px" }}>
+                <PauseCircle size={16} />
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => handleAction(row.id, 'revoke')} title="Revoke" style={{ padding: "4px", color: "#ef4444" }}>
+              <Trash2 size={16} />
+            </Button>
+          </div>
+        );
+      }
     }
   ];
 
   return (
     <div className={styles.page}>
-      {/* Text Breadcrumb */}
-      <div className={styles.breadcrumb}>Registry &gt; Relationships Management</div>
+      {/* Dynamic Breadcrumbs */}
+      <div className={styles.breadcrumb}>
+        Registry &gt; Relationships Explorer
+        {activeTab === "EXPLORER" && selectedCategory && (
+          <> &gt; {selectedCategory}</>
+        )}
+        {activeTab === "EXPLORER" && selectedEntityId && (
+          <> &gt; {entities.find(e => e.id === selectedEntityId)?.name || selectedEntityId}</>
+        )}
+        {activeTab === "IMPACT" && selectedCategory && (
+          <> &gt; {selectedCategory}</>
+        )}
+        {activeTab === "IMPACT" && selectedEntityId && (
+          <> &gt; {entities.find(e => e.id === selectedEntityId)?.name || selectedEntityId}</>
+        )}
+        &gt; {activeTab === "LIST" ? "Directory List" : activeTab === "EXPLORER" ? "Graph Explorer" : "Impact Analysis"}
+      </div>
 
       <PageHeader
         title="Registry Relationships"
@@ -182,19 +397,118 @@ export const RegistryRelationshipsPage: React.FC = () => {
         >
           <Share2 size={18} /> Graph Explorer
         </button>
+        <button 
+          onClick={() => setActiveTab("IMPACT")}
+          style={{ background: 'transparent', border: 'none', color: activeTab === 'IMPACT' ? '#fff' : 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderBottom: activeTab === 'IMPACT' ? '2px solid #3b82f6' : 'none' }}
+        >
+          <Network size={18} /> Impact Analysis
+        </button>
       </div>
 
       {activeTab === "LIST" && (
-        <RegistryDataTable
-          data={relationships}
-          columns={listColumns}
-          isLoading={loadingList}
-          totalCount={totalList}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          emptyMessage="No Relationships Found. There are no active relationships matching your criteria."
-        />
+        <>
+          {/* Filter Bar */}
+          <div className={styles.filterBar}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <input
+                type="text"
+                placeholder="Search by ID or Scope..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={styles.filterInput}
+              />
+            </div>
+            
+            {/* Source Type */}
+            <select
+              value={filters.source_type || ""}
+              onChange={(e) => setFilter("source_type", e.target.value)}
+              className={styles.filterSelect}
+            >
+              <option value="">All Source Types</option>
+              <option value="agents">AI Agent</option>
+              <option value="ai_models">AI Model</option>
+              <option value="tools">Tool</option>
+              <option value="workflows">Workflow</option>
+              <option value="data_sources">Data Source</option>
+              <option value="departments">Department</option>
+              <option value="users">User</option>
+              <option value="roles">Role</option>
+            </select>
+            
+            {/* Target Type */}
+            <select
+              value={filters.target_type || ""}
+              onChange={(e) => setFilter("target_type", e.target.value)}
+              className={styles.filterSelect}
+            >
+              <option value="">All Target Types</option>
+              <option value="agents">AI Agent</option>
+              <option value="ai_models">AI Model</option>
+              <option value="tools">Tool</option>
+              <option value="workflows">Workflow</option>
+              <option value="data_sources">Data Source</option>
+              <option value="departments">Department</option>
+              <option value="users">User</option>
+              <option value="roles">Role</option>
+            </select>
+            
+            {/* Relationship Type */}
+            <select
+              value={filters.relationship_type || ""}
+              onChange={(e) => setFilter("relationship_type", e.target.value)}
+              className={styles.filterSelect}
+            >
+              <option value="">All Relationship Types</option>
+              {relationshipTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            
+            {/* Status */}
+            <select
+              value={filters.status || ""}
+              onChange={(e) => setFilter("status", e.target.value)}
+              className={styles.filterSelect}
+            >
+              <option value="">All Statuses</option>
+              <option value="PROPOSED">PROPOSED</option>
+              <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="SUSPENDED">SUSPENDED</option>
+              <option value="REVOKED">REVOKED</option>
+              <option value="EXPIRED">EXPIRED</option>
+              <option value="ARCHIVED">ARCHIVED</option>
+            </select>
+            
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setFilter("source_type", "");
+                setFilter("target_type", "");
+                setFilter("relationship_type", "");
+                setFilter("status", "");
+                setFilter("search", "");
+              }}
+              className={styles.resetBtn}
+            >
+              Reset
+            </button>
+          </div>
+          
+          <RegistryDataTable
+            data={relationships}
+            columns={listColumns}
+            isLoading={loadingList}
+            totalCount={totalList}
+            page={filters.page}
+            pageSize={filters.pageSize}
+            onPageChange={paginationProps.onPageChange}
+            emptyMessage="No Relationships Found. There are no active relationships matching your criteria."
+          />
+        </>
       )}
 
       {activeTab === "EXPLORER" && (
@@ -257,6 +571,152 @@ export const RegistryRelationshipsPage: React.FC = () => {
                 <h4 className={styles.emptyTitle}>Select an Entity to Trace Links</h4>
                 <p className={styles.emptyDesc}>
                   Choose a governance category above and select an active registered item to load its linkage paths, dependency graphs, and relationships.
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {activeTab === "IMPACT" && (
+        <>
+          <div className={styles.explorerPanel}>
+            <h3 className={styles.panelTitle}>1. Select Governance Asset to Evaluate</h3>
+            
+            {/* Category Cards Selector Grid */}
+            <div className={styles.categoryGrid}>
+              {categories.map((cat) => (
+                <div
+                  key={cat.type}
+                  onClick={() => setSelectedCategory(cat.type)}
+                  className={`${styles.categoryCard} ${selectedCategory === cat.type ? styles.categoryCardActive : ""}`}
+                >
+                  <div className={styles.iconWrapper}>{cat.icon}</div>
+                  <span className={styles.cardTitle}>{cat.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Target Entity Select */}
+            <div className={styles.selectorContainer}>
+              <label htmlFor="entitySelectImpact" className={styles.label}>
+                2. Choose Active {categories.find(c => c.type === selectedCategory)?.label || "Asset"}
+              </label>
+              {loadingEntities ? (
+                <div className={styles.loadingSpinner}>
+                  <span>Loading registered assets...</span>
+                </div>
+              ) : (
+                <select
+                  id="entitySelectImpact"
+                  value={selectedEntityId}
+                  onChange={(e) => setSelectedEntityId(e.target.value)}
+                  className={styles.select}
+                  disabled={entities.length === 0}
+                >
+                  {entities.length === 0 ? (
+                    <option value="">No registered items found in this category</option>
+                  ) : (
+                    entities.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.code})
+                      </option>
+                    ))
+                  )}
+                </select>
+              )}
+            </div>
+
+            {/* Proposed Change Type Select */}
+            <div className={styles.selectorContainer} style={{ marginTop: "1rem" }}>
+              <label htmlFor="changeTypeSelect" className={styles.label}>
+                3. Proposed Operation / Action
+              </label>
+              <select
+                id="changeTypeSelect"
+                value={changeType}
+                onChange={(e) => setChangeType(e.target.value)}
+                className={styles.select}
+              >
+                <option value="UPDATE">UPDATE (Modify Configuration or Metadata)</option>
+                <option value="SUSPEND">SUSPEND (Temporarily disable service)</option>
+                <option value="REVOKE">REVOKE (Permanently decommission / delete)</option>
+              </select>
+            </div>
+            
+            <button
+              onClick={fetchImpact}
+              className={styles.resetBtn}
+              style={{ marginTop: "1.5rem", width: "100%", padding: "0.75rem", backgroundColor: "#3b82f6", color: "#fff", fontWeight: "600", borderRadius: "0.375rem" }}
+              disabled={!selectedEntityId || loadingImpact}
+            >
+              {loadingImpact ? "Calculating Downstream Impact..." : "Run Downstream Impact Analysis"}
+            </button>
+          </div>
+
+          <div className={styles.viewerContainer}>
+            {loadingImpact ? (
+              <div style={{ textAlign: "center", padding: "3rem" }}>
+                <span>Calculating dependency graph...</span>
+              </div>
+            ) : impactData ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {/* Impact Level Card */}
+                <div style={{ padding: "1.5rem", borderRadius: "0.5rem", border: "1px solid rgba(255,255,255,0.1)", background: impactData.impact_level === "HIGH" ? "rgba(239, 68, 68, 0.1)" : "rgba(59, 130, 246, 0.1)" }}>
+                  <h4 style={{ fontWeight: 600, fontSize: "1.1rem", marginBottom: "0.5rem", color: impactData.impact_level === "HIGH" ? "#f87171" : "#60a5fa" }}>
+                    Impact Level: {impactData.impact_level}
+                  </h4>
+                  <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.7)" }}>
+                    Proposed <strong>{changeType}</strong> on <strong>{entities.find(e => e.id === selectedEntityId)?.name || selectedEntityId}</strong> will affect <strong>{impactData.direct_impact_count}</strong> direct dependents and <strong>{impactData.indirect_impact_count}</strong> indirect dependents.
+                  </p>
+                </div>
+
+                {/* Direct Dependents */}
+                <div>
+                  <h4 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Direct Downstream Dependents ({impactData.direct_impacts?.length || 0})</h4>
+                  {impactData.direct_impacts?.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.5rem" }}>
+                      {impactData.direct_impacts.map((dep: any, idx: number) => (
+                        <div key={idx} style={{ padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "0.375rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <span style={{ fontWeight: 500, color: "#fff" }}>{dep.name || dep.id}</span>
+                            <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>({dep.type})</span>
+                          </div>
+                          <Badge variant="info" label={dep.relationship_type || "dependent"} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.45)" }}>No direct downstream dependents found.</p>
+                  )}
+                </div>
+
+                {/* Indirect Dependents */}
+                <div>
+                  <h4 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Indirect Downstream Dependents ({impactData.indirect_impacts?.length || 0})</h4>
+                  {impactData.indirect_impacts?.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.5rem" }}>
+                      {impactData.indirect_impacts.map((dep: any, idx: number) => (
+                        <div key={idx} style={{ padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "0.375rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <span style={{ fontWeight: 500, color: "#fff" }}>{dep.name || dep.id}</span>
+                            <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>({dep.type})</span>
+                          </div>
+                          <Badge variant="neutral" label="transitive dependency" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.45)" }}>No indirect downstream dependents found.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className={styles.emptyState}>
+                <Network size={36} style={{ color: "rgba(255, 255, 255, 0.15)", marginBottom: "0.75rem" }} />
+                <h4 className={styles.emptyTitle}>Run Downstream Impact Analysis</h4>
+                <p className={styles.emptyDesc}>
+                  Select a registered asset and choose a proposed action to assess downstream risk and evaluate all affected workflows, agents, and data targets.
                 </p>
               </div>
             )}

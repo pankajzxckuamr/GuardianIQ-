@@ -91,6 +91,9 @@ from app.api.phase2_scheduler_routes import router as phase2_scheduler_router
 from app.api.phase2_run_routes import router as phase2_run_router
 from app.api.phase2_notification_routes import router as phase2_notification_router
 
+from app.modules.relationship.api import router as relationships_router
+from app.modules.tenant.routes import router as tenant_router
+
 app.include_router(auth_router)
 app.include_router(department_router)
 app.include_router(audit_router)
@@ -102,7 +105,9 @@ app.include_router(recommendation_router)
 app.include_router(approval_router)
 app.include_router(foundation_router)
 app.include_router(registry_router)
+app.include_router(relationships_router, prefix="/api/v1/relationships", tags=["v1 Relationships"])
 app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
+app.include_router(tenant_router)
 
 # Feature flag for Phase 2 endpoints
 if os.getenv("PHASE2_SCHEDULER_ENABLED", "True").lower() == "true":

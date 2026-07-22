@@ -70,6 +70,7 @@ async def list_relationships(
     source_id: Optional[str] = None,
     target_type: Optional[str] = None,
     target_id: Optional[str] = None,
+    relationship_type: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -86,6 +87,7 @@ async def list_relationships(
     if source_id: conditions.append(GenericRelationship.source_id == source_id)
     if target_type: conditions.append(GenericRelationship.target_type == target_type)
     if target_id: conditions.append(GenericRelationship.target_id == target_id)
+    if relationship_type: conditions.append(GenericRelationship.relationship_type == relationship_type)
     if status: conditions.append(GenericRelationship.status == status)
     
     stmt = select(GenericRelationship).where(and_(*conditions))
@@ -101,7 +103,14 @@ async def list_relationships(
     
     return ResponseHelper.success(
         data={
-            "items": [GenericRelationshipResponse.model_validate(item).model_dump() for item in items],
+            "items": [
+                {
+                    **GenericRelationshipResponse.model_validate(item).model_dump(),
+                    "source_name": resolve_entity_name(db, item.source_type, item.source_id),
+                    "target_name": resolve_entity_name(db, item.target_type, item.target_id)
+                }
+                for item in items
+            ],
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -374,6 +383,37 @@ async def assign_responsibility(
         request_id=request_id
     )
 
+@router.get("/responsibilities", summary="List responsibilities across tenant")
+async def list_tenant_responsibilities(
+    request: Request,
+    object_type: Optional[str] = None,
+    object_id: Optional[str] = None,
+    actor_type: Optional[str] = None,
+    actor_id: Optional[str] = None,
+    responsibility_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.models import ObjectResponsibility
+    from sqlalchemy import and_
+    
+    conditions = [ObjectResponsibility.tenant_id == tenant_id]
+    if object_type: conditions.append(ObjectResponsibility.object_type == object_type)
+    if object_id: conditions.append(ObjectResponsibility.object_id == object_id)
+    if actor_type: conditions.append(ObjectResponsibility.actor_type == actor_type)
+    if actor_id: conditions.append(ObjectResponsibility.actor_id == actor_id)
+    if responsibility_type: conditions.append(ObjectResponsibility.responsibility_type == responsibility_type)
+    
+    resps = db.query(ObjectResponsibility).filter(and_(*conditions)).all()
+    return ResponseHelper.success(
+        data=[ObjectResponsibilityResponse.model_validate(r).model_dump() for r in resps],
+        message="Responsibilities list retrieved",
+        request_id=request_id
+    )
+
 @router.get("/responsibilities/{object_type}/{object_id}", summary="Get responsibilities for object")
 async def get_responsibilities(
     request: Request,
@@ -424,6 +464,39 @@ def resolve_entity_name(db: Session, entity_type: str, entity_id: str) -> str:
     except Exception:
         pass
     return f"{entity_type} ({entity_id[:8]})"
+
+def resolve_entity_status_and_risk(db: Session, entity_type: str, entity_id: str):
+    status = "ACTIVE"
+    risk_level = "LOW"
+    try:
+        from sqlalchemy import text
+        normalized = entity_type.lower()
+        if normalized == "model": normalized = "ai_models"
+        elif normalized == "agent": normalized = "agents"
+        elif normalized == "tool": normalized = "tools"
+        elif normalized == "workflow": normalized = "workflows"
+        elif normalized == "datasource": normalized = "data_sources"
+        elif normalized == "department": normalized = "departments"
+        elif normalized == "user": normalized = "users"
+        elif normalized == "role": normalized = "roles"
+
+        res = db.execute(text(f"SELECT * FROM {normalized} WHERE id = '{entity_id}' LIMIT 1"))
+        row = res.mappings().first()
+        if row:
+            if "status" in row:
+                status = row["status"]
+            
+            if "risk_level" in row:
+                risk_level = row["risk_level"]
+            elif "sensitivity_level" in row:
+                risk_level = row["sensitivity_level"]
+            elif "business_criticality" in row:
+                risk_level = row["business_criticality"]
+            elif "classification" in row:
+                risk_level = row["classification"]
+    except Exception:
+        pass
+    return status, risk_level
 
 # --- Graph & Impact Endpoints ---
 @router.get("/graph/{object_type}/{object_id}", summary="Get relationship graph")
@@ -532,8 +605,13 @@ async def get_relationship_graph(
         
         if has_clear:
             d["other_entity_name"] = resolve_entity_name(db, r.target_type, r.target_id)
+            other_status, other_risk = resolve_entity_status_and_risk(db, r.target_type, r.target_id)
+            d["other_entity_status"] = other_status
+            d["other_entity_risk"] = other_risk
         else:
             d["other_entity_name"] = "[REDACTED (Insufficient Clearance)]"
+            d["other_entity_status"] = "INACTIVE"
+            d["other_entity_risk"] = "HIGH"
             d["metadata_json"] = {}
             d["scope_json"] = {}
             d["relationship_scope"] = None
@@ -555,8 +633,13 @@ async def get_relationship_graph(
         
         if has_clear:
             d["other_entity_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+            other_status, other_risk = resolve_entity_status_and_risk(db, r.source_type, r.source_id)
+            d["other_entity_status"] = other_status
+            d["other_entity_risk"] = other_risk
         else:
             d["other_entity_name"] = "[REDACTED (Insufficient Clearance)]"
+            d["other_entity_status"] = "INACTIVE"
+            d["other_entity_risk"] = "HIGH"
             d["metadata_json"] = {}
             d["scope_json"] = {}
             d["relationship_scope"] = None
@@ -630,8 +713,15 @@ async def get_relationship_graph(
                 "source_system": el.source_system
             })
     
+    root_status, root_risk = resolve_entity_status_and_risk(db, object_type, object_id)
     res_data = {
-        "root": {"type": object_type, "id": object_id},
+        "root": {
+            "type": object_type,
+            "id": object_id,
+            "name": resolve_entity_name(db, object_type, object_id),
+            "status": root_status,
+            "risk": root_risk
+        },
         "outgoing": outgoing_mapped,
         "incoming": incoming_mapped,
         "policies": policies_mapped,
@@ -867,3 +957,335 @@ async def resolve_evidence(
     from app.modules.relationship.cache_service import MemoryCacheService
     MemoryCacheService().set(cache_key, evidence_mapped, ttl_seconds=300)
     return ResponseHelper.success(data=evidence_mapped, message="Evidence resolved", request_id=request_id)
+
+@router.get("/lifecycle-states", summary="Get valid lifecycle states")
+def get_lifecycle_states_new(request: Request, current_user = Depends(get_current_user)):
+    return get_lifecycle_states(request, current_user)
+
+@router.get("/{id}", summary="Get relationship details")
+async def get_relationship_details(
+    request: Request,
+    id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    service = RelationshipService(db, tenant_id, current_user.id)
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+    
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    if not await check_node_read_clearance(subject, existing.source_type, existing.source_id, db) or \
+       not await check_node_read_clearance(subject, existing.target_type, existing.target_id, db):
+        return ResponseHelper.error(message="Access denied", status_code=403, request_id=request_id)
+
+    data = {
+        **GenericRelationshipResponse.model_validate(existing).model_dump(),
+        "source_name": resolve_entity_name(db, existing.source_type, existing.source_id),
+        "target_name": resolve_entity_name(db, existing.target_type, existing.target_id)
+    }
+    return ResponseHelper.success(data=data, message="Relationship details retrieved", request_id=request_id)
+
+@router.post("/{id}/submit", summary="Submit a relationship for approval")
+async def submit_relationship(
+    request: Request,
+    id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    service = RelationshipService(db, tenant_id, current_user.id)
+    
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
+    success = await service.approve_relationship(id)
+    if not success:
+        return ResponseHelper.error(message="Relationship not found or invalid state transition", status_code=404, request_id=request_id)
+        
+    db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
+    return ResponseHelper.success(message="Relationship submitted for approval", request_id=request_id)
+
+@router.post("/{id}/expire", summary="Manually expire a relationship")
+async def expire_relationship(
+    request: Request,
+    id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    service = RelationshipService(db, tenant_id, current_user.id)
+    
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
+    success = await service.expire_relationship(id)
+    if not success:
+        return ResponseHelper.error(message="Relationship not found or could not be expired", status_code=404, request_id=request_id)
+        
+    db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
+    return ResponseHelper.success(message="Relationship expired manually", request_id=request_id)
+
+@router.post("/{id}/revoke", summary="Revoke a relationship")
+async def revoke_relationship_post(
+    request: Request,
+    id: uuid.UUID,
+    reason: str = Query(..., description="Reason for revocation"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    service = RelationshipService(db, tenant_id, current_user.id)
+    
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
+    success = await service.revoke_relationship(id, reason)
+    if not success:
+        return ResponseHelper.error(message="Relationship not found or could not be revoked", status_code=404, request_id=request_id)
+        
+    db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
+    return ResponseHelper.success(message="Relationship revoked", request_id=request_id)
+
+@router.post("/bulk-validate", summary="Bulk dry-run validate relationships")
+async def bulk_validate_relationships(
+    request: Request,
+    payloads: List[GenericRelationshipCreate],
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.validators import ValidationEngine
+    validator = ValidationEngine(db, tenant_id)
+    
+    results = []
+    for i, payload in enumerate(payloads):
+        validation_results = validator.validate_payload(request_id, payload.model_dump())
+        failures = [{"rule_id": r.rule_id, "message": r.message, "severity": r.severity} for r in validation_results if r.status == "FAIL"]
+        results.append({
+            "index": i,
+            "valid": len(failures) == 0,
+            "errors": failures
+        })
+        
+    db.commit()
+    return ResponseHelper.success(data=results, message="Bulk validation completed", request_id=request_id)
+
+
+@router.get("/objects/{object_type}/{object_id}/owners", summary="Get owners for object")
+async def get_object_owners(
+    request: Request,
+    object_type: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.models import ObjectResponsibility
+    resps = db.query(ObjectResponsibility).filter(
+        ObjectResponsibility.tenant_id == tenant_id,
+        ObjectResponsibility.object_type == object_type.lower(),
+        ObjectResponsibility.object_id == object_id,
+        ObjectResponsibility.responsibility_type == "OWNER",
+        ObjectResponsibility.status == "ACTIVE"
+    ).all()
+    
+    return ResponseHelper.success(
+        data=[ObjectResponsibilityResponse.model_validate(r).model_dump() for r in resps],
+        message="Object owners retrieved",
+        request_id=request_id
+    )
+
+@router.get("/objects/{object_type}/{object_id}/approvers", summary="Get approvers for object")
+async def get_object_approvers(
+    request: Request,
+    object_type: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.relationship.models import ObjectResponsibility
+    resps = db.query(ObjectResponsibility).filter(
+        ObjectResponsibility.tenant_id == tenant_id,
+        ObjectResponsibility.object_type == object_type.lower(),
+        ObjectResponsibility.object_id == object_id,
+        ObjectResponsibility.responsibility_type == "APPROVER",
+        ObjectResponsibility.status == "ACTIVE"
+    ).all()
+    
+    return ResponseHelper.success(
+        data=[ObjectResponsibilityResponse.model_validate(r).model_dump() for r in resps],
+        message="Object approvers retrieved",
+        request_id=request_id
+    )
+
+@router.get("/objects/{object_type}/{object_id}/governance-context", summary="Get aggregate governance context")
+async def get_governance_context(
+    request: Request,
+    object_type: str,
+    object_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        return ResponseHelper.error(message="Access denied: Insufficient clearance", status_code=403, request_id=request_id)
+        
+    status, risk = resolve_entity_status_and_risk(db, object_type, object_id)
+    
+    from app.modules.relationship.models import ObjectResponsibility, PolicyBinding, EvidenceLink
+    resps = db.query(ObjectResponsibility).filter(
+        ObjectResponsibility.tenant_id == tenant_id,
+        ObjectResponsibility.object_type == object_type.lower(),
+        ObjectResponsibility.object_id == object_id,
+        ObjectResponsibility.status == "ACTIVE"
+    ).all()
+    
+    owners = [ObjectResponsibilityResponse.model_validate(r).model_dump() for r in resps if r.responsibility_type == "OWNER"]
+    approvers = [ObjectResponsibilityResponse.model_validate(r).model_dump() for r in resps if r.responsibility_type == "APPROVER"]
+    
+    p_bindings = db.query(PolicyBinding).filter(
+        PolicyBinding.tenant_id == tenant_id,
+        PolicyBinding.target_type == object_type.lower(),
+        PolicyBinding.target_id == object_id,
+        PolicyBinding.status == "ACTIVE"
+    ).all()
+    policies = []
+    for pb in p_bindings:
+        policy_name = ""
+        try:
+            from sqlalchemy import text
+            policy_res = db.execute(text("SELECT policy_name FROM policies WHERE id = :id LIMIT 1"), {"id": pb.policy_id})
+            policy_name = policy_res.scalar() or ""
+        except Exception:
+            policy_name = f"Policy ({str(pb.policy_id)[:8]})"
+        policies.append({
+            "id": str(pb.id),
+            "policy_id": str(pb.policy_id),
+            "policy_name": policy_name,
+            "is_mandatory": pb.is_mandatory,
+            "status": pb.status
+        })
+        
+    e_links = db.query(EvidenceLink).filter(
+        EvidenceLink.tenant_id == tenant_id,
+        EvidenceLink.target_type == object_type.lower(),
+        EvidenceLink.target_id == object_id
+    ).all()
+    evidence = []
+    for el in e_links:
+        evidence_name = ""
+        try:
+            from sqlalchemy import text
+            ev_res = db.execute(text("SELECT name FROM audit_events WHERE id = :id LIMIT 1"), {"id": el.evidence_id})
+            evidence_name = ev_res.scalar() or ""
+        except Exception:
+            evidence_name = f"Evidence ({str(el.evidence_id)[:8]})"
+        evidence.append({
+            "id": str(el.id),
+            "evidence_id": str(el.evidence_id),
+            "evidence_name": evidence_name,
+            "link_type": el.link_type,
+            "confidence_score": float(el.confidence_score) if el.confidence_score is not None else None,
+            "source_system": el.source_system
+        })
+        
+    from app.modules.audit.models import AuditEvent
+    from sqlalchemy import or_
+    
+    entity_id_str = str(object_id)
+    where_clause = or_(
+        AuditEvent.entity_id == entity_id_str,
+        AuditEvent.event_metadata.op("->>")("entity_id") == entity_id_str
+    )
+    
+    from app.modules.auth.models import User as AuthUser
+    stmt = (
+        db.query(AuditEvent, AuthUser.name, AuthUser.email)
+        .outerjoin(AuthUser, AuditEvent.actor_user_id == AuthUser.id)
+        .where(where_clause)
+        .order_by(AuditEvent.created_at.desc())
+        .limit(20)
+    )
+    
+    events_rows = stmt.all()
+    audit_events = []
+    for event, actor_name, actor_email in events_rows:
+        meta = event.event_metadata or {}
+        payload = meta.get("payload") if isinstance(meta.get("payload"), dict) else {}
+        summary = meta.get("event_summary") or meta.get("change_summary") or f"Action {event.action or event.event_type} on {event.entity_type}"
+        
+        audit_events.append({
+            "id": str(event.id),
+            "event_type": event.event_type,
+            "changed_by_name": actor_name or "System",
+            "change_summary": summary,
+            "created_at": event.created_at.isoformat() if event.created_at else None
+        })
+        
+    context = {
+        "status": status,
+        "risk_level": risk,
+        "owners": owners,
+        "approvers": approvers,
+        "policies": policies,
+        "evidence": evidence,
+        "audit_events": audit_events
+    }
+    
+    return ResponseHelper.success(data=context, message="Governance context retrieved", request_id=request_id)

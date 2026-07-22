@@ -6,7 +6,8 @@ from sqlalchemy import (
     ForeignKey,
     Table,
     TIMESTAMP,
-    text
+    text,
+    event
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -120,3 +121,12 @@ class TokenBlocklist(Base):
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String, unique=True, index=True, nullable=False)
     expires_at = Column(Integer, nullable=False)
+
+
+@event.listens_for(User, "before_insert")
+@event.listens_for(User, "before_update")
+def user_full_name_listener(mapper, connection, target):
+    if not target.full_name and target.name:
+        target.full_name = target.name
+    elif not target.name and target.full_name:
+        target.name = target.full_name

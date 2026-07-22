@@ -43,6 +43,7 @@ class RelationshipService:
             effective_from=payload.effective_from or datetime.utcnow(),
             effective_to=payload.effective_to,
             status=LifecycleState.PROPOSED.value,
+            metadata_json=payload.metadata_json,
             created_by=self.current_user_id
         )
         self.repo.create(self.db, new_rel)
@@ -102,6 +103,9 @@ class RelationshipService:
         return False
 
     async def suspend_relationship(self, relationship_id: uuid.UUID, reason: str) -> bool:
+        if not reason or not reason.strip():
+            raise ValueError("Reason is mandatory for suspension")
+            
         rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.SUSPENDED.value)
         if rel:
             await self.audit.publish_relationship_suspended(relationship_id, {"reason": reason})

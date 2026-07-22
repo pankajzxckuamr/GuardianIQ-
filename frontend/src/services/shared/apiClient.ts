@@ -1,6 +1,27 @@
 /* src/services/shared/apiClient.ts */
 import { generateRequestId } from "./requestId";
 
+function extractErrorMessage(body: any, defaultMessage: string): string {
+  if (!body) return defaultMessage;
+  
+  if (Array.isArray(body.data) && body.data.length > 0) {
+    const first = body.data[0];
+    if (first && typeof first === 'object' && first.message) {
+      return body.message ? `${body.message}: ${first.message}` : first.message;
+    }
+  }
+  
+  if (Array.isArray(body.detail) && body.detail.length > 0) {
+    const first = body.detail[0];
+    if (first && typeof first === 'object' && first.msg) {
+      const field = Array.isArray(first.loc) ? first.loc.join('.') : '';
+      return field ? `Validation Error on ${field}: ${first.msg}` : `Validation Error: ${first.msg}`;
+    }
+  }
+  
+  return body.error || body.message || body.detail || defaultMessage;
+}
+
 interface RequestConfig extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
@@ -71,7 +92,7 @@ class ApiClient {
       let errorMessage = `Request failed with status ${response.status}`;
       try {
         const errBody = await response.json();
-        errorMessage = errBody.message || errBody.detail || errorMessage;
+        errorMessage = extractErrorMessage(errBody, errorMessage);
       } catch (e) {
         // Fallback to text if JSON parsing fails
         try {
@@ -89,7 +110,7 @@ class ApiClient {
 
     const body = JSON.parse(text);
     if (body.success === false || body.status === "error" || (body.detail && body.success === undefined)) {
-      throw new Error(body.error || body.detail || 'API Error');
+      throw new Error(extractErrorMessage(body, "API Error"));
     }
     // Mimicking the old logic: return body.data ?? body
     return body.data !== undefined ? body.data : body;

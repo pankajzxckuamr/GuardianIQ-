@@ -15,6 +15,7 @@ class GenericRelationshipBase(BaseModel):
     responsibility_type: Optional[str] = Field(None, max_length=100)
     effective_from: Optional[datetime] = None
     effective_to: Optional[datetime] = None
+    metadata_json: Optional[dict] = None
 
 
 class GenericRelationshipCreate(GenericRelationshipBase):

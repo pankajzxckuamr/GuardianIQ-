@@ -20,7 +20,11 @@ class AgentType(str, Enum):
     EXECUTION = "EXECUTION"
     MONITORING = "MONITORING"
     REVIEW = "REVIEW"
+    ROUTING = "ROUTING"
+    AUTONOMOUS = "AUTONOMOUS"
+    ASSISTANT = "ASSISTANT"
     TEST = "TEST"
+    OTHER = "OTHER"
 
 class AgentExecutionMode(str, Enum):
     READ_ONLY = "READ_ONLY"
@@ -38,13 +42,21 @@ class ToolCategory(str, Enum):
     LLM = "LLM"
     FILE = "FILE"
     WEBHOOK = "WEBHOOK"
+    GOVERNMENT = "GOVERNMENT"
+    API = "API"
+    SDK = "SDK"
     TEST = "TEST"
+    OTHER = "OTHER"
 
 class AccessMode(str, Enum):
     READ_ONLY = "READ_ONLY"
     WRITE = "WRITE"
     EXECUTE = "EXECUTE"
     ADMIN = "ADMIN"
+    WRITE_ONLY = "WRITE_ONLY"
+    READ_WRITE = "READ_WRITE"
+    LIMITED = "LIMITED"
+    FULL = "FULL"
 
 class WorkflowType(str, Enum):
     ENQUIRY = "ENQUIRY"

@@ -1,7 +1,7 @@
-from typing import Optional, List
+from typing import Optional, List, Union, Any
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.modules.registry.constants import (
     EntityStatus, ModelType, AgentType, AgentExecutionMode,
@@ -60,7 +60,7 @@ class ProviderListResponse(BaseModel):
 
 class AIModelBase(BaseModel):
     model_name: str
-    model_type: ModelType
+    model_type: Union[ModelType, str]
     provider_id: Optional[UUID] = None
     version: Optional[str] = None
     purpose: str
@@ -76,7 +76,7 @@ class AIModelCreate(AIModelBase):
 
 class AIModelUpdate(BaseModel):
     model_name: Optional[str] = None
-    model_type: Optional[ModelType] = None
+    model_type: Optional[Union[ModelType, str]] = None
     provider_id: Optional[UUID] = None
     version: Optional[str] = None
     purpose: Optional[str] = None
@@ -114,11 +114,11 @@ class AIModelListResponse(BaseModel):
 
 class AIAgentBase(BaseModel):
     agent_name: str
-    agent_type: AgentType
+    agent_type: Union[AgentType, str]
     description: Optional[str] = None
     owner_user_id: Optional[UUID] = None
     department_id: Optional[UUID] = None
-    execution_mode: AgentExecutionMode
+    execution_mode: Union[AgentExecutionMode, str]
     risk_level: str
     confidence_threshold: Optional[float] = None
     status: EntityStatus = EntityStatus.DRAFT
@@ -130,11 +130,11 @@ class AIAgentCreate(AIAgentBase):
 
 class AIAgentUpdate(BaseModel):
     agent_name: Optional[str] = None
-    agent_type: Optional[AgentType] = None
+    agent_type: Optional[Union[AgentType, str]] = None
     description: Optional[str] = None
     owner_user_id: Optional[UUID] = None
     department_id: Optional[UUID] = None
-    execution_mode: Optional[AgentExecutionMode] = None
+    execution_mode: Optional[Union[AgentExecutionMode, str]] = None
     risk_level: Optional[str] = None
     confidence_threshold: Optional[float] = None
     status: Optional[EntityStatus] = None
@@ -177,8 +177,8 @@ class StatusChangeRequest(BaseModel):
 
 class ToolBase(BaseModel):
     tool_name: str
-    tool_category: ToolCategory
-    access_mode: AccessMode
+    tool_category: Union[ToolCategory, str]
+    access_mode: Union[AccessMode, str]
     owner_user_id: Optional[UUID] = None
     sensitivity_level: str
     allowed_operations_json: list = Field(default_factory=list)
@@ -191,8 +191,8 @@ class ToolCreate(ToolBase):
 
 class ToolUpdate(BaseModel):
     tool_name: Optional[str] = None
-    tool_category: Optional[ToolCategory] = None
-    access_mode: Optional[AccessMode] = None
+    tool_category: Optional[Union[ToolCategory, str]] = None
+    access_mode: Optional[Union[AccessMode, str]] = None
     owner_user_id: Optional[UUID] = None
     sensitivity_level: Optional[str] = None
     allowed_operations_json: Optional[list] = None
@@ -392,6 +392,18 @@ class GuardianUserResponse(GuardianUserBase):
     updated_at: datetime
     class Config: from_attributes = True
 
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_full_name(cls, data: Any) -> Any:
+        if hasattr(data, "full_name") and not getattr(data, "full_name"):
+            name_val = getattr(data, "name", None)
+            if name_val:
+                object.__setattr__(data, "full_name", name_val)
+        elif isinstance(data, dict):
+            if not data.get("full_name"):
+                data["full_name"] = data.get("name") or "User"
+        return data
+
 class GuardianUserListResponse(BaseModel):
     items: List[GuardianUserResponse]
     total: int
@@ -500,17 +512,17 @@ class RelationshipGroupedResponse(BaseModel):
 # ---------------------------------------------------------
 
 class AuditResponse(BaseModel):
-    id: int
+    id: Union[int, str, UUID]
     entity_type: str
-    entity_id: UUID
+    entity_id: Union[UUID, str]
     event_type: str
-    changed_by: Optional[UUID] = None
+    changed_by: Optional[Union[UUID, str]] = None
     changed_by_name: Optional[str] = None
     changed_by_email: Optional[str] = None
     before_json: Optional[dict] = None
     after_json: Optional[dict] = None
     change_summary: Optional[str] = None
-    created_at: datetime
+    created_at: Union[datetime, str]
     class Config: from_attributes = True
 
 class AuditListResponse(BaseModel):

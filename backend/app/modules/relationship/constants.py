@@ -16,6 +16,11 @@ class RelationshipType(str, Enum):
     TRIGGERS = "TRIGGERS"
     ESCALATED_TO = "ESCALATED_TO"
     DELEGATED_TO = "DELEGATED_TO"
+    BELONGS_TO = "BELONGS_TO"
+    MEMBER_OF = "MEMBER_OF"
+    HAS_PERMISSION = "HAS_PERMISSION"
+    VIOLATES = "VIOLATES"
+    REMEDIATED_BY = "REMEDIATED_BY"
 
 
 class LifecycleState(str, Enum):

@@ -53,16 +53,31 @@ export const ObjectRelationshipPanel: React.FC<ObjectRelationshipPanelProps> = (
 
   const handleAction = async (id: string, action: string) => {
     try {
+      let res: any;
       if (action === 'revoke') {
-        await registryService.revokeRelationship(id, "User requested revocation");
+        const reason = window.prompt("Please enter mandatory revocation reason:");
+        if (reason === null) return;
+        if (!reason.trim()) {
+          showToast("Revocation reason is mandatory", "error");
+          return;
+        }
+        res = await registryService.revokeRelationship(id, reason);
       } else if (action === 'suspend') {
-        await registryService.suspendRelationship(id, "User requested suspension");
+        const reason = window.prompt("Please enter mandatory suspension reason:");
+        if (reason === null) return;
+        if (!reason.trim()) {
+          showToast("Suspension reason is mandatory", "error");
+          return;
+        }
+        res = await registryService.suspendRelationship(id, reason);
       } else if (action === 'approve') {
-        await registryService.approveRelationship(id);
+        res = await registryService.approveRelationship(id);
       } else if (action === 'activate') {
-        await registryService.activateRelationship(id);
+        res = await registryService.activateRelationship(id);
       }
-      showToast(`Relationship ${action}d successfully`, "success");
+      
+      const reqIdText = res?.request_id ? ` (Request ID: ${res.request_id})` : '';
+      showToast(`Relationship ${action}d successfully${reqIdText}`, "success");
       loadRelationships();
     } catch (err: any) {
       showToast(err.message || `Failed to ${action} relationship`, "error");

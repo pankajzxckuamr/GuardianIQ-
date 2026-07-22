@@ -3,10 +3,14 @@ import { Lightbulb, X } from "lucide-react";
 import styles from "./ScreenGuide.module.css";
 
 interface ScreenGuideProps {
-  content: React.ReactNode;
+  id?: string;
+  title?: string;
+  description?: string;
+  content?: React.ReactNode;
+  children?: React.ReactNode;
 }
 
-export const ScreenGuide: React.FC<ScreenGuideProps> = ({ content }) => {
+export const ScreenGuide: React.FC<ScreenGuideProps> = ({ id, title, description, content, children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -24,8 +28,20 @@ export const ScreenGuide: React.FC<ScreenGuideProps> = ({ content }) => {
     };
   }, [isOpen]);
 
+  const renderContent = () => {
+    if (content) return content;
+    if (children) return children;
+    
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingRight: "4px" }}>
+        {title && <h4 style={{ color: "#fbbf24", margin: "0 0 4px 0", fontSize: "0.9rem", fontWeight: 600 }}>{title}</h4>}
+        {description && <p style={{ margin: 0, fontSize: "0.8rem", color: "rgba(255, 255, 255, 0.8)", lineHeight: 1.5 }}>{description}</p>}
+      </div>
+    );
+  };
+
   return (
-    <div className={styles.container} ref={containerRef}>
+    <div className={styles.container} ref={containerRef} id={id}>
       <button 
         className={styles.iconBtn} 
         onClick={(e) => {
@@ -56,7 +72,7 @@ export const ScreenGuide: React.FC<ScreenGuideProps> = ({ content }) => {
             </button>
           </div>
           <div className={styles.popoverContent}>
-            {content}
+            {renderContent()}
           </div>
         </div>
       )}

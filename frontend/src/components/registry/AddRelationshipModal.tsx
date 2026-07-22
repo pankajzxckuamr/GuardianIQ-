@@ -4,11 +4,10 @@ import React, { useEffect, useState } from "react";
 import { Modal } from "../common/Modal";
 import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
+import WizardShell from "../common/WizardShell";
 import styles from "./AddRelationshipModal.module.css";
 
-const FieldInfo: React.FC<{ tooltip: string }> = ({ tooltip }) => (
-  <span title={tooltip} style={{ cursor: "help", marginLeft: "4px", color: "#888", fontSize: "0.85em", fontWeight: "normal" }}>(?)</span>
-);
+import { FieldInfo } from "../common/FieldInfo";
 
 interface AddRelationshipModalProps {
   isOpen: boolean;
@@ -69,9 +68,22 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
   const allowedOptions = PERMITTED_COMBINATIONS[normalizedSourceType] || [];
   
   // Form State
+  const [currentWizardStep, setCurrentWizardStep] = useState(0);
+  
+  // Step 1 State
   const [relationshipType, setRelationshipType] = useState("");
   const [targetEntityType, setTargetEntityType] = useState("");
   const [targetEntityId, setTargetEntityId] = useState("");
+  
+  // Step 2 State
+  const [relationshipScope, setRelationshipScope] = useState("");
+  const [responsibilityType, setResponsibilityType] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveTo, setEffectiveTo] = useState("");
+  
+  // Step 3 State
+  const [metadataJson, setMetadataJson] = useState("");
+  const [isMetadataJsonValid, setIsMetadataJsonValid] = useState(true);
   
   // Lookups lists
   const [targetsList, setTargetsList] = useState<{ id: string; label: string }[]>([]);
@@ -86,6 +98,44 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
   const relTypes = allowedOptions
     .filter(opt => !targetEntityType || opt.target === targetEntityType)
     .map(opt => opt.rel);
+
+  const wizardSteps = [
+    { label: "Identity & Action" },
+    { label: "Attributes & Lifespans" },
+    { label: "Configurations & Review" }
+  ];
+
+  const validateAndAdvance = (targetStep: number) => {
+    if (targetStep > currentWizardStep) {
+      if (currentWizardStep === 0) {
+        if (!relationshipType || !targetEntityType || !targetEntityId) {
+          showToast("Please fill in all required target and action fields", "error");
+          return;
+        }
+      }
+      if (currentWizardStep === 1) {
+        if (effectiveFrom && effectiveTo && new Date(effectiveFrom) >= new Date(effectiveTo)) {
+          showToast("Effective To date must be after Effective From date", "error");
+          return;
+        }
+      }
+    }
+    setCurrentWizardStep(targetStep);
+  };
+
+  // Validate metadataJson valid JSON
+  useEffect(() => {
+    if (!metadataJson.trim()) {
+      setIsMetadataJsonValid(true);
+      return;
+    }
+    try {
+      JSON.parse(metadataJson);
+      setIsMetadataJsonValid(true);
+    } catch {
+      setIsMetadataJsonValid(false);
+    }
+  }, [metadataJson]);
 
   // Handle Target Entity Type Change
   useEffect(() => {
@@ -179,6 +229,10 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
       showToast("Please fill in all required relationship fields", "error");
       return;
     }
+    if (!isMetadataJsonValid) {
+      showToast("Please fix the metadata JSON configuration", "error");
+      return;
+    }
 
     setSubmitting(true);
     setGeneralError(null);
@@ -188,12 +242,18 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
       source_id: sourceEntityId,
       target_type: mapToBackendType(targetEntityType),
       target_id: targetEntityId,
-      relationship_type: relationshipType.toLowerCase()
+      relationship_type: relationshipType.toLowerCase(),
+      relationship_scope: relationshipScope || null,
+      responsibility_type: responsibilityType || null,
+      effective_from: effectiveFrom ? new Date(effectiveFrom).toISOString() : null,
+      effective_to: effectiveTo ? new Date(effectiveTo).toISOString() : null,
+      metadata_json: metadataJson ? JSON.parse(metadataJson) : null
     };
 
     try {
-      await registryService.createRelationship(payload);
-      showToast("Relationship connection established", "success");
+      const res = await registryService.createRelationship(payload);
+      const reqIdText = res?.request_id ? ` (Request ID: ${res.request_id})` : '';
+      showToast(`Relationship connection established${reqIdText}`, "success");
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -215,6 +275,13 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
       setTargetEntityType("");
       setTargetEntityId("");
       setTargetsList([]);
+      setRelationshipScope("");
+      setResponsibilityType("");
+      setEffectiveFrom("");
+      setEffectiveTo("");
+      setMetadataJson("");
+      setIsMetadataJsonValid(true);
+      setCurrentWizardStep(0);
       setGeneralError(null);
     }
   }, [isOpen]);
@@ -226,7 +293,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Create Connection Link`}
-      size="md"
+      size="lg"
     >
       <div className={styles.container}>
         {generalError && <div className={styles.generalAlert}>{generalError}</div>}
@@ -248,105 +315,289 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className={styles.form}>
-            <p className={styles.infoText}>
-              Establish a validated connection from this <strong>{formatEntityLabel(sourceEntityType)}</strong> to another asset.
-            </p>
+            <WizardShell
+              steps={wizardSteps}
+              currentStep={currentWizardStep}
+              onStepClick={validateAndAdvance}
+              mode="strict"
+            >
+              {/* STEP 1: Identity & Action */}
+              {currentWizardStep === 0 && (
+                <div>
+                  <p className={styles.infoText}>
+                    Select target entity and relationship action to link from this <strong>{formatEntityLabel(sourceEntityType)}</strong>.
+                  </p>
 
-            {/* Target Entity Type */}
-            <div className={styles.formGroup}>
-              <label htmlFor="targetEntityType" className={styles.label}>
-                Target Entity Type <span className={styles.required}>*</span>
-                <FieldInfo tooltip="The type of entity you want to connect to." />
-              </label>
-              <select
-                id="targetEntityType"
-                value={targetEntityType}
-                onChange={(e) => setTargetEntityType(e.target.value)}
-                disabled={submitting}
-                className={styles.select}
-                required
-              >
-                <option value="">-- Choose Target Type --</option>
-                {targetTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  {/* Target Entity Type */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="targetEntityType" className={styles.label}>
+                      Target Entity Type <span className={styles.required}>*</span>
+                      <FieldInfo 
+                        tooltip="The type of entity you want to connect to." 
+                        format="Selection list of permitted entities"
+                        example="DATA_SOURCE"
+                      />
+                    </label>
+                    <select
+                      id="targetEntityType"
+                      value={targetEntityType}
+                      onChange={(e) => setTargetEntityType(e.target.value)}
+                      disabled={submitting}
+                      className={styles.select}
+                      required
+                    >
+                      <option value="">-- Choose Target Type --</option>
+                      {targetTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Relationship Type */}
-            <div className={styles.formGroup}>
-              <label htmlFor="relationshipType" className={styles.label}>
-                Relationship Action <span className={styles.required}>*</span>
-                <FieldInfo tooltip="The nature of the relationship." />
-              </label>
-              <select
-                id="relationshipType"
-                value={relationshipType}
-                onChange={(e) => setRelationshipType(e.target.value)}
-                disabled={submitting || !targetEntityType}
-                className={styles.select}
-                required
-              >
-                <option value="">-- Choose Relationship --</option>
-                {relTypes.map((rel) => (
-                  <option key={rel} value={rel}>
-                    {rel}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  {/* Relationship Type */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="relationshipType" className={styles.label}>
+                      Relationship Action <span className={styles.required}>*</span>
+                      <FieldInfo 
+                        tooltip="The nature of the relationship." 
+                        format="Permitted relationship combination verb"
+                        example="USES"
+                      />
+                    </label>
+                    <select
+                      id="relationshipType"
+                      value={relationshipType}
+                      onChange={(e) => setRelationshipType(e.target.value)}
+                      disabled={submitting || !targetEntityType}
+                      className={styles.select}
+                      required
+                    >
+                      <option value="">-- Choose Relationship --</option>
+                      {relTypes.map((rel) => (
+                        <option key={rel} value={rel}>
+                          {rel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Target Entity Search */}
-            <div className={styles.formGroup}>
-              <label htmlFor="targetEntityId" className={styles.label}>
-                Target Entity <span className={styles.required}>*</span>
-                <FieldInfo tooltip="The specific entity you are connecting to." />
-              </label>
-              <select
-                id="targetEntityId"
-                value={targetEntityId}
-                onChange={(e) => setTargetEntityId(e.target.value)}
-                disabled={submitting || !targetEntityType || loadingTargets}
-                className={styles.select}
-                required
-              >
-                {loadingTargets ? (
-                  <option value="">Loading targets list...</option>
-                ) : targetsList.length > 0 ? (
-                  <>
-                    <option value="">-- Choose Target Record --</option>
-                    {targetsList.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </>
-                ) : (
-                  <option value="">-- No valid targets found --</option>
-                )}
-              </select>
-            </div>
+                  {/* Target Entity Search */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="targetEntityId" className={styles.label}>
+                      Target Entity <span className={styles.required}>*</span>
+                      <FieldInfo 
+                        tooltip="The specific entity you are connecting to." 
+                        format="Asset registry name lookup"
+                        example="Primary Customer Database"
+                      />
+                    </label>
+                    <select
+                      id="targetEntityId"
+                      value={targetEntityId}
+                      onChange={(e) => setTargetEntityId(e.target.value)}
+                      disabled={submitting || !targetEntityType || loadingTargets}
+                      className={styles.select}
+                      required
+                    >
+                      {loadingTargets ? (
+                        <option value="">Loading targets list...</option>
+                      ) : targetsList.length > 0 ? (
+                        <>
+                          <option value="">-- Choose Target Record --</option>
+                          {targetsList.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.label}
+                            </option>
+                          ))}
+                        </>
+                      ) : (
+                        <option value="">-- No valid targets found --</option>
+                      )}
+                    </select>
+                  </div>
 
-            {/* Actions */}
-            <div className={styles.formActions}>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={submitting}
-                className={styles.cancelBtn}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || !targetEntityId || !relationshipType}
-                className={styles.submitBtn}
-              >
-                {submitting ? "Linking..." : "Establish Link"}
-              </button>
-            </div>
+                  <div className={styles.formActions} style={{ marginTop: "1.5rem" }}>
+                    <button type="button" onClick={onClose} className={styles.cancelBtn}>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => validateAndAdvance(1)}
+                      disabled={!targetEntityId || !relationshipType}
+                      className={styles.submitBtn}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Attributes & Lifespans */}
+              {currentWizardStep === 1 && (
+                <div>
+                  <p className={styles.infoText}>
+                    Configure constraints, responsibility ownership, and dates for this connection.
+                  </p>
+
+                  {/* Scope */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="relationshipScope" className={styles.label}>
+                      Scope Context
+                      <FieldInfo 
+                        tooltip="Optional context boundary string defining connection range." 
+                        format="Sub-boundary lookup key"
+                        example="WORKFLOW:WF-001"
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      id="relationshipScope"
+                      value={relationshipScope}
+                      onChange={(e) => setRelationshipScope(e.target.value)}
+                      placeholder="e.g. WORKFLOW:WF-001"
+                      className={styles.input}
+                    />
+                  </div>
+
+                  {/* Responsibility Type */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="responsibilityType" className={styles.label}>
+                      Responsibility Type
+                      <FieldInfo 
+                        tooltip="Assign specific responsibility ownership." 
+                        format="Responsibility role enum"
+                        example="OWNER"
+                      />
+                    </label>
+                    <select
+                      id="responsibilityType"
+                      value={responsibilityType}
+                      onChange={(e) => setResponsibilityType(e.target.value)}
+                      className={styles.select}
+                    >
+                      <option value="">-- Choose Responsibility (Optional) --</option>
+                      <option value="OWNER">OWNER</option>
+                      <option value="REVIEWER">REVIEWER</option>
+                      <option value="APPROVER">APPROVER</option>
+                      <option value="AUDITOR">AUDITOR</option>
+                    </select>
+                  </div>
+
+                  {/* Effective Dates */}
+                  <div className={styles.formGrid} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div className={styles.formGroup}>
+                      <label htmlFor="effectiveFrom" className={styles.label}>
+                        Effective From Date
+                        <FieldInfo 
+                          tooltip="Starting date when this link becomes valid." 
+                          format="Local datetime picker"
+                        />
+                      </label>
+                      <input
+                        type="datetime-local"
+                        id="effectiveFrom"
+                        value={effectiveFrom}
+                        onChange={(e) => setEffectiveFrom(e.target.value)}
+                        className={styles.input}
+                      />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                      <label htmlFor="effectiveTo" className={styles.label}>
+                        Effective To Date
+                        <FieldInfo 
+                          tooltip="Ending date when this link ceases validity." 
+                          format="Local datetime picker"
+                        />
+                      </label>
+                      <input
+                        type="datetime-local"
+                        id="effectiveTo"
+                        value={effectiveTo}
+                        onChange={(e) => setEffectiveTo(e.target.value)}
+                        className={styles.input}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.formActions} style={{ marginTop: "1.5rem" }}>
+                    <button type="button" onClick={() => setCurrentWizardStep(0)} className={styles.cancelBtn}>
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => validateAndAdvance(2)}
+                      className={styles.submitBtn}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: Configurations & Review */}
+              {currentWizardStep === 2 && (
+                <div>
+                  <p className={styles.infoText}>
+                    Provide optional metadata configuration and review before establishing connection.
+                  </p>
+
+                  {/* Metadata JSON */}
+                  <div className={styles.formGroup}>
+                    <label htmlFor="metadataJson" className={styles.label}>
+                      Metadata JSON
+                      <FieldInfo 
+                        tooltip="Additional structured configuration properties." 
+                        format="Valid JSON payload string"
+                        example='{"access_mode": "READ_ONLY"}'
+                      />
+                    </label>
+                    <textarea
+                      id="metadataJson"
+                      value={metadataJson}
+                      onChange={(e) => setMetadataJson(e.target.value)}
+                      placeholder='{ "access_mode": "READ_ONLY" }'
+                      rows={4}
+                      className={`${styles.textarea} ${!isMetadataJsonValid ? styles.invalidJson : ""}`}
+                      style={{ fontFamily: "monospace", width: '100%', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', border: !isMetadataJsonValid ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '4px' }}
+                    />
+                    {!isMetadataJsonValid && (
+                      <span style={{ color: "#ef4444", fontSize: "0.8rem", marginTop: "4px", display: "block" }}>
+                        Invalid JSON formatting.
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Review Box */}
+                  <div style={{ marginTop: "1rem", background: "rgba(255, 255, 255, 0.03)", padding: "1rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <h5 style={{ margin: "0 0 0.5rem 0", color: "#fff", fontWeight: 600 }}>Connection Review</h5>
+                    <div style={{ fontSize: "0.85rem", display: "grid", gap: "0.25rem", color: "rgba(255,255,255,0.7)" }}>
+                      <div><strong>Source:</strong> {sourceEntityType} ({sourceEntityId})</div>
+                      <div><strong>Target:</strong> {targetEntityType} ({targetsList.find(t => t.id === targetEntityId)?.label || targetEntityId})</div>
+                      <div><strong>Action:</strong> {relationshipType}</div>
+                      {relationshipScope && <div><strong>Scope:</strong> {relationshipScope}</div>}
+                      {responsibilityType && <div><strong>Responsibility:</strong> {responsibilityType}</div>}
+                      {effectiveFrom && <div><strong>Effective From:</strong> {effectiveFrom}</div>}
+                      {effectiveTo && <div><strong>Effective To:</strong> {effectiveTo}</div>}
+                    </div>
+                  </div>
+
+                  <div className={styles.formActions} style={{ marginTop: "1.5rem" }}>
+                    <button type="button" onClick={() => setCurrentWizardStep(1)} className={styles.cancelBtn}>
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting || !isMetadataJsonValid}
+                      className={styles.submitBtn}
+                    >
+                      {submitting ? "Linking..." : "Establish Link"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </WizardShell>
           </form>
         )}
       </div>

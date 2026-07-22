@@ -21,6 +21,10 @@ import { RegistryDataSourcesPage } from "../pages/RegistryDataSourcesPage";
 import { RegistryRelationshipsPage } from "../pages/RegistryRelationshipsPage";
 import { ExecutionDashboardPage } from "../pages/ExecutionDashboardPage";
 import { RegisterAllPage } from "../pages/RegisterAllPage";
+import { PoliciesDashboardPage } from "../pages/PoliciesDashboardPage";
+import { RiskWorkspacePage } from "../pages/RiskWorkspacePage";
+import { ApprovalHubPage } from "../pages/ApprovalHubPage";
+import { AdminPanelPage } from "../pages/AdminPanelPage";
 
 const WorkflowSchedulerDashboard = React.lazy(() => import('../pages/WorkflowSchedulerDashboard'));
 const CreateScheduleWizard = React.lazy(() => import('../pages/CreateScheduleWizard'));
@@ -208,6 +212,14 @@ export const AppRouter: React.FC = () => {
         <Route path="/authorization-simulator" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><AuthorizationSimulator /></React.Suspense></AppShell></ProtectedRoute>} />
         <Route path="/schedule-approvals" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><ScheduleApprovalQueue /></React.Suspense></AppShell></ProtectedRoute>} />
         <Route path="/workflow-notifications" element={<ProtectedRoute><AppShell><React.Suspense fallback={<div>Loading...</div>}><NotificationsCenter /></React.Suspense></AppShell></ProtectedRoute>} />
+
+        {/* Phase 3 Workspace Routes */}
+        <Route path="/policies" element={<ProtectedRoute><AppShell><PoliciesDashboardPage /></AppShell></ProtectedRoute>} />
+        <Route path="/risk" element={<ProtectedRoute><AppShell><RiskWorkspacePage /></AppShell></ProtectedRoute>} />
+        <Route path="/approvals" element={<ProtectedRoute><AppShell><ApprovalHubPage /></AppShell></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
+        <Route path="/admin/roles" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
+        <Route path="/admin/settings" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
 
         {/* Root Redirects */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

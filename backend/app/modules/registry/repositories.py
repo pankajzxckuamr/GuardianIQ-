@@ -696,15 +696,64 @@ def change_relationship_status(db: Session, rel: RegistryRelationship, new_statu
 # ---------------------------------------------------------
 
 def list_audit_events(db: Session, entity_type: str, entity_id: UUID, event_type: Optional[str], page: int, page_size: int) -> Tuple[List[dict], int]:
-    # entity_id is stored as VARCHAR/string in some tables, let's filter after converting or supporting both
     entity_id_str = str(entity_id)
-    query = select(RegistryAuditEvent, GuardianUser).outerjoin(GuardianUser, RegistryAuditEvent.actor_user_id == GuardianUser.id).filter(
-        RegistryAuditEvent.entity_type == entity_type.lower(),
-        RegistryAuditEvent.entity_id == entity_id_str
-    )
-    if event_type:
-        query = query.filter(RegistryAuditEvent.event_type == event_type)
+    raw_type = entity_type.lower()
+    type_aliases = {
+        "model": ["model", "models", "ai_model", "ai_models"],
+        "ai_model": ["model", "models", "ai_model", "ai_models"],
+        "ai_models": ["model", "models", "ai_model", "ai_models"],
         
+        "agent": ["agent", "agents", "ai_agent", "ai_agents"],
+        "ai_agent": ["agent", "agents", "ai_agent", "ai_agents"],
+        "agents": ["agent", "agents", "ai_agent", "ai_agents"],
+        
+        "tool": ["tool", "tools"],
+        "tools": ["tool", "tools"],
+        
+        "workflow": ["workflow", "workflows"],
+        "workflows": ["workflow", "workflows"],
+        
+        "datasource": ["datasource", "datasources", "data_source", "data_sources"],
+        "data_source": ["datasource", "datasources", "data_source", "data_sources"],
+        "data_sources": ["datasource", "datasources", "data_source", "data_sources"],
+        
+        "department": ["department", "departments"],
+        "departments": ["department", "departments"],
+        
+        "user": ["user", "users", "guardian_user"],
+        "users": ["user", "users", "guardian_user"],
+        
+        "role": ["role", "roles"],
+        "roles": ["role", "roles"],
+    }
+    target_types = type_aliases.get(raw_type, [raw_type])
+
+    source_type_check = sa.func.lower(sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'payload', 'source_type')).in_(target_types)
+    source_id_check = sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'payload', 'source_id') == entity_id_str
+    target_type_check = sa.func.lower(sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'payload', 'target_type')).in_(target_types)
+    target_id_check = sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'payload', 'target_id') == entity_id_str
+
+    relationship_check = sa.and_(
+        sa.func.lower(RegistryAuditEvent.entity_type).in_(['generic_relationships', 'relationship', 'relationships']),
+        sa.or_(
+            sa.and_(source_type_check, source_id_check),
+            sa.and_(target_type_check, target_id_check)
+        )
+    )
+
+    direct_check = sa.and_(
+        sa.func.lower(RegistryAuditEvent.entity_type).in_(target_types),
+        sa.or_(
+            RegistryAuditEvent.entity_id == entity_id_str,
+            sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'entity_id') == entity_id_str
+        )
+    )
+
+    where_clause = sa.or_(direct_check, relationship_check)
+    if event_type:
+        where_clause = sa.and_(where_clause, RegistryAuditEvent.event_type == event_type)
+
+    query = select(RegistryAuditEvent, GuardianUser).outerjoin(GuardianUser, RegistryAuditEvent.actor_user_id == GuardianUser.id).filter(where_clause)
     query = query.order_by(desc(RegistryAuditEvent.created_at))
     total = db.execute(select(sa.func.count()).select_from(query.subquery())).scalar_one()
     
@@ -713,18 +762,26 @@ def list_audit_events(db: Session, entity_type: str, entity_id: UUID, event_type
     items = []
     for audit, user in results:
         meta = audit.event_metadata or {}
+        payload = meta.get("payload") if isinstance(meta.get("payload"), dict) else {}
+        summary = meta.get("event_summary") or meta.get("change_summary") or audit.action
+        before = meta.get("before_json") if "before_json" in meta else payload.get("before")
+        after = meta.get("after_json") if "after_json" in meta else (payload.get("after") if payload.get("after") else (payload if payload else None))
+
+        actor_val = audit.actor_user_id or meta.get("actor_id")
+        changed_by_val = str(actor_val) if actor_val else None
+
         audit_dict = {
-            "id": audit.id,
+            "id": str(audit.id),
             "entity_type": audit.entity_type,
-            "entity_id": audit.entity_id,
+            "entity_id": str(audit.entity_id or meta.get("entity_id") or entity_id_str),
             "event_type": audit.event_type,
-            "changed_by": audit.actor_user_id,
+            "changed_by": changed_by_val,
             "changed_by_name": user.full_name if user else "System",
             "changed_by_email": user.email if user else None,
-            "before_json": meta.get("before_json"),
-            "after_json": meta.get("after_json"),
-            "change_summary": meta.get("change_summary") or audit.action,
-            "created_at": audit.created_at
+            "before_json": before,
+            "after_json": after,
+            "change_summary": summary,
+            "created_at": audit.created_at.isoformat() if audit.created_at else None
         }
         items.append(audit_dict)
     
