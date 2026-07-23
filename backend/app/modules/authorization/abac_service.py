@@ -210,6 +210,16 @@ def get_object_sensitivity(db, object_type: str, object_id: str) -> str:
             except Exception:
                 pass
                 
+        # Fallback to risk_level for ai_models and agents
+        if normalized in ["ai_models", "agents"]:
+            try:
+                res = db.execute(text(f"SELECT risk_level FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})
+                val = res.scalar()
+                if val:
+                    return str(val).upper()
+            except Exception:
+                pass
+                
         if normalized in ["workflow_run_outputs", "workflow_run_failures"]:
             try:
                 res = db.execute(text(f"SELECT severity FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})

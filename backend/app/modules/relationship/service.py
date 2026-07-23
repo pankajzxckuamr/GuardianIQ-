@@ -112,10 +112,21 @@ class RelationshipService:
             return True
         return False
 
-    async def expire_relationship(self, relationship_id: uuid.UUID) -> bool:
+    async def expire_relationship(self, relationship_id: uuid.UUID, reason: str) -> bool:
+        if not reason or not reason.strip():
+            raise ValueError("Reason for expiration is required")
         rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.EXPIRED.value, effective_to=datetime.utcnow())
         if rel:
-            await self.audit.publish_relationship_expired(relationship_id, {})
+            await self.audit.publish_relationship_expired(relationship_id, {"reason": reason})
+            return True
+        return False
+
+    async def reject_relationship(self, relationship_id: uuid.UUID, reason: str) -> bool:
+        if not reason or not reason.strip():
+            raise ValueError("Reason for rejection is required")
+        rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.REJECTED.value)
+        if rel:
+            await self.audit.publish_relationship_rejected(relationship_id, {"reason": reason, "rejected_by": str(self.current_user_id)})
             return True
         return False
 

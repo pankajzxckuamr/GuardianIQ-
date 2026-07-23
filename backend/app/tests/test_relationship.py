@@ -557,7 +557,7 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res_details.json()["data"]["status"], "PENDING_APPROVAL")
 
         # 3. Test POST /{id}/expire manual expiration
-        res_expire = self.client.post(f"/api/registry/relationships/{rel_id}/expire", headers=self.headers)
+        res_expire = self.client.post(f"/api/registry/relationships/{rel_id}/expire?reason=Expired+manually", headers=self.headers)
         self.assertEqual(res_expire.status_code, 200)
         
         # Verify status is EXPIRED
@@ -644,3 +644,211 @@ class RelationshipIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(create_data["data"]["name"], "Test Tenant")
         self.assertEqual(create_data["data"]["slug"], "test-tenant")
         self.assertIn("id", create_data["data"])
+
+    async def test_phase3_advanced_test_suite(self):
+        # 1. Test VAL-TS-007 to VAL-TS-009 (Enforced Reason Validation)
+        # Create a relationship to test transitions
+        payload = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Testing Advanced Scope",
+            "effective_from": datetime.now(timezone.utc).isoformat(),
+            "effective_to": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        }
+        res_create = self.client.post("/api/registry/relationships", json=payload, headers=self.headers)
+        self.assertEqual(res_create.status_code, 200)
+        rel_id = res_create.json()["data"]["id"]
+        self.created_relationship_ids.append(rel_id)
+
+        # VAL-TS-007: Test expire without reason (expect query validation error 422)
+        res_expire_no_reason = self.client.post(f"/api/registry/relationships/{rel_id}/expire", headers=self.headers)
+        self.assertEqual(res_expire_no_reason.status_code, 422)
+
+        # Test expire with empty reason
+        res_expire_empty_reason = self.client.post(f"/api/registry/relationships/{rel_id}/expire?reason=   ", headers=self.headers)
+        self.assertEqual(res_expire_empty_reason.status_code, 400) # ValueError blocks empty string and returns 400
+
+        # Test expire with valid reason
+        res_expire_valid = self.client.post(f"/api/registry/relationships/{rel_id}/expire?reason=Expired+for+test", headers=self.headers)
+        self.assertEqual(res_expire_valid.status_code, 200)
+
+        # Re-set relationship back to ACTIVE to test suspend and revoke
+        db_rel = self.db.query(GenericRelationship).filter(GenericRelationship.id == rel_id).first()
+        db_rel.status = "ACTIVE"
+        self.db.commit()
+
+        # VAL-TS-006: Test suspend without reason (expect 422)
+        res_suspend_no_reason = self.client.post(f"/api/registry/relationships/{rel_id}/suspend", headers=self.headers)
+        self.assertEqual(res_suspend_no_reason.status_code, 422)
+
+        # Test suspend with empty reason
+        res_suspend_empty = self.client.post(f"/api/registry/relationships/{rel_id}/suspend?reason=   ", headers=self.headers)
+        self.assertEqual(res_suspend_empty.status_code, 400)
+
+        # VAL-TS-008: Test revoke without reason (expect 422)
+        res_revoke_no_reason = self.client.post(f"/api/registry/relationships/{rel_id}/revoke", headers=self.headers)
+        self.assertEqual(res_revoke_no_reason.status_code, 422)
+
+        # Re-set relationship to PENDING_APPROVAL to test reject
+        db_rel.status = "PENDING_APPROVAL"
+        self.db.commit()
+
+        # VAL-TS-009: Test reject without reason (expect 422)
+        res_reject_no_reason = self.client.post(f"/api/registry/relationships/{rel_id}/reject", headers=self.headers)
+        self.assertEqual(res_reject_no_reason.status_code, 422)
+
+        # Test reject with valid reason
+        res_reject_valid = self.client.post(f"/api/registry/relationships/{rel_id}/reject?reason=Rejected+by+approver", headers=self.headers)
+        self.assertEqual(res_reject_valid.status_code, 200)
+        self.db.refresh(db_rel)
+        self.assertEqual(db_rel.status, "REJECTED")
+
+        # 2. Test API-TS-005b (Bulk Validate Commit Semantics - Transaction all-or-nothing rollback)
+        valid_payload_1 = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Bulk Commit 1",
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        valid_payload_2 = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Bulk Commit 2",
+            "effective_from": datetime.now(timezone.utc).isoformat()
+        }
+        invalid_payload_circular = {
+            "source_type": "agents",
+            "source_id": str(self.test_agent.id),
+            "relationship_type": "uses",
+            "target_type": "ai_models",
+            "target_id": str(self.test_model.id),
+            "relationship_scope": "Invalid Dates Loop",
+            "effective_from": datetime.now(timezone.utc).isoformat(),
+            "effective_to": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        }
+
+        # Dry run bulk check (commit=False)
+        res_bulk_dry = self.client.post(
+            "/api/registry/relationships/bulk-validate?commit=false",
+            json=[valid_payload_1, valid_payload_2, invalid_payload_circular],
+            headers=self.headers
+        )
+        self.assertEqual(res_bulk_dry.status_code, 200)
+        dry_results = res_bulk_dry.json()["data"]
+        self.assertTrue(dry_results[0]["valid"])
+        self.assertTrue(dry_results[1]["valid"])
+        self.assertFalse(dry_results[2]["valid"])
+
+        # Commit bulk check (commit=True) with invalid items. Expect rollback (no records created!)
+        res_bulk_commit_fail = self.client.post(
+            "/api/registry/relationships/bulk-validate?commit=true",
+            json=[valid_payload_1, valid_payload_2, invalid_payload_circular],
+            headers=self.headers
+        )
+        self.assertEqual(res_bulk_commit_fail.status_code, 200)
+        self.assertIn("rolled back", res_bulk_commit_fail.json()["message"])
+        db_bulk_1 = self.db.query(GenericRelationship).filter(GenericRelationship.relationship_scope == "Bulk Commit 1").first()
+        self.assertIsNone(db_bulk_1)
+
+        # Commit bulk check (commit=True) with all valid items. Expect commit!
+        res_bulk_commit_success = self.client.post(
+            "/api/registry/relationships/bulk-validate?commit=true",
+            json=[valid_payload_1, valid_payload_2],
+            headers=self.headers
+        )
+        self.assertEqual(res_bulk_commit_success.status_code, 200)
+        self.assertIn("successfully committed", res_bulk_commit_success.json()["message"])
+        created_ids = res_bulk_commit_success.json()["data"]["created_ids"]
+        self.assertEqual(len(created_ids), 2)
+        for c_id in created_ids:
+            self.created_relationship_ids.append(c_id)
+        db_bulk_1_active = self.db.query(GenericRelationship).filter(GenericRelationship.relationship_scope == "Bulk Commit 1").first()
+        self.assertIsNotNone(db_bulk_1_active)
+
+        # Temporarily change reviewer's department to SALES (so it doesn't match COMPLIANCE)
+        from app.modules.department.models import Department
+        sales_dept = self.db.query(Department).filter(Department.department_code == "SALES").first()
+        reviewer_user = self.db.query(User).filter(User.email == "reviewer@guardianiq.com").first()
+        old_dept_id = reviewer_user.department_id
+        reviewer_user.department_id = sales_dept.id
+        
+        # Change the tenant of the test agent and test model to the reviewer's tenant ID (reviewer_user.id)
+        self.test_agent.tenant_id = reviewer_user.id
+        self.test_model.tenant_id = reviewer_user.id
+        self.db.commit()
+
+        login_rev = self.client.post(
+            "/api/auth/login",
+            data={"username": "reviewer@guardianiq.com", "password": "Admin@1234!"}
+        )
+        self.assertEqual(login_rev.status_code, 200)
+        rev_headers = {"Authorization": f"Bearer {login_rev.json()['access_token']}"}
+
+        # Attempt to create relationship -> should fail with 403
+        res_create_forbidden = self.client.post("/api/registry/relationships", json=payload, headers=rev_headers)
+        print("FORBIDDEN RESP:", res_create_forbidden.status_code, res_create_forbidden.text)
+        self.assertEqual(res_create_forbidden.status_code, 403)
+
+        # Assign "reviewer@guardianiq.com" as an active OWNER of self.test_agent
+        resp_owner = ObjectResponsibility(
+            id=uuid4(),
+            tenant_id=reviewer_user.id,
+            object_type="agents",
+            object_id=self.test_agent.id,
+            actor_type="USER",
+            actor_id=reviewer_user.id,
+            responsibility_type="OWNER",
+            is_primary=True,
+            status="ACTIVE",
+            effective_from=datetime.now(timezone.utc)
+        )
+        self.db.add(resp_owner)
+        self.db.commit()
+        self.created_responsibility_ids.append(resp_owner.id)
+
+        # Now attempt to create relationship -> should succeed!
+        payload["relationship_scope"] = "Testing Allowed Scope"
+        res_create_allowed = self.client.post("/api/registry/relationships", json=payload, headers=rev_headers)
+        print("ALLOWED RESP BODY:", res_create_allowed.status_code, res_create_allowed.text)
+        self.assertEqual(res_create_allowed.status_code, 200)
+        self.created_relationship_ids.append(res_create_allowed.json()["data"]["id"])
+
+        # Restore reviewer user's original department, and agent/model tenant
+        reviewer_user.department_id = old_dept_id
+        self.test_agent.tenant_id = self.tenant_id
+        self.test_model.tenant_id = self.tenant_id
+        self.db.commit()
+
+        # 4. Test SEC-TS-007 & SEC-TS-008 (Clearance Boundary Equality)
+        login_aud = self.client.post(
+            "/api/auth/login",
+            data={"username": "auditor@guardianiq.com", "password": "Admin@1234!"}
+        )
+        self.assertEqual(login_aud.status_code, 200)
+        aud_headers = {"Authorization": f"Bearer {login_aud.json()['access_token']}"}
+
+        # Modify self.test_model risk level to MEDIUM (which maps to RESTRICTED clearance rank)
+        self.test_model.risk_level = "MEDIUM"
+        self.db.commit()
+
+        # Query the node read clearance -> should return True
+        res_aud_clearance_ok = self.client.get(f"/api/registry/relationships/objects/ai_models/{self.test_model.id}/owners", headers=aud_headers)
+        self.assertEqual(res_aud_clearance_ok.status_code, 200)
+
+        # Modify self.test_model risk level to HIGH (which maps to CONFIDENTIAL clearance rank, above auditor clearance)
+        self.test_model.risk_level = "HIGH"
+        self.db.commit()
+
+        # Query again -> should return 403
+        res_aud_clearance_fail = self.client.get(f"/api/registry/relationships/objects/ai_models/{self.test_model.id}/owners", headers=aud_headers)
+        self.assertEqual(res_aud_clearance_fail.status_code, 403)
+

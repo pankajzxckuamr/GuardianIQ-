@@ -47,6 +47,19 @@ def add_exception_handlers(app: FastAPI):
             ).model_dump(mode="json")
         )
 
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=StandardResponse(
+                status="error",
+                request_id=get_request_id(),
+                message=str(exc),
+                data=None,
+                error_code="BAD_REQUEST"
+            ).model_dump(mode="json")
+        )
+
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         # In a real app, log the traceback here.

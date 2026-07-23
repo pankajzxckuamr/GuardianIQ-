@@ -53,6 +53,9 @@ class RelationshipAuditService:
     async def publish_relationship_approved(self, rel_id: uuid.UUID, payload: dict):
         await self._publish("RELATIONSHIP_APPROVED", "generic_relationships", rel_id, "APPROVE", "Relationship approved", payload)
 
+    async def publish_relationship_rejected(self, rel_id: uuid.UUID, payload: dict):
+        await self._publish("RELATIONSHIP_REJECTED", "generic_relationships", rel_id, "REJECT", "Relationship rejected", payload)
+
     async def publish_relationship_activated(self, rel_id: uuid.UUID, payload: dict):
         await self._publish("RELATIONSHIP_ACTIVATED", "generic_relationships", rel_id, "ACTIVATE", "Relationship activated", payload)
 

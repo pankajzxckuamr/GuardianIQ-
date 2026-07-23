@@ -135,7 +135,7 @@ async def create_relationship(
     subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
     allowed, reason = await check_relationship_modification_access(subject, payload.source_type, payload.source_id, db)
     if not allowed:
-        return ResponseHelper.error(message="Access denied", data={"reason": reason}, status_code=403, request_id=request_id)
+        raise HTTPException(status_code=403, detail=reason)
         
     service = RelationshipService(db, tenant_id, current_user.id)
     
@@ -322,6 +322,38 @@ async def approve_relationship(
     from app.modules.relationship.cache_service import MemoryCacheService
     MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(message="Relationship approved", request_id=request_id)
+
+
+@router.post("/{id}/reject", summary="Reject a relationship approval request")
+async def reject_relationship(
+    request: Request,
+    id: uuid.UUID,
+    reason: str = Query(..., description="Reason for rejection"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    tenant_id = get_tenant_id(current_user)
+    service = RelationshipService(db, tenant_id, current_user.id)
+    
+    existing = service.repo.get_by_id(db, id, tenant_id)
+    if not existing:
+        return ResponseHelper.error(message="Relationship not found", status_code=404, request_id=request_id)
+        
+    from app.modules.authorization.abac_service import check_relationship_modification_access
+    subject = {"user_id": current_user.id, "roles": [r.role_code for r in getattr(current_user, "roles", [])], "department_id": current_user.department_id, "tenant_id": tenant_id}
+    allowed, err_reason = await check_relationship_modification_access(subject, existing.source_type, existing.source_id, db)
+    if not allowed:
+        raise HTTPException(status_code=403, detail=err_reason)
+        
+    success = await service.reject_relationship(id, reason)
+    if not success:
+        return ResponseHelper.error(message="Relationship not found or invalid state", status_code=404, request_id=request_id)
+        
+    db.commit()
+    from app.modules.relationship.cache_service import MemoryCacheService
+    MemoryCacheService().invalidate_tenant(tenant_id)
+    return ResponseHelper.success(message="Relationship rejected", request_id=request_id)
 
 
 @router.post("/{id}/activate", summary="Activate a relationship")
@@ -1028,6 +1060,7 @@ async def submit_relationship(
 async def expire_relationship(
     request: Request,
     id: uuid.UUID,
+    reason: str = Query(..., description="Reason for expiration"),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -1045,7 +1078,7 @@ async def expire_relationship(
     if not allowed:
         raise HTTPException(status_code=403, detail=err_reason)
         
-    success = await service.expire_relationship(id)
+    success = await service.expire_relationship(id, reason)
     if not success:
         return ResponseHelper.error(message="Relationship not found or could not be expired", status_code=404, request_id=request_id)
         
@@ -1085,10 +1118,11 @@ async def revoke_relationship_post(
     MemoryCacheService().invalidate_tenant(tenant_id)
     return ResponseHelper.success(message="Relationship revoked", request_id=request_id)
 
-@router.post("/bulk-validate", summary="Bulk dry-run validate relationships")
+@router.post("/bulk-validate", summary="Bulk validate and optionally commit relationships")
 async def bulk_validate_relationships(
     request: Request,
     payloads: List[GenericRelationshipCreate],
+    commit: bool = Query(False, description="Whether to commit valid relationships to the database"),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -1099,15 +1133,44 @@ async def bulk_validate_relationships(
     validator = ValidationEngine(db, tenant_id)
     
     results = []
+    has_any_invalid = False
     for i, payload in enumerate(payloads):
         validation_results = validator.validate_payload(request_id, payload.model_dump())
         failures = [{"rule_id": r.rule_id, "message": r.message, "severity": r.severity} for r in validation_results if r.status == "FAIL"]
+        is_valid = len(failures) == 0
+        if not is_valid:
+            has_any_invalid = True
         results.append({
             "index": i,
-            "valid": len(failures) == 0,
+            "valid": is_valid,
             "errors": failures
         })
         
+    if commit:
+        if has_any_invalid:
+            db.rollback()
+            return ResponseHelper.success(
+                data=results, 
+                message="Bulk validation failed. Transaction rolled back, no records created.",
+                request_id=request_id
+            )
+        else:
+            from app.modules.relationship.service import RelationshipService
+            service = RelationshipService(db, tenant_id, current_user.id)
+            created_ids = []
+            for payload in payloads:
+                rel, _ = await service.create_relationship(request_id, payload)
+                if rel:
+                    created_ids.append(str(rel.id))
+            db.commit()
+            from app.modules.relationship.cache_service import MemoryCacheService
+            MemoryCacheService().invalidate_tenant(tenant_id)
+            return ResponseHelper.success(
+                data={"created_ids": created_ids, "validation": results}, 
+                message="Bulk validation succeeded. All records successfully committed.",
+                request_id=request_id
+            )
+            
     db.commit()
     return ResponseHelper.success(data=results, message="Bulk validation completed", request_id=request_id)
 
@@ -1123,6 +1186,16 @@ async def get_object_owners(
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     tenant_id = get_tenant_id(current_user)
     
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        raise HTTPException(status_code=403, detail="Access denied: Insufficient clearance")
+        
     from app.modules.relationship.models import ObjectResponsibility
     resps = db.query(ObjectResponsibility).filter(
         ObjectResponsibility.tenant_id == tenant_id,
@@ -1149,6 +1222,16 @@ async def get_object_approvers(
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     tenant_id = get_tenant_id(current_user)
     
+    from app.modules.authorization.abac_service import check_node_read_clearance
+    subject = {
+        "user_id": current_user.id,
+        "roles": [r.role_code for r in getattr(current_user, "roles", [])],
+        "department_id": current_user.department_id,
+        "tenant_id": tenant_id
+    }
+    if not await check_node_read_clearance(subject, object_type, object_id, db):
+        raise HTTPException(status_code=403, detail="Access denied: Insufficient clearance")
+        
     from app.modules.relationship.models import ObjectResponsibility
     resps = db.query(ObjectResponsibility).filter(
         ObjectResponsibility.tenant_id == tenant_id,
@@ -1184,7 +1267,7 @@ async def get_governance_context(
     }
     
     if not await check_node_read_clearance(subject, object_type, object_id, db):
-        return ResponseHelper.error(message="Access denied: Insufficient clearance", status_code=403, request_id=request_id)
+        raise HTTPException(status_code=403, detail="Access denied: Insufficient clearance")
         
     status, risk = resolve_entity_status_and_risk(db, object_type, object_id)
     
