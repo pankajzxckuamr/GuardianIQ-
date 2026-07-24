@@ -444,7 +444,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </div>
             </div>
           )}
-          <button className="sidebar-logout-btn" onClick={handleLogout}>
+          <button className="sidebar-logout-btn" onClick={handleLogout} title="Sign Out">
             <LogOut size={16} />
             <span>Sign Out</span>
           </button>

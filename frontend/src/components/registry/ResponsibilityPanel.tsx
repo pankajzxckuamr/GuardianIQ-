@@ -137,8 +137,8 @@ export const ResponsibilityPanel: React.FC<ResponsibilityPanelProps> = ({ object
     },
     {
       key: "actor_id",
-      label: "Actor ID",
-      render: (row: any) => row.actor_id || "-"
+      label: "Assigned User / Actor",
+      render: (row: any) => row.actor_name || row.actor_id || "-"
     },
     {
       key: "is_primary",

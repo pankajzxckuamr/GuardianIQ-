@@ -6,8 +6,8 @@ import { useToast } from "../../hooks/useToast";
 import * as registryService from "../../services/registry/registryService";
 import WizardShell from "../common/WizardShell";
 import styles from "./AddRelationshipModal.module.css";
-
 import { FieldInfo } from "../common/FieldInfo";
+import { Calendar, Clock, Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
 
 interface AddRelationshipModalProps {
   isOpen: boolean;
@@ -50,6 +50,12 @@ const NORMALIZE_TYPE: Record<string, string> = {
   DEPARTMENTS: "DEPARTMENT",
   USERS: "USER",
   ROLES: "ROLE"
+};
+
+// Helper for formatting date to datetime-local input string format YYYY-MM-DDTHH:mm
+const toLocalISOString = (d: Date) => {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
@@ -105,6 +111,43 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
     { label: "Configurations & Review" }
   ];
 
+  // Quick Preset Helper Functions for Date Pickers
+  const handleSetFromNow = () => {
+    setEffectiveFrom(toLocalISOString(new Date()));
+  };
+
+  const handleSetToPlusDays = (days: number) => {
+    const start = effectiveFrom ? new Date(effectiveFrom) : new Date();
+    const future = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+    setEffectiveTo(toLocalISOString(future));
+  };
+
+  const handleClearToDate = () => {
+    setEffectiveTo("");
+  };
+
+  // Calculate lifespan duration text helper
+  const getDurationText = () => {
+    if (!effectiveFrom && !effectiveTo) {
+      return "♾️ Permanent Link (Valid indefinitely with no start/end date restriction)";
+    }
+    if (effectiveFrom && !effectiveTo) {
+      return `▶️ Active starting from ${new Date(effectiveFrom).toLocaleDateString()} (No expiration set)`;
+    }
+    if (effectiveFrom && effectiveTo) {
+      const start = new Date(effectiveFrom);
+      const end = new Date(effectiveTo);
+      const diffMs = end.getTime() - start.getTime();
+      if (diffMs <= 0) return "⚠️ Effective To date must be after Effective From date";
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      return `⏱️ Active Lifespan: ${diffDays} day${diffDays === 1 ? '' : 's'} (${start.toLocaleDateString()} ➔ ${end.toLocaleDateString()})`;
+    }
+    if (!effectiveFrom && effectiveTo) {
+      return `⏹️ Active until ${new Date(effectiveTo).toLocaleDateString()}`;
+    }
+    return "";
+  };
+
   const validateAndAdvance = (targetStep: number) => {
     if (targetStep > currentWizardStep) {
       if (currentWizardStep === 0) {
@@ -141,7 +184,6 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       if (allowedOptions.length > 0) {
-        // Pre-select target type if only one option exists
         const targets = Array.from(new Set(allowedOptions.map(opt => opt.target)));
         if (targets.length === 1) {
           setTargetEntityType(targets[0]);
@@ -201,7 +243,6 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
         if (res.data?.items) listData = res.data.items.map(s => ({ id: s.id, label: `${s.source_name} [${s.classification}]` }));
       }
 
-      // Self-exclusion just in case we link same entity type
       setTargetsList(listData.filter(item => item.id !== sourceEntityId));
     } catch (err: any) {
       console.error(`Failed to load target entities for ${type}:`, err);
@@ -268,7 +309,6 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
     return type.replace("_", " ");
   };
 
-  // Reset form when modal state closes/opens
   useEffect(() => {
     if (!isOpen) {
       setRelationshipType("");
@@ -323,7 +363,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
             >
               {/* STEP 1: Identity & Action */}
               {currentWizardStep === 0 && (
-                <div>
+                <div className={styles.stepCard}>
                   <p className={styles.infoText}>
                     Select target entity and relationship action to link from this <strong>{formatEntityLabel(sourceEntityType)}</strong>.
                   </p>
@@ -417,7 +457,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                     </select>
                   </div>
 
-                  <div className={styles.formActions} style={{ marginTop: "1.5rem" }}>
+                  <div className={styles.formActions}>
                     <button type="button" onClick={onClose} className={styles.cancelBtn}>
                       Cancel
                     </button>
@@ -427,7 +467,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                       disabled={!targetEntityId || !relationshipType}
                       className={styles.submitBtn}
                     >
-                      Next
+                      Next <ArrowRight size={16} />
                     </button>
                   </div>
                 </div>
@@ -435,9 +475,9 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
 
               {/* STEP 2: Attributes & Lifespans */}
               {currentWizardStep === 1 && (
-                <div>
+                <div className={styles.stepCard}>
                   <p className={styles.infoText}>
-                    Configure constraints, responsibility ownership, and dates for this connection.
+                    Configure constraints, responsibility ownership, and validity lifespans for this connection.
                   </p>
 
                   {/* Scope */}
@@ -455,7 +495,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                       id="relationshipScope"
                       value={relationshipScope}
                       onChange={(e) => setRelationshipScope(e.target.value)}
-                      placeholder="e.g. WORKFLOW:WF-001"
+                      placeholder="e.g. WORKFLOW:WF-001 or REGION:EU-EAST"
                       className={styles.input}
                     />
                   </div>
@@ -484,10 +524,12 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                     </select>
                   </div>
 
-                  {/* Effective Dates */}
-                  <div className={styles.formGrid} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                  {/* Effective Dates with Modern Picker Helpers */}
+                  <div className={styles.formGrid}>
+                    {/* Effective From */}
                     <div className={styles.formGroup}>
                       <label htmlFor="effectiveFrom" className={styles.label}>
+                        <Calendar size={15} style={{ color: "#38bdf8" }} />
                         Effective From Date
                         <FieldInfo 
                           tooltip="Starting date when this link becomes valid." 
@@ -501,10 +543,18 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                         onChange={(e) => setEffectiveFrom(e.target.value)}
                         className={styles.input}
                       />
+                      <div className={styles.presetsBar}>
+                        <span className={styles.presetLabel}>Quick Set:</span>
+                        <button type="button" onClick={handleSetFromNow} className={styles.presetBtn}>
+                          <Clock size={12} /> Set Now
+                        </button>
+                      </div>
                     </div>
 
+                    {/* Effective To */}
                     <div className={styles.formGroup}>
                       <label htmlFor="effectiveTo" className={styles.label}>
+                        <Calendar size={15} style={{ color: "#f43f5e" }} />
                         Effective To Date
                         <FieldInfo 
                           tooltip="Ending date when this link ceases validity." 
@@ -518,10 +568,32 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                         onChange={(e) => setEffectiveTo(e.target.value)}
                         className={styles.input}
                       />
+                      <div className={styles.presetsBar}>
+                        <span className={styles.presetLabel}>Presets:</span>
+                        <button type="button" onClick={() => handleSetToPlusDays(30)} className={styles.presetBtn}>
+                          +30 Days
+                        </button>
+                        <button type="button" onClick={() => handleSetToPlusDays(90)} className={styles.presetBtn}>
+                          +90 Days
+                        </button>
+                        <button type="button" onClick={() => handleSetToPlusDays(365)} className={styles.presetBtn}>
+                          +1 Year
+                        </button>
+                        {effectiveTo && (
+                          <button type="button" onClick={handleClearToDate} className={styles.presetBtn} style={{ color: "#ef4444" }}>
+                            Clear
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className={styles.formActions} style={{ marginTop: "1.5rem" }}>
+                  {/* Calculated Duration Indicator */}
+                  <div className={styles.durationCard}>
+                    <span>{getDurationText()}</span>
+                  </div>
+
+                  <div className={styles.formActions}>
                     <button type="button" onClick={() => setCurrentWizardStep(0)} className={styles.cancelBtn}>
                       Back
                     </button>
@@ -530,7 +602,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                       onClick={() => validateAndAdvance(2)}
                       className={styles.submitBtn}
                     >
-                      Next
+                      Next <ArrowRight size={16} />
                     </button>
                   </div>
                 </div>
@@ -538,7 +610,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
 
               {/* STEP 3: Configurations & Review */}
               {currentWizardStep === 2 && (
-                <div>
+                <div className={styles.stepCard}>
                   <p className={styles.infoText}>
                     Provide optional metadata configuration and review before establishing connection.
                   </p>
@@ -560,7 +632,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                       placeholder='{ "access_mode": "READ_ONLY" }'
                       rows={4}
                       className={`${styles.textarea} ${!isMetadataJsonValid ? styles.invalidJson : ""}`}
-                      style={{ fontFamily: "monospace", width: '100%', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', border: !isMetadataJsonValid ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '4px' }}
+                      style={{ fontFamily: "monospace" }}
                     />
                     {!isMetadataJsonValid && (
                       <span style={{ color: "#ef4444", fontSize: "0.8rem", marginTop: "4px", display: "block" }}>
@@ -570,20 +642,20 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                   </div>
 
                   {/* Review Box */}
-                  <div style={{ marginTop: "1rem", background: "rgba(255, 255, 255, 0.03)", padding: "1rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <h5 style={{ margin: "0 0 0.5rem 0", color: "#fff", fontWeight: 600 }}>Connection Review</h5>
-                    <div style={{ fontSize: "0.85rem", display: "grid", gap: "0.25rem", color: "rgba(255,255,255,0.7)" }}>
-                      <div><strong>Source:</strong> {sourceEntityType} ({sourceEntityId})</div>
-                      <div><strong>Target:</strong> {targetEntityType} ({targetsList.find(t => t.id === targetEntityId)?.label || targetEntityId})</div>
-                      <div><strong>Action:</strong> {relationshipType}</div>
-                      {relationshipScope && <div><strong>Scope:</strong> {relationshipScope}</div>}
-                      {responsibilityType && <div><strong>Responsibility:</strong> {responsibilityType}</div>}
-                      {effectiveFrom && <div><strong>Effective From:</strong> {effectiveFrom}</div>}
-                      {effectiveTo && <div><strong>Effective To:</strong> {effectiveTo}</div>}
+                  <div className={styles.reviewCard}>
+                    <h5 className={styles.reviewTitle}>Connection Link Summary</h5>
+                    <div className={styles.reviewGrid}>
+                      <div className={styles.reviewItem}><strong>Source:</strong> {sourceEntityType}</div>
+                      <div className={styles.reviewItem}><strong>Target:</strong> {targetEntityType}</div>
+                      <div className={styles.reviewItem}><strong>Action:</strong> {relationshipType}</div>
+                      <div className={styles.reviewItem}><strong>Scope:</strong> {relationshipScope || "DEFAULT"}</div>
+                      <div className={styles.reviewItem}><strong>Responsibility:</strong> {responsibilityType || "UNASSIGNED"}</div>
+                      <div className={styles.reviewItem}><strong>Effective From:</strong> {effectiveFrom ? new Date(effectiveFrom).toLocaleString() : "IMMEDIATE"}</div>
+                      <div className={styles.reviewItem}><strong>Effective To:</strong> {effectiveTo ? new Date(effectiveTo).toLocaleString() : "NO EXPIRATION"}</div>
                     </div>
                   </div>
 
-                  <div className={styles.formActions} style={{ marginTop: "1.5rem" }}>
+                  <div className={styles.formActions}>
                     <button type="button" onClick={() => setCurrentWizardStep(1)} className={styles.cancelBtn}>
                       Back
                     </button>
@@ -592,7 +664,8 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
                       disabled={submitting || !isMetadataJsonValid}
                       className={styles.submitBtn}
                     >
-                      {submitting ? "Linking..." : "Establish Link"}
+                      <Sparkles size={16} />
+                      {submitting ? "Linking..." : "Establish Connection"}
                     </button>
                   </div>
                 </div>

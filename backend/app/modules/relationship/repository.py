@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, or_, update
+from sqlalchemy import select, and_, or_, update, func
 from datetime import datetime
 from app.modules.relationship.models import GenericRelationship, ObjectResponsibility
 from app.modules.relationship.constants import LifecycleState
@@ -101,7 +101,7 @@ class ResponsibilityRepository:
         stmt = select(ObjectResponsibility).where(
             and_(
                 ObjectResponsibility.tenant_id == tenant_id,
-                ObjectResponsibility.object_type == object_type,
+                func.lower(ObjectResponsibility.object_type) == object_type.lower(),
                 ObjectResponsibility.object_id == object_id,
                 ObjectResponsibility.status != 'ARCHIVED'
             )
@@ -113,7 +113,7 @@ class ResponsibilityRepository:
         stmt = select(ObjectResponsibility).where(
             and_(
                 ObjectResponsibility.tenant_id == tenant_id,
-                ObjectResponsibility.object_type == object_type,
+                func.lower(ObjectResponsibility.object_type) == object_type.lower(),
                 ObjectResponsibility.object_id == object_id,
                 ObjectResponsibility.responsibility_type == 'OWNER',
                 ObjectResponsibility.is_primary == True,

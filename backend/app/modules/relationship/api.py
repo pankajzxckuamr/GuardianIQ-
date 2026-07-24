@@ -101,16 +101,34 @@ async def list_relationships(
     import math
     total_pages = math.ceil(total / page_size) if total > 0 else 0
     
+    items_data = []
+    from app.modules.relationship.models import ObjectResponsibility
+    for item in items:
+        owner_resp = db.query(ObjectResponsibility).filter(
+            ObjectResponsibility.tenant_id == tenant_id,
+            func.lower(ObjectResponsibility.object_type) == item.source_type.lower(),
+            ObjectResponsibility.object_id == item.source_id,
+            ObjectResponsibility.responsibility_type == "OWNER",
+            ObjectResponsibility.is_primary == True,
+            ObjectResponsibility.status == "ACTIVE"
+        ).first()
+
+        resp_type = owner_resp.responsibility_type if owner_resp else None
+        resp_user = None
+        if owner_resp and (owner_resp.actor_type or "").upper() == "USER":
+            resp_user = resolve_entity_name(db, "users", owner_resp.actor_id)
+
+        items_data.append({
+            **GenericRelationshipResponse.model_validate(item).model_dump(),
+            "source_name": resolve_entity_name(db, item.source_type, item.source_id),
+            "target_name": resolve_entity_name(db, item.target_type, item.target_id),
+            "responsibility_type": resp_type,
+            "responsible_user_name": resp_user
+        })
+
     return ResponseHelper.success(
         data={
-            "items": [
-                {
-                    **GenericRelationshipResponse.model_validate(item).model_dump(),
-                    "source_name": resolve_entity_name(db, item.source_type, item.source_id),
-                    "target_name": resolve_entity_name(db, item.target_type, item.target_id)
-                }
-                for item in items
-            ],
+            "items": items_data,
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -459,8 +477,17 @@ async def get_responsibilities(
     service = ResponsibilityService(db, tenant_id, current_user.id)
     
     resps = service.get_responsibilities_for_object(object_type, object_id)
+    mapped = []
+    for r in resps:
+        d = ObjectResponsibilityResponse.model_validate(r).model_dump()
+        if (r.actor_type or "").upper() == "USER":
+            d["actor_name"] = resolve_entity_name(db, "users", r.actor_id)
+        else:
+            d["actor_name"] = r.actor_id
+        mapped.append(d)
+
     return ResponseHelper.success(
-        data=[ObjectResponsibilityResponse.model_validate(r).model_dump() for r in resps],
+        data=mapped,
         message="Responsibilities retrieved",
         request_id=request_id
     )
@@ -647,6 +674,9 @@ async def get_relationship_graph(
             d["metadata_json"] = {}
             d["scope_json"] = {}
             d["relationship_scope"] = None
+
+        d["source_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        d["target_name"] = resolve_entity_name(db, r.target_type, r.target_id)
             
         outgoing_mapped.append(d)
 
@@ -675,6 +705,9 @@ async def get_relationship_graph(
             d["metadata_json"] = {}
             d["scope_json"] = {}
             d["relationship_scope"] = None
+
+        d["source_name"] = resolve_entity_name(db, r.source_type, r.source_id)
+        d["target_name"] = resolve_entity_name(db, r.target_type, r.target_id)
             
         incoming_mapped.append(d)
         

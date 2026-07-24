@@ -6,7 +6,7 @@ import { RelationshipViewer } from "../components/registry/RelationshipViewer";
 import { RegistryDataTable } from "../components/common/RegistryDataTable";
 import { Badge } from "../components/common/Badge";
 import * as registryService from "../services/registry/registryService";
-import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2, CheckCircle, PlayCircle, PauseCircle, Trash2 } from "lucide-react";
+import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2, CheckCircle, PlayCircle, PauseCircle, Trash2, AlertTriangle, ShieldAlert, ShieldCheck, Zap, Activity, Layers, Users, Eye, LayoutGrid } from "lucide-react";
 import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useToast } from "../hooks/useToast";
 import { useAuth } from "../hooks/useAuth";
@@ -25,7 +25,7 @@ export const RegistryRelationshipsPage: React.FC = () => {
   const { currentUser } = useAuth();
   
   // Filters & State mapping
-  const { filters, setFilter, paginationProps } = useRegistryFilters("created_at", 20);
+  const { filters, setFilter, resetFilters, paginationProps } = useRegistryFilters("created_at", 20);
   const [searchTerm, setSearchTerm] = useState(filters.search || "");
   const [relationships, setRelationships] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -42,6 +42,7 @@ export const RegistryRelationshipsPage: React.FC = () => {
   const [loadingImpact, setLoadingImpact] = useState(false);
   const [changeType, setChangeType] = useState<string>("UPDATE");
   const [impactData, setImpactData] = useState<any>(null);
+  const [impactViewMode, setImpactViewMode] = useState<"MATRIX" | "GRAPH">("MATRIX");
 
   const mapCategoryToBackendType = (cat: string) => {
     switch (cat) {
@@ -311,7 +312,20 @@ export const RegistryRelationshipsPage: React.FC = () => {
     {
       key: "responsibility_type",
       label: "Responsibility",
-      render: (row: any) => row.responsibility_type ? <Badge variant="warning" label={row.responsibility_type} /> : "-"
+      render: (row: any) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          {row.responsibility_type ? (
+            <Badge variant="warning" label={row.responsibility_type} />
+          ) : (
+            <span style={{ color: "rgba(255, 255, 255, 0.45)", fontSize: "0.85rem" }}>-</span>
+          )}
+          {row.responsible_user_name && (
+            <span style={{ fontSize: "0.75rem", color: "#38bdf8", fontWeight: 500 }}>
+              {row.responsible_user_name}
+            </span>
+          )}
+        </div>
+      )
     },
     {
       key: "status",
@@ -486,11 +500,7 @@ export const RegistryRelationshipsPage: React.FC = () => {
             <button
               onClick={() => {
                 setSearchTerm("");
-                setFilter("source_type", "");
-                setFilter("target_type", "");
-                setFilter("relationship_type", "");
-                setFilter("status", "");
-                setFilter("search", "");
+                resetFilters();
               }}
               className={styles.resetBtn}
             >
@@ -657,59 +667,194 @@ export const RegistryRelationshipsPage: React.FC = () => {
           <div className={styles.viewerContainer}>
             {loadingImpact ? (
               <div style={{ textAlign: "center", padding: "3rem" }}>
-                <span>Calculating dependency graph...</span>
+                <Activity size={32} style={{ animation: "spin 1s linear infinite", color: "#3b82f6", marginBottom: "0.5rem" }} />
+                <div style={{ color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>Calculating blast radius and tracing downstream dependencies...</div>
               </div>
             ) : impactData ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                {/* Impact Level Card */}
-                <div style={{ padding: "1.5rem", borderRadius: "0.5rem", border: "1px solid rgba(255,255,255,0.1)", background: impactData.impact_level === "HIGH" ? "rgba(239, 68, 68, 0.1)" : "rgba(59, 130, 246, 0.1)" }}>
-                  <h4 style={{ fontWeight: 600, fontSize: "1.1rem", marginBottom: "0.5rem", color: impactData.impact_level === "HIGH" ? "#f87171" : "#60a5fa" }}>
-                    Impact Level: {impactData.impact_level}
-                  </h4>
-                  <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.7)" }}>
-                    Proposed <strong>{changeType}</strong> on <strong>{entities.find(e => e.id === selectedEntityId)?.name || selectedEntityId}</strong> will affect <strong>{impactData.direct_impact_count}</strong> direct dependents and <strong>{impactData.indirect_impact_count}</strong> indirect dependents.
-                  </p>
+              <div className={styles.impactDashboard}>
+                {/* 1. Executive Metrics Grid */}
+                <div className={styles.metricsGrid}>
+                  {/* Risk Level Card */}
+                  <div className={`${styles.metricCard} ${
+                    impactData.impact_level === "HIGH" 
+                      ? styles.metricCardHigh 
+                      : impactData.impact_level === "MEDIUM" 
+                        ? styles.metricCardMedium 
+                        : styles.metricCardLow
+                  }`}>
+                    <div className={styles.metricHeader}>
+                      <span className={styles.metricLabel}>Blast Radius Severity</span>
+                      {impactData.impact_level === "HIGH" ? (
+                        <AlertTriangle size={22} style={{ color: "#ef4444" }} />
+                      ) : impactData.impact_level === "MEDIUM" ? (
+                        <ShieldAlert size={22} style={{ color: "#f59e0b" }} />
+                      ) : (
+                        <ShieldCheck size={22} style={{ color: "#3b82f6" }} />
+                      )}
+                    </div>
+                    <div className={styles.metricValue}>
+                      {impactData.impact_level === "HIGH" ? "HIGH RISK" : impactData.impact_level === "MEDIUM" ? "MODERATE RISK" : "LOW IMPACT"}
+                    </div>
+                    <div className={styles.riskMeterBar}>
+                      <div className={`${styles.riskMeterFill} ${
+                        impactData.impact_level === "HIGH" 
+                          ? styles.riskFillHigh 
+                          : impactData.impact_level === "MEDIUM" 
+                            ? styles.riskFillMedium 
+                            : styles.riskFillLow
+                      }`} style={{ width: impactData.impact_level === "HIGH" ? "90%" : impactData.impact_level === "MEDIUM" ? "55%" : "25%" }} />
+                    </div>
+                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.75)" }}>
+                      Proposed <strong>{changeType}</strong> operation will affect downstream operational stability.
+                    </span>
+                  </div>
+
+                  {/* Total Dependents at Risk Card */}
+                  <div className={styles.metricCard}>
+                    <div className={styles.metricHeader}>
+                      <span className={styles.metricLabel}>Affected System Assets</span>
+                      <Layers size={22} style={{ color: "#60a5fa" }} />
+                    </div>
+                    <div className={styles.metricValue}>
+                      {impactData.direct_impact_count + impactData.indirect_impact_count} Assets
+                    </div>
+                    <div style={{ fontSize: "0.825rem", color: "rgba(255,255,255,0.6)", display: "flex", gap: "0.75rem" }}>
+                      <span style={{ color: "#38bdf8" }}>● {impactData.direct_impact_count} Direct</span>
+                      <span style={{ color: "#a855f7" }}>● {impactData.indirect_impact_count} Transitive Hops</span>
+                    </div>
+                  </div>
+
+                  {/* Governance Recommendation Card */}
+                  <div className={styles.metricCard}>
+                    <div className={styles.metricHeader}>
+                      <span className={styles.metricLabel}>Governance Recommendation</span>
+                      <Zap size={22} style={{ color: "#eab308" }} />
+                    </div>
+                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#f8fafc" }}>
+                      {changeType === "REVOKE" 
+                        ? "⚠️ Decommissioning Approval Required" 
+                        : changeType === "SUSPEND" 
+                          ? "⏸️ Temporary Disruption Warning" 
+                          : "ℹ️ Standard Metadata Update"}
+                    </div>
+                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}>
+                      {changeType === "REVOKE" 
+                        ? "Deleting this asset breaks 1 or more active connections. Verify primary owner approval before executing." 
+                        : "Review downstream dependency list below before confirming operation."}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Direct Dependents */}
-                <div>
-                  <h4 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Direct Downstream Dependents ({impactData.direct_impacts?.length || 0})</h4>
-                  {impactData.direct_impacts?.length > 0 ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.5rem" }}>
-                      {impactData.direct_impacts.map((dep: any, idx: number) => (
-                        <div key={idx} style={{ padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "0.375rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div>
-                            <span style={{ fontWeight: 500, color: "#fff" }}>{dep.name || dep.id}</span>
-                            <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>({dep.type})</span>
-                          </div>
-                          <Badge variant="info" label={dep.relationship_type || "dependent"} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.45)" }}>No direct downstream dependents found.</p>
-                  )}
+                {/* 2. Impact View Mode Switcher */}
+                <div className={styles.impactViewToggle}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ffffff" }}>
+                      Downstream Impact Breakdown
+                    </span>
+                  </div>
+                  <div className={styles.viewButtons}>
+                    <button
+                      type="button"
+                      onClick={() => setImpactViewMode("MATRIX")}
+                      className={`${styles.viewBtn} ${impactViewMode === "MATRIX" ? styles.viewBtnActive : ""}`}
+                    >
+                      <LayoutGrid size={16} /> Risk Matrix
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImpactViewMode("GRAPH")}
+                      className={`${styles.viewBtn} ${impactViewMode === "GRAPH" ? styles.viewBtnActive : ""}`}
+                    >
+                      <Share2 size={16} /> Visual Blast Radius Graph
+                    </button>
+                  </div>
                 </div>
 
-                {/* Indirect Dependents */}
-                <div>
-                  <h4 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Indirect Downstream Dependents ({impactData.indirect_impacts?.length || 0})</h4>
-                  {impactData.indirect_impacts?.length > 0 ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.5rem" }}>
-                      {impactData.indirect_impacts.map((dep: any, idx: number) => (
-                        <div key={idx} style={{ padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "0.375rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div>
-                            <span style={{ fontWeight: 500, color: "#fff" }}>{dep.name || dep.id}</span>
-                            <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>({dep.type})</span>
-                          </div>
-                          <Badge variant="neutral" label="transitive dependency" />
+                {/* 3. View Render */}
+                {impactViewMode === "GRAPH" ? (
+                  <div style={{ minHeight: "500px", borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <RelationshipViewer
+                      entityType={mapCategoryToBackendType(selectedCategory)}
+                      entityId={selectedEntityId}
+                      initialDepth={5}
+                      initialMode="GRAPH"
+                    />
+                  </div>
+                ) : (
+                  <div className={styles.dependentSection}>
+                    {/* Direct Downstream Dependents */}
+                    <div>
+                      <h4 className={styles.sectionTitle}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444", display: "inline-block" }}></span>
+                        Direct Downstream Dependents ({impactData.direct_impacts?.length || 0})
+                      </h4>
+                      {impactData.direct_impacts?.length > 0 ? (
+                        <div className={styles.dependentGrid}>
+                          {impactData.direct_impacts.map((dep: any, idx: number) => (
+                            <div key={idx} className={styles.dependentCard} style={{ borderColor: "rgba(239, 68, 68, 0.3)" }}>
+                              <div className={styles.cardHeader}>
+                                <div className={styles.assetBadge}>
+                                  <div className={styles.assetIcon}>
+                                    {dep.type.includes("AGENT") ? <Cpu size={18} /> : dep.type.includes("MODEL") ? <Brain size={18} /> : dep.type.includes("TOOL") ? <Plug size={18} /> : dep.type.includes("WORKFLOW") ? <GitBranch size={18} /> : <Database size={18} />}
+                                  </div>
+                                  <div>
+                                    <div className={styles.assetName}>{dep.name || dep.id}</div>
+                                    <div className={styles.assetType}>{dep.type}</div>
+                                  </div>
+                                </div>
+                                <Badge variant="danger" label="Hop 1 Direct" />
+                              </div>
+                              <div className={styles.cardBody}>
+                                <div><strong>Connection Action:</strong> {dep.relationship_type || "USES"}</div>
+                                <div className={styles.ownerRow}>
+                                  <Users size={13} /> Direct Asset Dependency
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : (
+                        <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.45)", fontStyle: "italic" }}>No direct downstream dependents found.</p>
+                      )}
                     </div>
-                  ) : (
-                    <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.45)" }}>No indirect downstream dependents found.</p>
-                  )}
-                </div>
+
+                    {/* Indirect Downstream Dependents */}
+                    <div style={{ marginTop: "1rem" }}>
+                      <h4 className={styles.sectionTitle}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#a855f7", display: "inline-block" }}></span>
+                        Transitive Downstream Dependents ({impactData.indirect_impacts?.length || 0})
+                      </h4>
+                      {impactData.indirect_impacts?.length > 0 ? (
+                        <div className={styles.dependentGrid}>
+                          {impactData.indirect_impacts.map((dep: any, idx: number) => (
+                            <div key={idx} className={styles.dependentCard} style={{ borderColor: "rgba(168, 85, 247, 0.3)" }}>
+                              <div className={styles.cardHeader}>
+                                <div className={styles.assetBadge}>
+                                  <div className={styles.assetIcon} style={{ background: "rgba(168, 85, 247, 0.15)", color: "#c084fc" }}>
+                                    {dep.type.includes("AGENT") ? <Cpu size={18} /> : dep.type.includes("MODEL") ? <Brain size={18} /> : dep.type.includes("TOOL") ? <Plug size={18} /> : dep.type.includes("WORKFLOW") ? <GitBranch size={18} /> : <Database size={18} />}
+                                  </div>
+                                  <div>
+                                    <div className={styles.assetName}>{dep.name || dep.id}</div>
+                                    <div className={styles.assetType}>{dep.type}</div>
+                                  </div>
+                                </div>
+                                <Badge variant="neutral" label="Transitive Hop" />
+                              </div>
+                              <div className={styles.cardBody}>
+                                <div><strong>Impact Path:</strong> Indirect Transitive Flow</div>
+                                <div style={{ color: "#c084fc", fontSize: "0.8rem" }}>
+                                  ● Multi-Hop Downstream Cascading Target
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.45)", fontStyle: "italic" }}>No indirect downstream dependents found.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className={styles.emptyState}>

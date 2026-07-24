@@ -40,8 +40,8 @@
 }
 
 .sidebar-collapsed .sidebar-collapse-toggle {
-  left: 0;
-  transform: translateY(-50%) translateX(0);
+  left: 68px;
+  transform: translateY(-50%) translateX(-50%);
 }
 
 .sidebar-collapse-toggle:hover {

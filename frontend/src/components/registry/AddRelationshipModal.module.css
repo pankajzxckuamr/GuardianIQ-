@@ -1,25 +1,26 @@
 /* src/components/registry/AddRelationshipModal.module.css */
 
 .container {
-  padding: 0.5rem 0;
+  padding: 0.25rem 0;
   width: 100%;
 }
 
 .generalAlert {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-  margin-bottom: 1.25rem;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 0.875rem 1.25rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
   font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .infoText {
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.75);
   margin-bottom: 1.5rem;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .infoText strong {
@@ -29,19 +30,32 @@
 .form {
   display: flex;
   flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stepCard {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
 }
 
 .formGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .label {
-  font-size: 0.825rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .required {
@@ -49,40 +63,122 @@
   margin-left: 0.15rem;
 }
 
-.select {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Custom styled Input, Select, Textarea */
+.input,
+.select,
+.textarea {
+  background: #121418;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  border-radius: 6px;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.875rem;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
   font-family: inherit;
   width: 100%;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
+  color-scheme: dark;
 }
 
-.select:focus {
-  border-color: rgba(34, 197, 94, 0.4);
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+.input:hover,
+.select:hover,
+.textarea:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: #16191e;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  background: #181b21;
 }
 
 .select option {
-  background: #141517;
+  background: #14161a;
   color: #ffffff;
+  padding: 0.5rem;
 }
 
-.select:disabled {
-  opacity: 0.5;
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Form Grid Layout */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Date Preset Quick Helpers */
+.presetsBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.presetLabel {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  margin-right: 0.25rem;
+}
+
+.presetBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.presetBtn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+/* Duration Status Card */
+.durationCard {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #4ade80;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
 }
 
 .noticeBlock {
   background: rgba(245, 158, 11, 0.08);
   border: 1px solid rgba(245, 158, 11, 0.2);
   color: #f59e0b;
-  border-radius: 8px;
-  padding: 1.25rem;
+  border-radius: 10px;
+  padding: 1.5rem;
   font-size: 0.9rem;
   line-height: 1.5;
   display: flex;
@@ -100,46 +196,82 @@
   margin: 0;
 }
 
+/* Review Card in Step 3 */
+.reviewCard {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1.25rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.reviewTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.reviewItem strong {
+  color: #94a3b8;
+  font-weight: 500;
+  margin-right: 0.35rem;
+}
+
 .formActions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 0.875rem;
+  margin-top: 1.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 1.25rem;
 }
 
 .cancelBtn {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 0.65rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .cancelBtn:hover {
   background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .submitBtn {
   background: #22c55e;
   border: 1px solid #16a34a;
   color: #ffffff;
-  padding: 0.5rem 1.25rem;
+  padding: 0.65rem 1.5rem;
   font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 6px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .submitBtn:hover:not(:disabled) {
   background: #16a34a;
-  box-shadow: 0 0 12px rgba(34, 197, 94, 0.25);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.3);
 }
 
 .submitBtn:disabled {
