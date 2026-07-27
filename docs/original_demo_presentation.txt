@@ -1,0 +1,127 @@
+=== C:\Users\aayus\Desktop\GuardianIQ_Phase3_Demo_Presentation_v2.pptx ===
+
+--- Slide 1 ---
+GUARDIANIQ ENTERPRISE AI GOVERNANCE PLATFORM
+Phase 3: Governance Architecture & Demo Presentation
+Graph-Based Semantic Relationships, Object Responsibilities & Interactive UI Explorer
+Presenter: Quality & Architecture Lead  |  Date: July 2026  |  Release: v3.0.0-rc2
+
+--- Slide 2 ---
+GUARDIANIQ PHASE 3 DEMO
+Executive Summary: Evolution from Flat Records to Governance Graph
+Foundation (Phases 0 - 2)
+• Phase 0 Identity: User authentication, tenant context, & RBAC rules.
+• Phase 1 Registry: Isolated entity creation for Agents, Models, Workflows, and Tools.
+• Phase 2 Governed Workflows: Scheduled execution, logging, & agent triggers.
+• The Limitation: Entities existed in silos without semantic relationships or explicit accountability.
+Phase 3 Transformation
+• Semantic Relationship Layer: Connects all entities via explicit ontology (USES_TOOL, GOVERNS, EXECUTES).
+• Object Responsibility Matrix: Assigns & enforces single primary active ownership & multi-role governance.
+• High-Risk Validation Engine: Enforces 7 mandatory runtime rules preventing circular ownership & tenant leaks.
+• Interactive React Flow Explorer: Real-time visual graph canvas with depth sliders (1-5 Hops) and audit trail.
+
+--- Slide 3 ---
+GUARDIANIQ PHASE 3 DEMO
+The Problem Statement: Why Flat Registries Fail in Enterprise AI
+01. Disjointed Entity Silos:
+AI Agents, Models, and Tools existed as static rows. No automated mechanism existed to verify which model powers an agent or which tool a workflow executes.
+02. Accountability & Ownership Vacuum:
+When an execution failed or policy breach occurred, there was no structured way to resolve who owns, reviews, or approves the target entity.
+03. Cascading Blast-Radius Blindness:
+Modifying or revoking a tool or model could silently break downstream workflows because dependencies could not be calculated dynamically.
+04. Unenforceable Governance Rules:
+Without a centralized validation engine, invalid configurations (circular dependencies, cross-tenant links, expired dates) slipped into production.
+
+--- Slide 4 ---
+GUARDIANIQ PHASE 3 DEMO
+Phase 3 Core Strategic Objectives
+Objective 1: Semantic Ontology
+Establish canonical relationship architecture linking Agents, Models, Workflows, Tools, and Policies.
+Objective 2: Ownership Matrix
+Enforce explicit object responsibility assignments (Owner, Reviewer, Approver, Auditor) with single primary owner resolution.
+Objective 3: Validation Engine
+Build high-risk rule engine blocking circular ownership, cross-tenant leaks, and temporal bound violations.
+Objective 4: Visual UX Explorer
+Deliver React Flow relationship explorer with dynamic depth selectors (1-5 Hops), scope filtering, and audit trail tabs.
+
+--- Slide 5 ---
+GUARDIANIQ PHASE 3 DEMO
+Technical Architecture: Multi-Tier Governance Stack
+FRONTEND TIER
+React 18 + TypeScript | React Flow Canvas | Real-time Depth Selector (1-5 Hops) | Scoped Modal Tabs | Audit Trail
+API ROUTER TIER
+FastAPI Router (`/api/registry/relationships/*`) | `/graph/...` Recursive Traversal | `/validate/dry-run` | `/impact-analysis`
+SERVICE & ENGINE TIER
+RelationshipService (CRUD & Lifecycle) | ResponsibilityService (Owner Matrix) | ValidationEngine (7 Mandatory Rules)
+DATABASE & CACHING TIER
+Consolidated PostgreSQL Schema | UUID Multi-Tenancy | Composite Indexes | In-Memory Cache Sweep (< 4ms latency)
+
+--- Slide 6 ---
+GUARDIANIQ PHASE 3 DEMO
+What We Did: Database Consolidation & High-Performance Indexing
+Schema Consolidation
+• Alembic Migration `7e72dc221571`: Dropped legacy `registry_*` tables.
+• Consolidated Operational Tables: `generic_relationships`, `object_responsibilities`, `policy_bindings`, `evidence_links`.
+• Strict Multi-Tenancy: `tenant_id` defined as `UUID(as_uuid=True)` with FK constraint to `users.id`.
+• Audit Mixins: Unified `TimestampMixin` & `WorkflowBaseMixin` (`created_at`, `created_by`, `version_no`).
+Composite Indexing & Seeding
+• Index Migration `73433bbfa6a5`: Added 5 targeted composite indexes for ultra-fast lookups.
+• `ix_composite_rel_source`: Optimizes source object queries `(tenant_id, source_type, source_id, status)`.
+• `ix_composite_rel_target`: Optimizes reverse dependency lookups `(tenant_id, target_type, target_id, status)`.
+• Automated Seed Script: `seed_relationships.py` populates real entities & multi-hop chains.
+
+--- Slide 7 ---
+GUARDIANIQ PHASE 3 DEMO
+What We Did: Backend Services & High-Risk Validation Engine
+Core Backend Services
+• RelationshipService: Handles transactional create, update, search, revoke, suspend, expire, and approve.
+• ResponsibilityService: Manages OWNER, REVIEWER, APPROVER, and AUDITOR assignments.
+• Single Primary Owner Enforcement: Automatically revokes legacy primary owners when a new owner is assigned.
+• Audit Logging Integration: Publishes structured events to `GovernanceEventService` on all state changes.
+ValidationEngine MVP (7 Rules)
+• Rule 1 & 2: Source & Target entity existence verification.
+• Rule 3: Strict cross-tenant isolation enforcement.
+• Rule 4: Duplicate active relationship prevention.
+• Rule 5: Effective date temporal bounds validation.
+• Rule 6: Legal state transition flow enforcement.
+• Rule 7: Mandatory primary owner presence requirement.
+
+--- Slide 8 ---
+GUARDIANIQ PHASE 3 DEMO
+What We Did: UX Foundation & Interactive React Flow Explorer
+Interactive Visual Explorer (`/relationships`)
+• React Flow Canvas: Renders central & peripheral entity nodes with connection edges.
+• Real-Time Depth Selector: Adjust graph traversal depth dynamically from 1 Hop to 5 Hops.
+• Category & Asset Filters: Select category (Models, Agents, Tools) and choose active entity.
+• Directory List & Impact Analysis: Multi-tab view for listing, tracing links, and calculating risk.
+Entity Modal Tabs & Responsibilities Table
+• Scoped Direct Relationship Panels: Embedded in AI Agent, AI Model, Workflow, and Tool detail modals.
+• Governance Responsibilities Table: Displays Responsibility Type, Actor ID, Primary flag, and Status.
+• + Assign Responsibility Modal: Re-assigns Primary Owner and auto-revokes legacy owners.
+• Audit Trail Tab: Chronological log of changes with expandable before/after state diffs.
+
+--- Slide 9 ---
+GUARDIANIQ PHASE 3 DEMO
+Quality Verification & Audit Results: 100% Passed
+Backend Test Suite
+100% Pass Rate
+pytest integration suite passed cleanly across all relationship tests.
+Frontend Typecheck
+0 Errors
+TypeScript static compilation (`tsc`) verified zero type errors.
+WBS Tasks Completed
+14 / 14 Complete
+All Phase 3 WBS tasks fully audited and marked complete.
+Defect Remediation
+6 / 6 Resolved
+100% resolution rate on identified audit defects and misalignments.
+
+--- Slide 10 ---
+LIVE DEMONSTRATION
+Phase 3 Component & UI Walkthrough Roadmap
+👉 Step 1: Scoped Relationships in 'Autonomous Fraud Sentinel' Entity Modal
+👉 Step 2: Interactive Relationship Explorer (`/relationships`) & Category Asset Tracing
+👉 Step 3: Dynamic Depth Control (1 Hop to 5 Hops Transitive Dependency Tracing)
+👉 Step 4: High-Risk Validation Engine MVP (Triggering Date & Constraint Validation Rules)
+👉 Step 5: Governance Responsibilities Table & Re-Assigning Primary Owner (+ Assign Responsibility)
+👉 Step 6: Audit Trail Tab & Historical Change Logs
