@@ -1,0 +1,1324 @@
+================================================================================
+TENANT_ID SCHEMA & AUTHORIZATION AUDIT REPORT (PHASE 4 READINESS)
+================================================================================
+Generated: 2026-07-30
+Inspection Scope: Mixins, Core Tables, Middleware, Actor Context, Correlation IDs, RBAC/ABAC, Audit Events, Async Infrastructure, JSONB & GIN Indexes, Event Types & Registries, Hash & Integrity Utilities, Lifecycle Hooks per Module, Policy Bindings & Evidence Links Stubs, Execution Traceability & FKs, API Route Prefixes & Audit Routes, Standard API Response Envelope, Service-Layer Conventions, Database Migrations & Head Revision, Frontend Page File Conventions, Shared Frontend Components, Frontend Routing & Top-Level Navigation, Pagination & Filtering Patterns, Data Classification & Sensitivity Levels, Payload Masking & Redaction, Tenant Isolation Query Enforcement, Phase 4 Spec Assumption vs. Codebase Reality Matrix
+
+--------------------------------------------------------------------------------
+1. TENANT MIXIN DEFINITIONS (backend/app/shared/mixins.py)
+--------------------------------------------------------------------------------
+
+Verbatim TenantMixin Definition:
+```python
+class TenantMixin:
+    @declared_attr
+    def tenant_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+```
+
+Mixin Properties for tenant_id:
+- Data Type: PostgreSQL UUID (as_uuid=True)
+- Foreign Key Target: users.id
+- Nullability: NOT NULL (nullable=False)
+
+Inheriting Base Mixins in backend/app/shared/mixins.py:
+1. WorkflowBaseMixin(TenantMixin, TimestampMixin)
+```python
+class WorkflowBaseMixin(TenantMixin, TimestampMixin):
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid())
+    version_no = Column(Integer, server_default="1", default=1, nullable=True)
+    is_deleted = Column(Boolean, server_default="FALSE", default=False, nullable=True)
+    metadata_json = Column(JSON, server_default="{}", default=None, nullable=True)
+```
+
+2. GovernableMixin(TenantMixin, TimestampMixin)
+```python
+class GovernableMixin(TenantMixin, TimestampMixin):
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid())
+    version_no = Column(Integer, server_default="1", default=1, nullable=True)
+    is_deleted = Column(Boolean, server_default="FALSE", default=False, nullable=True)
+    metadata_json = Column(JSON, server_default="{}", default=None, nullable=True)
+    status = Column(String(30), default='ACTIVE', nullable=False)
+
+    @declared_attr
+    def owner_user_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+```
+
+--------------------------------------------------------------------------------
+2. CORE TABLES TENANT_ID INSPECTION RESULTS
+--------------------------------------------------------------------------------
+
+[1] ai_models (backend/app/modules/ai_model/models.py)
+- Model Class: AIModel(Base, GovernableMixin)
+- Inheritance: GovernableMixin -> TenantMixin
+- Verbatim Column Definition:
+    @declared_attr
+    def tenant_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+- Type: UUID(as_uuid=True)
+- FK Target: users.id
+- Nullable: False
+
+[2] agents (backend/app/modules/agent/models.py)
+- Model Class: Agent(Base, GovernableMixin)
+- Inheritance: GovernableMixin -> TenantMixin
+- Verbatim Column Definition:
+    @declared_attr
+    def tenant_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+- Type: UUID(as_uuid=True)
+- FK Target: users.id
+- Nullable: False
+
+[3] tools (backend/app/modules/registry/models.py)
+- Model Class: Tool(Base, GovernableMixin)
+- Inheritance: GovernableMixin -> TenantMixin
+- Verbatim Column Definition:
+    @declared_attr
+    def tenant_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+- Type: UUID(as_uuid=True)
+- FK Target: users.id
+- Nullable: False
+
+[4] workflows (backend/app/modules/registry/models.py)
+- Model Class: Workflow(Base, GovernableMixin)
+- Inheritance: GovernableMixin -> TenantMixin
+- Verbatim Column Definition:
+    @declared_attr
+    def tenant_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+- Type: UUID(as_uuid=True)
+- FK Target: users.id
+- Nullable: False
+
+[5] generic_relationships (backend/app/modules/relationship/models.py)
+- Model Class: GenericRelationship(Base, WorkflowBaseMixin)
+- Inheritance: WorkflowBaseMixin -> TenantMixin
+- Verbatim Column Definition:
+    @declared_attr
+    def tenant_id(cls):
+        return Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+- Type: UUID(as_uuid=True)
+- FK Target: users.id
+- Nullable: False
+
+[6] audit_events (backend/app/modules/audit/models.py)
+- Model Class: AuditEvent(Base)
+- Inheritance: Base (No TenantMixin inheritance)
+- Verbatim Class Definition:
+    class AuditEvent(Base):
+        __tablename__ = "audit_events"
+
+        id = Column(Integer, primary_key=True, index=True)
+        event_type = Column(String, nullable=False)
+        entity_type = Column(String, nullable=False)
+        entity_id = Column(String(100), nullable=True)
+        actor_user_id = Column(UUID(as_uuid=True))
+        action = Column(String, nullable=False)
+        event_metadata = Column(JSON)
+        created_at = Column(DateTime, default=datetime.utcnow, index=True)
+- tenant_id Column Presence: ABSENT / NOT DEFINED
+- Type: N/A
+- FK Target: N/A
+- Nullable: N/A
+
+--------------------------------------------------------------------------------
+3. ALL OTHER TABLES INSPECTION RESULTS ACROSS MODULES
+--------------------------------------------------------------------------------
+
+Module: ai_model
+- ai_model_providers (AIModelProvider): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: registry
+- register_all (RegisterAll): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: department
+- departments (Department): Inherits GovernableMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: datasource
+- data_sources (DataSource): Inherits GovernableMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: relationship
+- object_responsibilities (ObjectResponsibility): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- relationship_validation_results (RelationshipValidationResult): Explicit Column on Base
+  Verbatim Column: tenant_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- relationship_graph_snapshots (RelationshipGraphSnapshot): Explicit Column on Base
+  Verbatim Column: tenant_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- policy_bindings (PolicyBinding): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- evidence_links (EvidenceLink): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: policy
+- policies (Policy): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: recommendation
+- recommendations (Recommendation): Inherits Base
+  tenant_id Presence: ABSENT / NOT DEFINED
+
+Module: approval
+- approvals (Approval): Inherits Base
+  tenant_id Presence: ABSENT / NOT DEFINED
+
+Module: authorization
+- workflow_authorization_decisions (WorkflowAuthorizationDecision): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_delegations (WorkflowDelegation): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: workflow_execution
+- workflow_runs (WorkflowRun): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_run_steps (WorkflowRunStep): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_run_outputs (WorkflowRunOutput): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_run_failures (WorkflowRunFailure): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: workflow_scheduler
+- approval_groups (ApprovalGroup): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_schedules (Phase2WorkflowSchedule): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+  Table Constraints:
+    UniqueConstraint('tenant_id', 'schedule_code', name='uix_tenant_schedule_code')
+    UniqueConstraint('tenant_id', 'schedule_name', name='uix_tenant_schedule_name')
+- workflow_schedule_agent_assignments (WorkflowScheduleAgentAssignment): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_schedule_approvals (WorkflowScheduleApproval): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- workflow_schedule_history (WorkflowScheduleHistory): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+- approval_group_members (ApprovalGroupMember): Inherits Base
+  tenant_id Presence: ABSENT / NOT DEFINED
+
+Module: workflow_notifications
+- workflow_notifications (WorkflowNotification): Inherits WorkflowBaseMixin -> TenantMixin
+  Verbatim Column: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+  Type: UUID(as_uuid=True) | FK: users.id | Nullable: False
+
+Module: orchestration
+- orchestration_workflow_executions, orchestration_workflow_schedules, orchestration_execution_findings, orchestration_execution_event_logs: Inherits Base
+  tenant_id Presence: ABSENT / NOT DEFINED
+
+Module: settings
+- application_settings (ApplicationSettings): Inherits Base
+  tenant_id Presence: ABSENT / NOT DEFINED
+
+Module: auth
+- users, roles, permissions, token_blocklist, user_roles, role_permissions: Inherits Base / Table
+  tenant_id Presence: ABSENT / NOT DEFINED (users.id is the foreign key target for tenant_id)
+
+--------------------------------------------------------------------------------
+4. ACTOR CONTEXT, MIDDLEWARE & DEPENDENCY AUDIT
+--------------------------------------------------------------------------------
+
+Search Scope: ContextVar usage, user resolution, actor context, correlation ID propagation, tenant helpers.
+
+[1] Context Variables & Middleware (backend/app/core/middleware.py)
+------------------------------------------------------------------
+File Path: backend/app/core/middleware.py
+
+Context Variables Defined:
+- request_id_context = contextvars.ContextVar("request_id", default="unknown")
+- user_context = contextvars.ContextVar("user", default=None)
+
+Function Signatures:
+- def get_request_id() -> str:
+- def set_user_context(user_id: str, user_email: str = None):
+- def get_user_context() -> dict:
+
+Middlewares Implemented:
+- class RequestIDMiddleware(BaseHTTPMiddleware):
+  async def dispatch(self, request: Request, call_next):
+  (Extracts X-Request-ID header or generates UUID4, sets request_id_context, injects header into response)
+- class LoggingMiddleware(BaseHTTPMiddleware):
+  async def dispatch(self, request: Request, call_next):
+  (Logs requests/responses with request_id and user_context details)
+- class ResponseStandardizationMiddleware(BaseHTTPMiddleware):
+  async def dispatch(self, request: Request, call_next):
+  (Wraps 2xx JSON responses in StandardResponse with request_id)
+
+[2] Current Actor Audit Resolution (backend/app/shared/audit_listeners.py)
+---------------------------------------------------------------------------
+File Path: backend/app/shared/audit_listeners.py
+
+Function Signatures:
+- def get_current_actor_id() -> Optional[UUID]:
+  (Reads user_context from app.core.middleware, converts user_id string to UUID, or returns None if absent)
+- def after_insert_listener(mapper, connection, target: GovernableMixin):
+- def after_update_listener(mapper, connection, target: GovernableMixin):
+- def setup_audit_listeners():
+
+[3] Authentication & Current User Dependency (backend/app/modules/auth/dependencies.py)
+----------------------------------------------------------------------------------------
+File Path: backend/app/modules/auth/dependencies.py
+
+Function Signatures:
+- def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+  (Decodes JWT, checks blocklist, calls set_user_context(str(user.id), user.email), returns User instance)
+- def require_permission(permission_code: str):
+  (Returns a dependency permission_dependency(current_user: User = Depends(get_current_user)))
+
+[4] Tenant ID Resolution Helper (backend/app/modules/relationship/api.py)
+---------------------------------------------------------------------------
+File Path: backend/app/modules/relationship/api.py
+
+Function Signature:
+- def get_tenant_id(current_user):
+  (Returns current_user.tenant_id if present and non-null, else defaults to current_user.id)
+
+--------------------------------------------------------------------------------
+5. CORRELATION ID / REQUEST ID PATTERN AUDIT ACROSS FULL STACK
+--------------------------------------------------------------------------------
+
+Header Standards:
+- Primary Header: X-Request-ID
+- Server Timing Header: X-Request-Time
+- CORS Exposed Headers: X-Request-ID, X-Request-Time (backend/app/main.py)
+
+[1] Frontend Request ID Generation & Injection
+----------------------------------------------
+File Path: frontend/src/services/shared/requestId.ts
+- Signature: export function generateRequestId(): string
+- Algorithm: `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+
+File Path: frontend/src/services/shared/apiClient.ts
+- Interceptor Behavior: Checks and injects header on all outgoing HTTP requests:
+  if (!headers.has("X-Request-ID")) {
+    headers.set("X-Request-ID", generateRequestId());
+  }
+
+[2] Backend Middleware & Context Propagation
+--------------------------------------------
+File Path: backend/app/core/middleware.py
+- ContextVar: request_id_context = contextvars.ContextVar("request_id", default="unknown")
+- Getter: def get_request_id() -> str
+- Middleware: class RequestIDMiddleware(BaseHTTPMiddleware)
+  - Extracts incoming `X-Request-ID` header or generates `str(uuid.uuid4())`
+  - Binds ID to `request_id_context` via `token = request_id_context.set(...)`
+  - Sets `response.headers["X-Request-ID"]` and `response.headers["X-Request-Time"]`
+  - Cleans context in `finally` block: `request_id_context.reset(token)`
+
+File Path: backend/app/main.py
+- Middleware Registration Order:
+  app.add_middleware(LoggingMiddleware)
+  app.add_middleware(ResponseStandardizationMiddleware)
+  app.add_middleware(RequestIDMiddleware)  # Runs outermost first on requests
+
+[3] Structured Logging Integration
+----------------------------------
+File Path: backend/app/core/middleware.py
+- Middleware: class LoggingMiddleware(BaseHTTPMiddleware)
+  - Retrieves `request_id = get_request_id()` and logs request/response durations with `extra={"request_id": request_id}`.
+
+[4] API Response Payload Integration
+------------------------------------
+File Path: backend/app/shared/responses.py
+- Schema: `request_id: str` field on `StandardResponse` model.
+
+File Path: backend/app/shared/response_utils.py
+- Class: `ResponseHelper` methods (`success`, `error`, `created`, `paginated`) automatically inject `request_id=request_id or get_request_id()`.
+
+File Path: backend/app/core/middleware.py
+- Middleware: `ResponseStandardizationMiddleware` automatically populates `request_id=get_request_id()` on JSON responses.
+
+[5] DB Record Correlation Tracking
+----------------------------------
+File Path: backend/app/modules/relationship/models.py
+- Model: `RelationshipValidationResult`
+- Column: `request_id = Column(String(150), nullable=False, index=True)` (persists request_id for validation logs)
+
+--------------------------------------------------------------------------------
+6. RBAC & ABAC AUTHORIZATION AUDIT
+--------------------------------------------------------------------------------
+
+[1] Enforcement Points
+----------------------
+- Route Dependency Enforcement:
+  File Path: backend/app/modules/auth/dependencies.py
+  Signature: def require_permission(permission_code: str)
+  (Intercepts FastAPI endpoints and checks current_user.roles for permission_code)
+
+- Programmatic Permission Check:
+  File Path: backend/app/modules/authorization/rbac_service.py
+  Signature: async def check_permission(user_id: UUID, permission_code: str, db) -> bool
+  (Queries database using sa.func.lower() over permissions and user roles)
+
+- Unified Evaluation Pipeline:
+  File Path: backend/app/modules/authorization/decision_service.py
+  Class: AuthorizationDecisionService
+  Signature: async def evaluate(self, request: AuthorizationRequest, db, persist: bool = False) -> AuthorizationResponse
+  (Combines RBAC permission checks, ABAC attribute evaluations, and relationship ownership)
+
+[2] Permission Naming Standards
+--------------------------------
+Two co-existing permission string conventions:
+1. Legacy Dot-Notation (lowercase.action):
+   - "registry.read", "registry.write"
+   - "policy.read", "policy.write"
+   - "recommendation.read"
+   - "approval.review"
+   - "audit.read"
+   - "admin.manage_users"
+
+2. Phase 2 Workflow Action Format (UPPERCASE_SNAKE_CASE):
+   - "CREATE_WORKFLOW_SCHEDULE"
+   - "UPDATE_WORKFLOW_SCHEDULE"
+   - "SUBMIT_WORKFLOW_SCHEDULE"
+   - "ACTIVATE_WORKFLOW_SCHEDULE"
+   - "PAUSE_WORKFLOW_SCHEDULE"
+   - "RESUME_WORKFLOW_SCHEDULE"
+   - "RETIRE_WORKFLOW_SCHEDULE"
+   - "RUN_WORKFLOW_SCHEDULE"
+   - "VIEW_WORKFLOW_SCHEDULE"
+   - "VIEW_WORKFLOW_RUN"
+   - "ASSIGN_AI_AGENT_TO_WORKFLOW"
+   - "VIEW_WORKFLOW_RUN_OUTPUT"
+   - "CANCEL_WORKFLOW_RUN"
+   - "EVALUATE_AUTHORIZATION"
+   - "OVERRIDE_WORKFLOW_FAILURE"
+
+[3] ABAC & Classification Scoping Status
+---------------------------------------
+Correction to Phase 3 Readiness Report:
+ABAC and Classification-Based Scoping ARE ALREADY IMPLEMENTED AND ACTIVE in the backend authorization module.
+
+Active ABAC Features (backend/app/modules/authorization/abac_service.py):
+- Department Scoping: Matches subject.department_id against object.owner_department_id.
+- Risk Level Scoping: Restricts HIGH / CRITICAL schedule activation to risk managers or approval group members/delegates.
+- Sensitivity & Clearance Scoping: Evaluates subject role clearance against node sensitivity ranks (PUBLIC, INTERNAL, RESTRICTED, CONFIDENTIAL).
+- Agent Mode Scoping: Restricts requested schedule execution modes to max agent execution mode in registry.
+- Ownership Scoping: Evaluates active OWNER responsibility links in object_responsibilities.
+
+--------------------------------------------------------------------------------
+7. AUDIT_EVENTS TABLE SCHEMA, METRICS & WRITER AUDIT
+--------------------------------------------------------------------------------
+
+[1] Table Metrics
+-----------------
+- Live Row Count: 9,608 rows (verified via database count query)
+
+[2] Complete Database Schema Definition
+----------------------------------------
+Table Name: audit_events
+
+Columns:
+1. id | integer | NOT NULL | Primary Key (auto-incrementing integer)
+2. event_type | character varying | NOT NULL | Event classification code (e.g. AGENT_CREATED, WORKFLOW_RUN_COMPLETED, AUTHORIZATION_DENIED)
+3. entity_type | character varying | NOT NULL | Target entity type (e.g. agent, workflow_runs, generic_relationships)
+4. entity_id | character varying(100) | NULLABLE | Target entity ID string (UUID or integer string)
+5. actor_user_id | uuid | NULLABLE | Actor user ID (PostgreSQL UUID)
+6. action | character varying | NOT NULL | Action verb (e.g. CREATED, UPDATED, READ, COMPLETE, EVALUATE)
+7. event_metadata | json | NULLABLE | JSON payload storing structured event context, payloads, and change diffs
+8. created_at | timestamp without time zone | NULLABLE | Event generation timestamp (default UTC)
+
+Constraints:
+- Primary Key Constraint: audit_events_pkey (PRIMARY KEY (id))
+
+Indexes:
+- audit_events_pkey: CREATE UNIQUE INDEX audit_events_pkey ON public.audit_events USING btree (id)
+- ix_audit_events_id: CREATE INDEX ix_audit_events_id ON public.audit_events USING btree (id)
+- ix_audit_events_created_at: CREATE INDEX ix_audit_events_created_at ON public.audit_events USING btree (created_at)
+
+[3] Writers & Data Shapes
+-------------------------
+
+1. SQLAlchemy Event Listeners (backend/app/shared/audit_listeners.py)
+   - Triggers on: after_insert and after_update on GovernableMixin models (Agent, AIModel, DataSource, Department, Tool, Workflow).
+   - Injected Shape:
+     {
+       "event_type": "{OBJECT_TYPE}_CREATED" or "{OBJECT_TYPE}_UPDATED",
+       "entity_type": "<object_type>",
+       "entity_id": "<target_id>",
+       "actor_user_id": "<actor_uuid>",
+       "action": "CREATED" or "UPDATED",
+       "event_metadata": {
+         "change_summary": "Created/Updated {object_type} entity",
+         "before_json": null,
+         "after_json": { ... }
+       }
+     }
+
+2. Governance Event Service (backend/app/modules/audit/event_service.py)
+   - Centralized publisher for Phase 2 Workflow Scheduler, Workflow Execution engine, and System Events.
+   - Methods: publish_event, publish_batch, publish_schedule_*, publish_run_*
+   - Injected Shape:
+     {
+       "event_type": "<WorkflowEventCode_value>",
+       "entity_type": "workflow_runs" or "workflow_schedules",
+       "entity_id": null (or string ID),
+       "actor_user_id": int_actor_id, # resolved from user email to user.id if available
+       "action": "COMPLETE" / "START" / "FAIL" / "CREATE" / etc.,
+       "event_metadata": {
+         "entity_id": "<UUID_string>",
+         "actor_type": "SYSTEM" or "USER",
+         "actor_id": "<UUID_string>",
+         "event_summary": "<summary>",
+         "payload": { ... }
+       }
+     }
+
+3. Relationship Audit Service (backend/app/modules/relationship/audit_service.py)
+   - Delegates to GovernanceEventService for relationship lifecycle events.
+   - Event Types: RELATIONSHIP_CREATED, RELATIONSHIP_UPDATED, RELATIONSHIP_REVOKED, RELATIONSHIP_APPROVED, RELATIONSHIP_VALIDATION_FAILED, RESPONSIBILITY_ASSIGNED, GOVERNANCE_CONTEXT_BUILT, GRAPH_TRAVERSAL_PERFORMED, IMPACT_ANALYSIS_PERFORMED, AUDIT_TIMELINE_VIEWED.
+   - Injected Shape:
+     {
+       "event_code": "RELATIONSHIP_CREATED",
+       "entity_type": "generic_relationships",
+       "entity_id": "<rel_id>",
+       "actor_type": "USER",
+       "actor_id": "<current_user_id>",
+       "action_type": "CREATE",
+       "event_summary": "Relationship created",
+       "event_payload": { ... }
+     }
+
+4. Authorization Decision Service (backend/app/modules/authorization/decision_service.py)
+   - Inserts raw records on security denial events.
+   - Injected Shape:
+     {
+       "event_type": "AUTHORIZATION_DENIED",
+       "entity_type": "authorization_decision",
+       "entity_id": "<decision_id>",
+       "actor_user_id": "<subject_user_id>",
+       "action": "EVALUATE",
+       "event_metadata": {
+         "change_summary": "Authorization denied for action ...",
+         "before_json": null,
+         "after_json": { "action": "...", "deny_reasons": [...] }
+       }
+     }
+
+--------------------------------------------------------------------------------
+8. ASYNC INFRASTRUCTURE, BACKGROUND WORKERS & OUTBOX AUDIT
+--------------------------------------------------------------------------------
+
+[1] Celery & Message Queue Status
+- Package Status: Installed (`celery` & `redis` in backend/requirements.txt)
+- Config File: backend/app/celery_app.py
+- Configuration:
+  - broker = redis_url ("redis://localhost:6379/0")
+  - backend = redis_url
+  - task_always_eager = True
+- Current Execution Mode: In-Process Synchronous Execution.
+  Because task_always_eager=True is enabled in celery_app.py, @celery_app.task functions run synchronously inline within the caller process without requiring a Redis daemon or separate Celery worker instance.
+- Celery Task: execute_workflow_task in backend/app/modules/orchestration/tasks.py
+
+[2] Custom Async Polling Worker (SchedulerWorker)
+- Implementation File: backend/app/workers/scheduler_worker.py
+- Runtime Architecture: Standalone Python asyncio background process.
+- Database Concurrency Pattern:
+  Uses PostgreSQL `SELECT ... WITH FOR UPDATE SKIP LOCKED` over `workflow_schedules` to safely poll and lock due schedules across worker replicas.
+- Task Dispatching Mechanism:
+  Invokes `asyncio.create_task(self._execute_run_async(run.id))` to execute runs in non-blocking background asyncio tasks.
+- Health Monitoring Server:
+  Includes a standalone FastAPI server on port 8081 (`/health/scheduler`).
+- Schedule Calculation:
+  Uses `croniter` and `pytz` via backend/app/workers/next_run_calculator.py.
+
+[3] Transactional Outbox Pattern Status
+- Outbox Table / Pattern Status: NOT INSTALLED / NOT IMPLEMENTED.
+- Search Results: No outbox tables, outbox worker relays, or transactional outbox patterns exist anywhere in the codebase.
+
+[4] Other Message Queue & Task Frameworks
+- APScheduler, RQ, Dramatiq, arq: NOT INSTALLED / UNUSED (0 imports or dependencies found across the project).
+
+--------------------------------------------------------------------------------
+9. JSONB COLUMNS, QUERY PATTERNS & GIN INDEX AUDIT
+--------------------------------------------------------------------------------
+
+[1] Existing JSONB / JSON Columns Inventory Across All Tables
+- agents (backend/app/modules/agent/models.py):
+  capabilities_json = Column(JSONB, nullable=True)
+- tools (backend/app/modules/registry/models.py):
+  allowed_operations_json = Column(JSONB, nullable=False, default=[])
+- workflows (backend/app/modules/registry/models.py):
+  steps_json = Column(JSONB, nullable=True)
+- generic_relationships (backend/app/modules/relationship/models.py):
+  scope_json = Column(JSONB, nullable=True)
+- relationship_validation_results (backend/app/modules/relationship/models.py):
+  payload_json = Column(JSONB, nullable=True)
+- relationship_graph_snapshots (backend/app/modules/relationship/models.py):
+  snapshot_json = Column(JSONB, nullable=False)
+- workflow_schedules (backend/app/modules/workflow_scheduler/models.py):
+  retry_policy_json = Column(JSONB, server_default='{"max_retries":1,"retry_delay_seconds":300}', nullable=True)
+- workflow_schedule_agent_assignments (backend/app/modules/workflow_scheduler/models.py):
+  allowed_tools_json = Column(JSONB, server_default="[]", nullable=True)
+  allowed_data_sources_json = Column(JSONB, server_default="[]", nullable=True)
+  blocked_operations_json = Column(JSONB, server_default="[]", nullable=True)
+  boundary_rules_json = Column(JSONB, server_default="{}", nullable=True)
+- workflow_schedule_history (backend/app/modules/workflow_scheduler/models.py):
+  before_json = Column(JSONB, server_default="{}", nullable=True)
+  after_json = Column(JSONB, server_default="{}", nullable=True)
+- workflow_runs (backend/app/modules/workflow_execution/models.py):
+  context_json = Column(JSONB, server_default="{}", nullable=True)
+  result_json = Column(JSONB, server_default="{}", nullable=True)
+- workflow_run_steps (backend/app/modules/workflow_execution/models.py):
+  input_json = Column(JSONB, server_default="{}", nullable=True)
+  output_json = Column(JSONB, server_default="{}", nullable=True)
+- workflow_run_outputs (backend/app/modules/workflow_execution/models.py):
+  findings_json = Column(JSONB, server_default="[]", nullable=True)
+  recommendations_json = Column(JSONB, server_default="[]", nullable=True)
+  evidence_json = Column(JSONB, server_default="{}", nullable=True)
+  raw_output_json = Column(JSONB, server_default="{}", nullable=True)
+- workflow_authorization_decisions (backend/app/modules/authorization/models.py):
+  reason_json = Column(JSONB, server_default="{}", nullable=True)
+  rbac_result = Column(JSONB, server_default="{}", nullable=True)
+  abac_result = Column(JSONB, server_default="{}", nullable=True)
+  relationship_result = Column(JSONB, server_default="{}", nullable=True)
+- policies (backend/app/modules/policy/models.py):
+  conditions = Column(JSON)
+  actions = Column(JSON)
+- audit_events (backend/app/modules/audit/models.py):
+  event_metadata = Column(JSON)
+- Base Mixins (backend/app/shared/mixins.py):
+  metadata_json = Column(JSON, server_default="{}", default=None, nullable=True) on GovernableMixin and WorkflowBaseMixin.
+
+[2] Query Patterns & Extraction Mechanisms Currently in Use
+
+1. SQLAlchemy `json_extract_path_text` (Primary Pattern):
+   - Example 1 (backend/app/modules/audit/event_service.py):
+     sa.func.json_extract_path_text(AuditEvent.event_metadata, 'entity_id') == str(entity_id)
+   - Example 2 (backend/app/modules/registry/repositories.py):
+     sa.func.lower(sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'payload', 'source_type')).in_(target_types)
+     sa.func.json_extract_path_text(RegistryAuditEvent.event_metadata, 'payload', 'source_id') == entity_id_str
+
+2. SQLAlchemy PostgreSQL Text Operator `.op("->>")`:
+   - Example (backend/app/modules/relationship/api.py):
+     AuditEvent.event_metadata.op("->>")("entity_id") == entity_id_str
+
+3. In-Memory Deserialization & Python Manipulation:
+   - Example (backend/app/modules/orchestration/tasks.py):
+     steps = workflow.steps_json or []
+     if isinstance(steps, str): steps = json.loads(steps)
+
+[3] Database GIN Index Audit
+- Live Database Inspection Result: 0 custom GIN indexes are currently present on any application table in PostgreSQL.
+- Convention Recommendation for Phase 4:
+  When querying heavy JSONB fields (payload_json, actor_json, subject_json), create GIN indexes in Alembic migrations using:
+  `op.create_index('ix_table_payload_json_gin', 'table_name', ['payload_json'], postgresql_using='gin')`
+
+--------------------------------------------------------------------------------
+10. EVENT TYPES, CONSTANT LISTS & SCHEMA REGISTRIES AUDIT
+--------------------------------------------------------------------------------
+
+[1] Event Type Enums & Constant Lists
+
+1. Workflow Event Codes Enum (backend/app/modules/audit/event_codes.py)
+   - Enum Class: WorkflowEventCode(str, Enum)
+   - Defined Values (22 Event Codes):
+     - WORKFLOW_SCHEDULE_CREATED, WORKFLOW_SCHEDULE_UPDATED, WORKFLOW_SCHEDULE_SUBMITTED
+     - WORKFLOW_SCHEDULE_APPROVED, WORKFLOW_SCHEDULE_ACTIVATED, WORKFLOW_SCHEDULE_PAUSED
+     - WORKFLOW_SCHEDULE_RETIRED
+     - WORKFLOW_RUN_QUEUED, WORKFLOW_RUN_STARTED, WORKFLOW_RUN_COMPLETED
+     - WORKFLOW_RUN_FAILED, WORKFLOW_RUN_ESCALATED, WORKFLOW_RUN_CANCELLED
+     - AGENT_BOUNDARY_CHECK_PASSED, AGENT_BOUNDARY_CHECK_FAILED
+     - AGENT_EXECUTION_STARTED, AGENT_EXECUTION_COMPLETED
+     - WORKFLOW_OUTPUT_GENERATED, AUTHORIZATION_DENIED
+     - AGENT_ASSIGNED_TO_SCHEDULE, AGENT_ASSIGNMENT_UPDATED, AGENT_ASSIGNMENT_REMOVED
+
+2. Audit Event Type Enum (backend/app/shared/enums/audit_event_type.py)
+   - Enum Class: AuditEventType(str, Enum)
+   - Defined Values: CREATED, UPDATED, POLICY_TRIGGERED, APPROVAL_REQUESTED, APPROVED, REJECTED, ESCALATED, ACTION_EXECUTED, SLA_BREACHED, POLICY_VIOLATION
+
+3. Registry Audit Event Type Enum (backend/app/modules/registry/constants.py)
+   - Enum Class: RegistryAuditEventType(str, Enum)
+   - Defined Values: CREATED, UPDATED, STATUS_CHANGED, DELETED, RELATIONSHIP_ADDED, RELATIONSHIP_REMOVED
+
+4. Relationship Lifecycle Event Strings (backend/app/modules/relationship/audit_service.py)
+   - Informal/String Constant List:
+     - RELATIONSHIP_CREATED, RELATIONSHIP_UPDATED, RELATIONSHIP_REVOKED, RELATIONSHIP_SUSPENDED
+     - RELATIONSHIP_EXPIRED, RELATIONSHIP_APPROVED, RELATIONSHIP_REJECTED, RELATIONSHIP_ACTIVATED
+     - RELATIONSHIP_VALIDATION_FAILED, RESPONSIBILITY_ASSIGNED, GOVERNANCE_CONTEXT_BUILT
+     - GRAPH_TRAVERSAL_PERFORMED, IMPACT_ANALYSIS_PERFORMED, AUDIT_TIMELINE_VIEWED
+
+5. Dynamic SQLAlchemy Listener Pseudo-Event Names (backend/app/shared/audit_listeners.py)
+   - Format: f"{OBJECT_TYPE}_CREATED" / f"{OBJECT_TYPE}_UPDATED"
+   - Evaluated Strings: AGENT_CREATED, AGENT_UPDATED, AIMODEL_CREATED, AIMODEL_UPDATED, TOOL_CREATED, TOOL_UPDATED, WORKFLOW_CREATED, WORKFLOW_UPDATED, DATASOURCE_CREATED, DATASOURCE_UPDATED, DEPARTMENT_CREATED, DEPARTMENT_UPDATED
+
+6. Worker Observability Event Names (backend/app/workers/scheduler_worker.py)
+   - Pseudo-Event Strings: WORKER_START, CYCLE_START, CYCLE_END, CYCLE_ERROR, TRIGGER_SCHEDULE, TRIGGER_ERROR, ASYNC_RUN_ERROR, WORKER_SHUTDOWN, SCHEDULER_DISABLED
+
+[2] Schema Registry & Metadata Registry Patterns
+
+1. Entity Schema Registry (backend/app/modules/registry/models.py & repositories.py)
+   - Class / Table: RegisterAll
+   - Purpose: Central catalog/registry tracking all governable system entities (models, agents, tools, workflows, data sources).
+
+2. Validation Rule Registry (backend/app/modules/relationship/rule_registry.py)
+   - Class: ValidationRuleRegistry
+   - Purpose: Registry pattern registering and dispatching runtime governance validation rules over generic relationships.
+
+--------------------------------------------------------------------------------
+11. HASH, CHECKSUM & INTEGRITY UTILITY AUDIT
+--------------------------------------------------------------------------------
+
+[1] Existing Security Hashing Utilities
+- Implementation File: backend/app/core/security.py
+- Active Functions:
+  - hash_password(password: str) -> str: Generates password hash using bcrypt.gensalt().
+  - verify_password(plain_password: str, hashed_password: str) -> bool: Verifies bcrypt password hashes.
+  - create_access_token(data: dict) / create_refresh_token(data: dict): Signs JWT tokens using python-jose (HS256 HMAC-SHA256).
+
+[2] General SHA-256 / SHA-512 / Event Hash / Export Hash Utilities
+- Status: NOT INSTALLED / NOT IMPLEMENTED.
+- Audit Findings:
+  - No general-purpose payload hashing, event canonicalization hash (e.g. SHA-256 of canonical event JSON payload for tamper-evident audit logs), or export checksum utility currently exists in backend/app/core/security.py or any shared module.
+- Phase 4 Reusability Recommendation:
+  - Standard Python `hashlib` and `hmac` modules are available in Python's standard library.
+  - Phase 4 can build `event_hash` and `export_hash` functions (e.g. using `hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()`) in a dedicated crypto module (e.g. `backend/app/core/crypto.py` or `backend/app/shared/hashing.py`).
+
+--------------------------------------------------------------------------------
+12. LIFECYCLE HOOKS, SIGNALS & SIDE-EFFECT AUDIT PER MODULE
+--------------------------------------------------------------------------------
+
+[1] Identity / User / Role Module (backend/app/modules/auth/)
+- What Exists Today:
+  - Explicit AuditEvent inserts on authentication endpoints (login writes action="login", logout writes action="logout", change password writes action="change_password").
+- What is Stubbed: None.
+- What is Entirely Absent:
+  - Administrative User / Role / Permission CRUD endpoints (User creation, User deletion, Role creation, Permission mutation) do NOT exist in auth/routes.py and have no lifecycle hooks.
+
+[2] Registry Module (backend/app/modules/registry/, agent, ai_model)
+- What Exists Today:
+  - Automatic SQLAlchemy Listeners (backend/app/shared/audit_listeners.py): Intercepts after_insert and after_update on all GovernableMixin models (AIModel, Agent, Tool, Workflow, DataSource, Department) and inserts rows into RegistryAuditEvent / audit_events.
+  - write_registry_audit helper in backend/app/modules/registry/audit_service.py logs change summaries and before/after JSON diffs.
+- What is Stubbed: None.
+- What is Entirely Absent:
+  - Explicit DELETED lifecycle event triggers on hard delete operations.
+
+[3] Relationship Module (backend/app/modules/relationship/)
+- What Exists Today:
+  - Fully integrated with GovernanceEventService via backend/app/modules/relationship/audit_service.py (RelationshipAuditService).
+  - Triggers 14 distinct governance event types across create, update, revoke, suspend, expire, approve, reject, activate, validation failure, responsibility assignment, governance context resolution, graph traversal, impact analysis, and timeline view.
+- What is Stubbed: None.
+- What is Entirely Absent: None.
+
+[4] Workflow Scheduling / Execution Module (backend/app/modules/workflow_scheduler/, workflow_execution/)
+- What Exists Today:
+  - WorkflowSchedules: GovernanceEventService is invoked on schedule create, update, submit, approve, activate, pause, and retire.
+  - WorkflowRuns: GovernanceEventService is invoked on run queued, started, completed, failed, escalated, and cancelled.
+- What is Stubbed:
+  - WorkflowRunStep: Steps are created and saved during execution, but per-step granularity governance events (e.g. STEP_STARTED, STEP_COMPLETED) are stubbed/missing (only agent steps trigger boundary/execution events).
+- What is Entirely Absent: None.
+
+[5] Policy & Approval Modules
+- What Exists Today:
+  - Phase 2 Workflow Schedule Approvals & Groups (backend/app/modules/workflow_scheduler/service.py): Schedule approval workflows publish WORKFLOW_SCHEDULE_SUBMITTED and WORKFLOW_SCHEDULE_APPROVED events via GovernanceEventService.
+- What is Stubbed:
+  - PolicyBindings & EvidenceLinks (backend/app/modules/relationship/models.py): Schema-only models without active event emission or service logic.
+  - Legacy Policy Module (backend/app/modules/policy/service.py): Basic CRUD helper without governance event emission.
+  - Legacy Approval Module (backend/app/modules/approval/routes.py): Basic CRUD helper for Approval model without event emission.
+- What is Entirely Absent: Active policy rule engine event hooks on policy creation or violation outside of ABAC decision service.
+
+[6] Agent Runtime & Tool Execution Boundary Enforcement
+- What Exists Today:
+  - Fully implemented in BoundaryChecker (backend/app/modules/agent_runtime/boundary_checker.py) and AgentExecutionService (backend/app/modules/agent_runtime/service.py).
+  - Evaluates agent execution mode ranks, allowed tools/datasources, blocked operations, and boundary rules.
+  - Emits AGENT_BOUNDARY_CHECK_PASSED or AGENT_BOUNDARY_CHECK_FAILED events via GovernanceEventService.
+- What is Stubbed: None.
+- What is Entirely Absent: None.
+
+--------------------------------------------------------------------------------
+13. POLICY_BINDINGS & EVIDENCE_LINKS AUDIT REPORT
+--------------------------------------------------------------------------------
+
+[1] Live Database Table Status & Metrics
+- policy_bindings table row count: 0 rows
+- evidence_links table row count: 0 rows
+
+[2] Verbatim Schema Column Definitions (backend/app/modules/relationship/models.py)
+
+1. PolicyBinding (Base, WorkflowBaseMixin):
+   - Table Name: policy_bindings
+   - Inherited Mixins: WorkflowBaseMixin -> TenantMixin, TimestampMixin
+   - Inherited Columns:
+     - id: Column(UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid())
+     - tenant_id: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+     - version_no: Column(Integer, server_default="1", default=1, nullable=True)
+     - is_deleted: Column(Boolean, server_default="FALSE", default=False, nullable=True)
+     - metadata_json: Column(JSON, server_default="{}", default=None, nullable=True)
+     - created_at: Column(DateTime, server_default=func.now())
+     - updated_at: Column(DateTime, server_default=func.now(), onupdate=func.now())
+   - Explicit Model Columns:
+     - policy_id = Column(UUID(as_uuid=True), ForeignKey("policies.id"), nullable=False)
+     - target_type = Column(String(100), nullable=False, index=True)
+     - target_id = Column(String(255), nullable=False, index=True)
+     - binding_scope = Column(String(255), nullable=True)
+     - priority = Column(Integer, nullable=False, default=0)
+     - is_mandatory = Column(Boolean, nullable=False, default=True)
+     - effective_from = Column(TIMESTAMP(timezone=True), nullable=False)
+     - effective_to = Column(TIMESTAMP(timezone=True), nullable=True)
+     - status = Column(String(50), nullable=False, default="ACTIVE")
+   - Composite Index: ix_composite_pb_target on ('tenant_id', 'target_type', 'target_id', 'status')
+
+2. EvidenceLink (Base, WorkflowBaseMixin):
+   - Table Name: evidence_links
+   - Inherited Mixins: WorkflowBaseMixin -> TenantMixin, TimestampMixin
+   - Inherited Columns:
+     - id: Column(UUID(as_uuid=True), primary_key=True, default=uuid4, server_default=func.gen_random_uuid())
+     - tenant_id: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+     - version_no: Column(Integer, server_default="1", default=1, nullable=True)
+     - is_deleted: Column(Boolean, server_default="FALSE", default=False, nullable=True)
+     - metadata_json: Column(JSON, server_default="{}", default=None, nullable=True)
+     - created_at: Column(DateTime, server_default=func.now())
+     - updated_at: Column(DateTime, server_default=func.now(), onupdate=func.now())
+   - Explicit Model Columns:
+     - evidence_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+     - target_type = Column(String(100), nullable=False, index=True)
+     - target_id = Column(String(255), nullable=False, index=True)
+     - link_type = Column(String(100), nullable=False)
+     - confidence_score = Column(Numeric(5, 2), nullable=True)
+     - source_system = Column(String(150), nullable=True)
+   - Composite Index: ix_composite_el_target on ('tenant_id', 'target_type', 'target_id')
+
+[3] Code Base Service & Router Logic Status
+- Mutation Logic (Creation / Update / Deletion): ENTIRELY ABSENT / STUBBED.
+  - Zero insert or update functions exist for PolicyBinding or EvidenceLink anywhere in backend/app.
+  - No service methods, background tasks, or API endpoints write records to these tables.
+- Read Logic (GET / Query Operations): READ-ONLY QUERY HOOKS PRESENT.
+  - backend/app/modules/relationship/api.py (get_governance_context): Queries PolicyBinding and EvidenceLink to construct governance context nodes (returns empty lists []).
+  - backend/app/modules/relationship/api.py (get_policy_bindings): GET /api/relationship/policies/{object_type}/{object_id} queries PolicyBinding.
+  - backend/app/modules/relationship/api.py (get_evidence_links): GET /api/relationship/evidence/{object_type}/{object_id} queries EvidenceLink.
+- Conclusion for Phase 4 Event Producers:
+  policy_bindings and evidence_links remain schema stubs with read-only query hooks. Phase 4's Policy/Approval event producers can safely build mutation logic, service layers, and event publishing routines over these tables without conflicting with pre-existing mutation logic.
+
+--------------------------------------------------------------------------------
+14. RUN-TIME EXECUTION TRACEABILITY & FOREIGN KEYS AUDIT
+--------------------------------------------------------------------------------
+
+[1] Verbatim Foreign Key Column Definitions (backend/app/modules/workflow_execution/models.py)
+
+1. WorkflowRun (workflow_runs):
+   - schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id"), nullable=False) -> FK PRESENT
+   - workflow_id = Column(UUID(as_uuid=True), ForeignKey("workflows.id"), nullable=False) -> FK PRESENT
+   - triggered_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True) -> FK PRESENT
+   - agent_id Column: ABSENT / NOT DEFINED as FK column
+   - ai_model_id / model_id Column: ABSENT / NOT DEFINED as FK column
+   - tool_id Column: ABSENT / NOT DEFINED as FK column
+
+2. WorkflowRunStep (workflow_run_steps):
+   - run_id = Column(UUID(as_uuid=True), ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False) -> FK PRESENT
+   - agent_id Column: ABSENT / NOT DEFINED as FK column
+   - ai_model_id / model_id Column: ABSENT / NOT DEFINED as FK column
+   - tool_id Column: ABSENT / NOT DEFINED as FK column
+
+[2] Runtime Agent/Model/Tool Resolution Mechanism
+- Schedule Assignment Join:
+  - When executing runs in WorkflowRunService, agent_id and ai_model_id are resolved dynamically by querying schedule.agent_assignments (WorkflowScheduleAgentAssignment where schedule_id = WorkflowRun.schedule_id).
+- Event Ingestion:
+  - GovernanceEventService receives agent_id passed in from WorkflowRunService and serializes it inside event_metadata JSON ("payload": {"agent_id": "..."}).
+- JSON Context Storage:
+  - Tool invocations and agent inputs/outputs are serialized into input_json, output_json, context_json, and result_json.
+
+[3] Impact on Phase 4 AGENT_ACTION_EXECUTED & WORKFLOW_RUN_COMPLETED Events
+- Direct relational joins on WorkflowRun.agent_id or WorkflowRunStep.tool_id are NOT possible (columns do not exist).
+- Phase 4 event producers must:
+  1. Join through WorkflowRun.schedule_id -> WorkflowScheduleAgentAssignment to obtain agent_id / ai_model_id.
+  2. Extract agent_id, tool_id, and parameter details from JSON fields (event_metadata, input_json, output_json, context_json).
+
+--------------------------------------------------------------------------------
+15. API ROUTE PREFIX CONVENTIONS & AUDIT ENDPOINTS AUDIT
+--------------------------------------------------------------------------------
+
+[1] Current API Route Prefix Conventions Across Codebase (backend/app/main.py)
+
+1. Module-Level Unversioned Prefixes (/api/{module}):
+   - /api/auth (backend/app/modules/auth/routes.py)
+   - /api/departments (backend/app/modules/department/routes.py)
+   - /api/audit (backend/app/modules/audit/routes.py)
+   - /api/policies (backend/app/modules/policy/routes.py)
+   - /api/data-sources (backend/app/modules/datasource/routes.py)
+   - /api/ai-models (backend/app/modules/ai_model/routes.py)
+   - /api/agents (backend/app/modules/agent/routes.py)
+   - /api/recommendations (backend/app/modules/recommendation/routes.py)
+   - /api/approvals (backend/app/modules/approval/routes.py)
+   - /api/foundation (backend/app/modules/foundation/routes.py)
+   - /api/registry (backend/app/modules/registry/routes.py)
+   - /api/orchestration (backend/app/modules/orchestration/routes.py)
+   - /api/tenants (backend/app/modules/tenant/routes.py)
+
+2. Versioned API Prefixes (/api/v1/{module}):
+   - /api/v1/relationships (backend/app/modules/relationship/api.py)
+   - /api/v1/workflow-scheduler/... (backend/app/api/phase2_scheduler_routes.py)
+   - /api/v1/workflow-runs/... (backend/app/api/phase2_run_routes.py)
+   - /api/v1/workflow-notifications/... (backend/app/api/phase2_notification_routes.py)
+   - /api/v1/authorization/... (backend/app/api/phase2_authorization_routes.py)
+
+[2] Audit / Events Route Checks
+
+1. /api/v1/events:
+   - Status: ABSENT (0 endpoints registered at /api/v1/events or /api/events).
+
+2. /api/events:
+   - Status: ABSENT (0 endpoints registered at /api/events).
+
+3. /api/audit/...:
+   - Status: EXACT MATCHES PRESENT (registered in backend/app/modules/audit/routes.py):
+     - POST /api/audit (create_audit_event_api) - Inserts manual audit event.
+     - GET /api/audit/events (get_audit_events_api) - Paginated query over audit_events.
+
+4. /api/v1/audit/...:
+   - Status: EXACT MATCH PRESENT (registered in backend/app/api/phase2_scheduler_routes.py):
+     - GET /api/v1/audit/events (get_audit_events_timeline) - Retrieves timeline of governance events for WORKFLOW_SCHEDULE or WORKFLOW_RUN entity IDs.
+
+5. Near-Miss / Entity-Specific Audit Timeline Endpoints:
+   - GET /api/registry/relationships/{entity_type}/{entity_id}/audit-timeline (backend/app/modules/registry/routes.py)
+   - GET /api/v1/relationships/relationships/{id}/audit-timeline (backend/app/modules/relationship/api.py)
+
+--------------------------------------------------------------------------------
+16. STANDARD API RESPONSE ENVELOPE AUDIT
+--------------------------------------------------------------------------------
+
+[1] Standard Pydantic Model (backend/app/shared/responses.py)
+```python
+class StandardResponse(BaseModel, Generic[T]):
+    success: bool = True
+    status: str
+    request_id: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    message: Optional[str] = None
+    data: Optional[T] = None
+    error_code: Optional[str] = None
+    error: Optional[ErrorDetail] = None
+```
+
+[2] Response Helper Methods (backend/app/shared/response_utils.py)
+- ResponseHelper.success(data, message, request_id): Returns StandardResponse(status="success", request_id=..., message=..., data=...)
+- ResponseHelper.error(message, data, error_code, request_id): Returns StandardResponse(success=False, status="error", request_id=..., message=..., data=..., error_code=...)
+- ResponseHelper.created(data, message): Returns StandardResponse(status="success", request_id=..., message=..., data=...)
+- ResponseHelper.paginated(items, total, page, page_size): Returns StandardResponse with data={"items": items, "pagination": {...}}
+
+[3] Phase 2 Helper Function (make_envelope in backend/app/api/phase2_scheduler_routes.py & phase2_run_routes.py)
+```python
+def make_envelope(success: bool, data: any, error: str | None, request_id: str) -> dict:
+    return {
+        "status": "success" if success else "error",
+        "success": success,
+        "data": data,
+        "error": error,
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+```
+
+[4] Confirmation vs. Phase 3 Readiness Report
+- Status: 100% CONFIRMED MATCH.
+- All backend responses strictly adhere to the standard envelope containing success, status, request_id, timestamp, data, and message/error fields.
+
+--------------------------------------------------------------------------------
+17. SERVICE-LAYER ARCHITECTURE & CONVENTIONS AUDIT
+--------------------------------------------------------------------------------
+
+[1] Organization & Class-Based Service Pattern
+
+Backend modules across Phase 2, Phase 3, and core governance engines ARE standardized on Class-Based Services.
+
+Class Inventory Across Backend Modules:
+1. Audit & Event Services:
+   - GovernanceEventService (backend/app/modules/audit/event_service.py)
+   - RelationshipAuditService (backend/app/modules/relationship/audit_service.py)
+2. Relationship & Validation Engines:
+   - RelationshipService (backend/app/modules/relationship/service.py)
+   - ResponsibilityService (backend/app/modules/relationship/responsibility_service.py)
+   - ValidationEngine (backend/app/modules/relationship/validators.py)
+   - MemoryCacheService (backend/app/modules/relationship/cache_service.py)
+3. Authorization & Decision Services:
+   - AuthorizationDecisionService (backend/app/modules/authorization/decision_service.py)
+4. Workflow Scheduler & Execution Services:
+   - WorkflowScheduleService (backend/app/modules/workflow_scheduler/service.py)
+   - RegistryCheckService (backend/app/modules/workflow_scheduler/registry_check_service.py)
+   - WorkflowRunService (backend/app/modules/workflow_execution/service.py)
+   - RunOutputService (backend/app/modules/workflow_execution/run_output_service.py)
+5. Agent Runtime & Boundary Services:
+   - AgentRuntimeService (backend/app/modules/agent_runtime/service.py)
+   - BoundaryChecker (backend/app/modules/agent_runtime/boundary_checker.py)
+6. Notification & Orchestration Engines:
+   - ScheduleNotificationService (backend/app/modules/workflow_notifications/service.py)
+   - WorkflowEngine (backend/app/modules/orchestration/engine.py)
+
+[2] Naming Conventions for Phase 4 Services
+
+1. Primary Business / Domain Services: `<FeatureArea>Service`
+   - Example matches for Phase 4: `EventPublisherService`, `EventQueryService`, `ExportService`, `IntegrityService`
+2. Engine / Verification Classes: `<Action>Engine` or `<Action>Checker` / `<Action>Verifier`
+   - Example matches for Phase 4: `ExportEngine`, `IntegrityVerificationEngine`
+3. Data Layer Classes: `<FeatureArea>Repository`
+   - Example matches for Phase 4: `GovernanceEventRepository`
+
+--------------------------------------------------------------------------------
+18. DATABASE MIGRATION TOOLING & HEAD REVISION AUDIT
+--------------------------------------------------------------------------------
+
+[1] Current Migration Tooling & Frameworks
+- Primary Tooling: Alembic
+  - Location: backend/app/db/migrations/
+  - Configuration: backend/alembic.ini
+- Startup SQL DDL Scripts: database/ddl/ (V2_FIX_001__missing_columns.sql, V2_FIX_002__missing_indexes.sql, V2_FIX_003__missing_triggers.sql executed on startup in main.py lifespan)
+
+[2] Migration File Naming Convention
+- Format: `<hex_revision_id>_<slugified_description>.py`
+- Location: backend/app/db/migrations/versions/
+
+[3] Most Recent Migration Applied (Current Alembic Head)
+- Revision ID: 73433bbfa6a5
+- Filename: 73433bbfa6a5_add_phase3_composite_indexes.py (backend/app/db/migrations/versions/73433bbfa6a5_add_phase3_composite_indexes.py)
+- Description: Added Phase 3 composite indexes for generic_relationships, object_responsibilities, and policy_bindings.
+- Live DB Head Verification: SELECT version_num FROM alembic_version returned '73433bbfa6a5'.
+
+[4] Chaining Instructions for Phase 4 Migrations
+- Phase 4 Alembic migration scripts MUST set:
+  `down_revision = '73433bbfa6a5'`
+  to chain properly from the current database head.
+
+--------------------------------------------------------------------------------
+19. FRONTEND PAGE FILE CONVENTIONS AUDIT
+--------------------------------------------------------------------------------
+
+[1] Directory Structure
+- All frontend page components are located in a flat directory at `frontend/src/pages/` (0 subdirectories exist).
+
+[2] Page File Naming Pattern Inventory
+
+1. Registry Module Entities (`Registry<Entity>Page.tsx`):
+   - RegistryAgentsPage.tsx
+   - RegistryDataSourcesPage.tsx
+   - RegistryDepartmentsPage.tsx
+   - RegistryModelsPage.tsx
+   - RegistryRelationshipsPage.tsx
+   - RegistryToolsPage.tsx
+   - RegistryUsersRolesPage.tsx
+   - RegistryWorkflowsPage.tsx
+   - RegistryDashboardPage.tsx
+   - RegisterAllPage.tsx
+
+2. Core / Global Domain Pages (`<Domain>Page.tsx` or `<Feature>Page.tsx`):
+   - AuditPage.tsx
+   - DashboardPage.tsx
+   - AdminPanelPage.tsx
+   - PoliciesDashboardPage.tsx
+   - ApprovalHubPage.tsx
+   - ExecutionDashboardPage.tsx
+   - FoundationHealthPage.tsx
+   - ProfilePage.tsx
+   - TenantsPage.tsx
+   - RiskWorkspacePage.tsx
+   - RunDetailPage.tsx
+   - RunHistoryPage.tsx
+   - ScheduleDetailPage.tsx
+   - LoginPage.tsx, NotFoundPage.tsx, UnauthorizedPage.tsx
+
+3. Specialized Workspaces / Views (`<FeatureName>.tsx`):
+   - AgentAssignmentMatrix.tsx
+   - AuthorizationSimulator.tsx
+   - CreateScheduleWizard.tsx
+   - NotificationsCenter.tsx
+   - ScheduleApprovalQueue.tsx
+   - WorkflowSchedulerDashboard.tsx
+
+[3] Generalization & Phase 4 Recommendation
+- The `Registry<Entity>Page.tsx` naming convention is REGISTRY-SPECIFIC.
+- Non-registry pages generalize to `<Domain>Page.tsx` (e.g. `AuditPage.tsx`, `DashboardPage.tsx`, `PoliciesDashboardPage.tsx`, `AdminPanelPage.tsx`).
+- For Phase 4 (Governance Events & Audit Logs / Exporting):
+  - If enhancing existing audit views: update `frontend/src/pages/AuditPage.tsx`.
+  - If creating new dedicated Phase 4 domain pages: follow the `<Domain>Page.tsx` format (e.g., `GovernanceEventsPage.tsx`, `EventExportPage.tsx`, `IntegrityVerificationPage.tsx`).
+
+--------------------------------------------------------------------------------
+20. SHARED FRONTEND COMPONENTS AUDIT
+--------------------------------------------------------------------------------
+
+[1] Data Grid Component
+- Status: PARTIALLY PRESENT / AVAILABLE
+- Component Files: `Table.tsx` (frontend/src/components/common/Table.tsx) and `RegistryDataTable.tsx` (frontend/src/components/common/RegistryDataTable.tsx).
+- Capability: Implements sortable, filterable, paginated data grid tables across registry and governance pages.
+
+[2] Timeline Component
+- Status: PARTIALLY PRESENT / AVAILABLE
+- Component Files: `RunTimeline.tsx` (frontend/src/components/phase2/RunTimeline.tsx), `AuditTimelinePanel.tsx` (frontend/src/components/phase2/AuditTimelinePanel.tsx), and `AuditTrailViewer.tsx` (frontend/src/components/registry/AuditTrailViewer.tsx).
+- Capability: Displays vertical chronological timeline steps, run executions, and audit log histories.
+
+[3] Event Drawer / Slide-Over Drawer Component
+- Status: ABSENT AS SHARED COMPONENT
+- Observations: Inline right-side drawer overlays exist in specific page files (e.g. RegistryRelationshipsPage.tsx), but NO standalone shared `Drawer.tsx` or `EventDrawer.tsx` component exists in `frontend/src/components/common/`.
+
+[4] Export Modal Component
+- Status: ABSENT
+- Observations: Generic modal wrappers (`Modal.tsx` in frontend/src/components/common/Modal.tsx and `ConfirmActionModal.tsx`) exist, but NO dedicated `ExportModal.tsx` or data export configuration dialog exists anywhere in the frontend codebase.
+
+[5] Retry Action Component
+- Status: PARTIALLY PRESENT (INLINE ONLY)
+- Observations: Retry handlers and action buttons exist inline inside specific run pages (RunDetailPage.tsx, ExecutionDashboardPage.tsx), but NO reusable shared `RetryActionButton.tsx` component exists in `frontend/src/components/common/`.
+
+--------------------------------------------------------------------------------
+21. FRONTEND ROUTING & TOP-LEVEL NAVIGATION AUDIT
+--------------------------------------------------------------------------------
+
+[1] Routing Framework
+- Routing Library: React Router v6 (`react-router-dom`).
+- Primary Router Component: `AppRouter` (frontend/src/routes/AppRouter.tsx).
+- Protected Layout Architecture: Routes are wrapped in `<ProtectedRoute><AppShell><PageComponent /></AppShell></ProtectedRoute>`.
+
+[2] Current Top-Level Navigation & Sidebar Menu Items (frontend/src/components/layout/AppShell.tsx)
+
+1. Top Nav Items:
+   - Dashboard (`/dashboard`)
+
+2. Collapsible Registry Section (`/registry`):
+   - AI Models (`/registry/models`)
+   - AI Agents (`/registry/agents`)
+   - Tools (`/registry/tools`)
+   - Workflows (`/registry/workflows`)
+   - Data Sources (`/registry/data-sources`)
+   - Departments (`/registry/departments`)
+   - Users & Roles (`/registry/users-roles`)
+   - Relationships (`/registry/relationships`)
+
+3. Governance Execution Group:
+   - Workflow Scheduler (`/workflow-scheduler`)
+   - Run History (`/workflow-runs`)
+   - Schedule Approvals (`/schedule-approvals` with pending count badge)
+
+4. Governance Configuration Group:
+   - Agent Assignments (`/agent-assignments`)
+
+5. Governance Tools Group:
+   - Authorization Simulator (`/authorization-simulator`)
+
+6. Alerts Group:
+   - Workflow Notifications (`/workflow-notifications`)
+
+7. Bottom Nav Items:
+   - Register All (`/register-all`)
+   - Executions (`/executions`)
+   - Audit Logs (`/audit`) -> EXISTING TOP-LEVEL NAV ITEM
+   - Foundation Health (`/health`)
+   - Tenants (`/tenants`)
+
+[3] Audit / Events Nav Group Status
+- Audit Nav Item Status: ALREADY EXISTS (`{ label: "Audit Logs", path: "/audit", icon: History }`).
+- Events Nav Group Status: ABSENT (No standalone "Events" or "Governance Events" nav group currently exists).
+- Phase 4 Options:
+  - Option A: Enhance the existing `/audit` route and `Audit Logs` nav item to serve as the unified Governance Events & Audit hub.
+  - Option B: Add a new `Governance Events` nav item (`/events` or `/governance-events`) under a new or existing sidebar section in `AppShell.tsx` and register the route in `AppRouter.tsx`.
+
+--------------------------------------------------------------------------------
+22. PAGINATION, FILTERING & DATA GRID PATTERNS AUDIT
+--------------------------------------------------------------------------------
+
+[1] URL Query Parameter Synchronization (`useRegistryFilters`)
+- Implementation Hook: `useRegistryFilters` (frontend/src/hooks/useRegistryFilters.ts)
+- Mechanism: Synchronizes react state bidirectionally with URL query string using `useSearchParams`.
+- Default Filter Parameters: `page` (default 1), `pageSize` (default 10 or 20), `search`, `status`, `sortBy`, `sortDir` ("asc" | "desc").
+- Auto Page Reset: Modifying any filter key (e.g. `search`, `status`, `event_type`) automatically resets `page` back to `1`.
+- Dynamic Custom Filters: Automatically parses and preserves dynamic URL query params (e.g. `source_type`, `target_type`, `relationship_type`, `actor_user_id`, `date_from`, `date_to`).
+
+[2] Reusable Data Grid Component (`RegistryDataTable`)
+- Implementation Component: `RegistryDataTable` (frontend/src/components/common/RegistryDataTable.tsx)
+- Underlying Primitive: Wraps `Table.tsx` (frontend/src/components/common/Table.tsx).
+- Features:
+  - Column sort headers with visual arrows (`↑`, `↓`, `↕`).
+  - Skeleton loaders during async fetches (`Array(5).fill({})` with animated shimmer cells).
+  - Built-in `EmptyState` fallback when zero items match active filters.
+  - Standard pagination footer displaying record index boundaries (`Showing 1–20 of 9608 records`), previous/next page action buttons, and current page text (`Page 1 of 481`).
+
+[3] Filter Bar Control Layout Pattern
+- Location Examples: `RegistryRelationshipsPage.tsx`, `AuditPage.tsx`, `RunHistoryPage.tsx`
+- Layout Components:
+  - Text input for keyword search (with search icon & clear button).
+  - Select dropdown menus (`<select>`) for status, event types, entity types, and categories.
+  - Reset filters action button calling `resetFilters()`.
+
+[4] Reusability Strategy for Phase 4 Event Explorer
+- Event Explorer UI (`GovernanceEventsPage.tsx` or `AuditPage.tsx`) should:
+  1. Call `const { filters, setFilter, resetFilters, paginationProps } = useRegistryFilters("created_at", 20)` for filter/url sync.
+  2. Pass column configurations and data directly into `<RegistryDataTable />`.
+  3. Fetch backend data via API passing `filters` directly as query parameters (`page: filters.page, per_page: filters.pageSize, event_type: filters.event_type, actor_user_id: filters.actor_user_id, ...`).
+
+--------------------------------------------------------------------------------
+23. DATA CLASSIFICATION & SENSITIVITY LEVEL SCHEMAS AUDIT
+--------------------------------------------------------------------------------
+
+[1] Concept Status
+- Status: ALREADY EXISTS & ACTIVELY IN USE.
+- Data classification / sensitivity level IS NOT a fresh concept being introduced by Phase 4; it already exists in Python enums, PostgreSQL database columns, ABAC evaluation pipelines, and validation logic.
+
+[2] Existing Python Enum Definitions
+
+1. `DataClassification` Enum (backend/app/modules/registry/constants.py):
+   ```python
+   class DataClassification(str, Enum):
+       PUBLIC = "PUBLIC"
+       INTERNAL = "INTERNAL"
+       CONFIDENTIAL = "CONFIDENTIAL"
+       RESTRICTED = "RESTRICTED"
+   ```
+
+2. `SensitivityLevel` Enum (backend/app/shared/enums/sensitivity_level.py):
+   ```python
+   class SensitivityLevel(str, Enum):
+       LOW = "LOW"
+       MEDIUM = "MEDIUM"
+       HIGH = "HIGH"
+       CRITICAL = "CRITICAL"
+   ```
+
+[3] Database Schema & Table Columns Currently Using Classification/Sensitivity
+- `data_sources` table (backend/app/modules/datasource/models.py):
+  `sensitivity_level = Column(String(50), nullable=False)`
+- `tools` table (backend/app/modules/registry/models.py):
+  `sensitivity_level = Column(String(50), nullable=False)`
+- `generic_relationships` / ABAC context resolution (backend/app/modules/authorization/abac_service.py):
+  Evaluates sensitivity levels (`PUBLIC`: 1, `INTERNAL`: 2, `RESTRICTED`: 3, `CONFIDENTIAL`: 4) against user clearance levels.
+
+[4] Reusability Strategy for Phase 4
+- Phase 4's event payload classification / event sensitivity levels can directly import `DataClassification` from `app.modules.registry.constants` or `SensitivityLevel` from `app.shared.enums.sensitivity_level`.
+- No new duplicate classification enums need to be created.
+
+--------------------------------------------------------------------------------
+24. PAYLOAD-MASKING & FIELD-LEVEL REDACTION AUDIT
+--------------------------------------------------------------------------------
+
+[1] Overall Architecture Status
+- Status: PARTIALLY PRESENT / LOCALIZED & FRAGMENTED.
+- No global middleware or standardized payload redactor currently exists. However, three localized field-level masking and redaction implementations are active:
+
+[2] Inventory of Existing Redaction & Masking Logic
+
+1. Audit Log Key Sanitization (`write_registry_audit` in backend/app/modules/registry/audit_service.py):
+   - Function: `sanitize(payload)`
+   - Mechanism: Strips sensitive dictionary keys (`['password', 'token', 'secret', 'client_secret']`) and replaces their values with `'***'`.
+
+2. Clearance-Based Field Redaction (`backend/app/modules/relationship/api.py`):
+   - Mechanism: Compares subject clearance against object sensitivity. If clearance is insufficient, redacts sensitive entity properties in API responses:
+     - `other_entity_name = "[REDACTED (Insufficient Clearance)]"`
+     - `metadata_json = {}`
+     - `scope_json = {}`
+
+3. Output Permission Masking (`backend/app/api/phase2_run_routes.py`):
+   - Mechanism: Evaluates authorization for `VIEW_WORKFLOW_RUN_OUTPUT`. If unauthorized (`has_output_perm` is False), suppresses raw payload execution results:
+     - `raw_output_json = None`
+
+[3] What is Entirely Absent
+- Global PII Pattern Masking (Regex maskers for SSNs, credit cards, emails, IP addresses, JWT tokens).
+- Automatic Response Serializer Redaction Middleware.
+
+[4] Reusability Strategy for Phase 4
+- Phase 4 can formalize a dedicated `PayloadRedactorService` or `mask_payload` helper in `backend/app/shared/redaction.py` extending the secret key list from `registry/audit_service.py` to sanitize all exported governance events, audit logs, and data streams before export or UI rendering.
+
+--------------------------------------------------------------------------------
+25. TENANT-ISOLATION ENFORCEMENT PATTERN AUDIT IN QUERIES
+--------------------------------------------------------------------------------
+
+[1] Architectural Pattern
+- Enforcement Mechanism: PER-ENDPOINT & PER-SERVICE EXPLICIT MANUAL QUERY FILTERING (`.filter(Model.tenant_id == tenant_id)` or `.where(Model.tenant_id == tenant_id)`).
+- Automatic RLS / Query Hooks / Global Base Repositories: ABSENT / NOT USED.
+
+[2] How Tenant Isolation Works Across the Stack
+
+1. Tenant Context Resolution (backend/app/modules/relationship/api.py):
+   - Function: `get_tenant_id(current_user)`
+   - Code: `current_user.tenant_id if hasattr(current_user, "tenant_id") and current_user.tenant_id else current_user.id`
+
+2. Service & Repository Layer Query Scoping:
+   - Each endpoint/service function accepts `tenant_id: UUID` (resolved from `current_user`).
+   - Query filters explicitly include tenant constraints, e.g.:
+     ```python
+     # Example from backend/app/modules/relationship/api.py:
+     owner_resp = db.query(ObjectResponsibility).filter(
+         ObjectResponsibility.tenant_id == tenant_id,
+         ObjectResponsibility.object_type == target_type,
+         ...
+     ).first()
+     ```
+
+[3] Consistency Rules for Phase 4 (`governance_events`)
+- Phase 4 services (`EventPublisherService`, `EventQueryService`, `ExportService`) MUST NOT assume automatic query-level tenant isolation.
+- Phase 4 query methods must explicitly:
+  1. Accept `tenant_id: UUID` in service / repository method parameters.
+  2. Append explicit tenant filters to all SQLAlchemy statements: `.where(AuditEvent.actor_user_id == tenant_id)` or `.where(GovernanceEvent.tenant_id == tenant_id)`.
+  3. Resolve `tenant_id` at the API router layer via standard auth dependencies (`get_current_user`, `get_tenant_id`).
+
+--------------------------------------------------------------------------------
+26. PHASE 4 SPEC ASSUMPTION VS. CODEBASE REALITY GAP MATRIX
+--------------------------------------------------------------------------------
+
+| Major Phase 4 Dependency | Phase 4 Spec Assumption | Current Codebase Reality | Gap |
+| :--- | :--- | :--- | :--- |
+| **governance_events table and append-only enforcement** | Dedicated `governance_events` table with SHA-256 tamper-evident event hashing and strict append-only triggers. | Table does NOT exist. Backend currently uses `audit_events` (9,608 rows, basic schema: id, event_type, entity_type, entity_id, actor_user_id, action, event_metadata, created_at). 0 SHA-256 hash or append-only trigger exists. | **Missing** |
+| **event_outbox + dispatcher + background worker infra** | Transactional outbox pattern (`event_outbox` table, relay worker, async dispatcher) for reliable event publishing. | Celery is installed but runs eager (synchronous inline). Phase 2 uses custom `SchedulerWorker` (asyncio polling process with SELECT FOR UPDATE SKIP LOCKED). `event_outbox` table and outbox worker are completely absent. | **Missing** |
+| **event_processing_log / dead-letter handling** | Dead-letter queue / `event_processing_log` table for idempotency, retry tracking, and failure recovery. | No dead-letter table or retry processing log exists. Worker failures are written directly to `workflow_run_failures` or logged to console. | **Missing** |
+| **Actor context enrichment utility** | ContextVar actor resolver that enriches events with actor user ID, email, role, and tenant ID. | `user_context` ContextVar exists in `middleware.py`. `get_current_actor_id()` in `audit_listeners.py` resolves actor UUID from context. User dependency `get_current_user` calls `set_user_context()`. Basic resolution exists, but rich context enrichment (role/tenant bundle) needs extension for Phase 4. | **Partial** |
+| **Correlation/causation ID propagation** | End-to-end `X-Request-ID` propagation across HTTP, async context, database events, and logger context. | Fully established full-stack pattern. `requestId.ts` and `apiClient.ts` generate/inject `X-Request-ID` on frontend. `RequestIDMiddleware` captures/injects header and binds `request_id_context`. `ResponseStandardizationMiddleware` populates response envelope `request_id`. | **None** |
+| **ABAC / classification-based visibility** | ABAC policy engine evaluating department, sensitivity clearance, risk level, and asset ownership. | 100% active and implemented in `abac_service.py` and `decision_service.py`. Evaluates department matching, sensitivity clearance ranks (PUBLIC: 1 to CONFIDENTIAL: 4), risk levels, agent modes, and responsibility ownership. | **None** |
+| **Producer integration points (per Group C)** | Governance event hooks embedded across Identity, Registry, Relationships, Scheduler, Execution, Policy, and Agent Runtime. | Active hooks exist in Relationships (`RelationshipAuditService`), Scheduler (`GovernanceEventService`), Execution, and Agent Runtime (`BoundaryChecker`). Stubbed in PolicyBindings/EvidenceLinks (schema only, 0 rows). Missing in Auth admin CRUD and explicit hard-delete operations. | **Partial** |
+| **/api/v1/events-style routes vs. actual convention** | API endpoints registered at `/api/v1/events` or `/api/v1/audit/events`. | Unversioned `/api/audit/events` and versioned `/api/v1/audit/events` (timeline) exist. Standalone `/api/v1/events` or `/api/events` are 100% absent. Two router prefix conventions co-exist (`/api/{module}` and `/api/v1/{module}`). | **Partial** |
+| **Frontend shared components (Grid, Timeline, Drawer, Export Modal, Retry Action)** | Shared reusable UI components for Data Grid, Timeline, Event Drawer, Export Modal, and Retry Action. | Data Grid (`RegistryDataTable.tsx`/`Table.tsx`) and Timeline (`RunTimeline.tsx`/`AuditTimelinePanel.tsx`) exist and are reusable. Event Drawer, Export Modal, and Retry Action components do NOT exist as shared components in `src/components/common/`. | **Partial** |
+| **Frontend nav/routing for a new top-level section** | Routing framework and top-level navigation setup for Audit / Events views. | React Router v6 in `AppRouter.tsx`. Top-level **"Audit Logs"** nav item (`/audit`) **ALREADY EXISTS** in `AppShell.tsx`. Dedicated "Events" nav section is absent. | **None** (for Audit route) / **Partial** (if adding dedicated Events nav group) |
+| **Data classification field existing anywhere** | Data classification enum (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`) and table columns. | `DataClassification` enum (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`) exists in `registry/constants.py`. `SensitivityLevel` enum (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) exists in `enums/sensitivity_level.py`. `sensitivity_level` column exists on `data_sources` and `tools` tables. | **None** |
+| **Payload masking existing anywhere** | Payload masking and field-level redaction for secrets, passwords, and sensitive properties. | Localized implementations exist: `sanitize()` in `registry/audit_service.py` masks `password`, `token`, `secret`, `client_secret` with `'***'`; clearance redaction in `relationship/api.py` redacts name/metadata; output masking in `phase2_run_routes.py` masks `raw_output_json`. Global redactor service is missing. | **Partial** |
+
+================================================================================
+SUMMARY OF FINDINGS
+================================================================================
+1. Mixin Pattern: Standardized via TenantMixin in app/shared/mixins.py using @declared_attr.
+2. Mixin Property: Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+3. Core Tables With TenantMixin (ai_models, agents, tools, workflows, generic_relationships):
+   All 5 inherit tenant_id as UUID(as_uuid=True) referencing users.id (nullable=False).
+4. Core Table Exception (audit_events):
+   The audit_events table in backend/app/modules/audit/models.py DOES NOT define tenant_id.
+5. Existing Context Utilities: Found request_id_context, user_context, get_current_actor_id(), get_current_user(), and RequestIDMiddleware.
+6. Correlation ID Pattern: Fully established across full stack using X-Request-ID header, request_id_context, RequestIDMiddleware, ResponseHelper, and apiClient.ts.
+7. Authorization Model: Both RBAC AND ABAC (department matching, sensitivity clearance, risk levels, ownership) are active in app/modules/authorization/abac_service.py and decision_service.py.
+8. Audit Events Metrics & Schema: 9,608 live records in PostgreSQL audit_events table. Written by audit_listeners.py, GovernanceEventService, RelationshipAuditService, and AuthorizationDecisionService.
+9. Async & Worker Infrastructure: Celery is installed but running eager (synchronous inline via task_always_eager=True). Phase 2 uses a custom polling asyncio worker (SchedulerWorker) with SELECT FOR UPDATE SKIP LOCKED. Outbox pattern is NOT present.
+10. JSONB & GIN Indexes: 20+ tables use JSONB/JSON columns. Queried primarily via `sa.func.json_extract_path_text` and `.op("->>")`. 0 custom GIN indexes currently exist in PostgreSQL.
+11. Event Enums & Registries: WorkflowEventCode (22 codes), AuditEventType, RegistryAuditEventType exist in Python code along with informal string event sets for relationship audit and worker observability. RegisterAll and ValidationRuleRegistry implement schema registry patterns.
+12. Hashing & Checksum Utilities: bcrypt password hashing exists in app/core/security.py. General-purpose SHA-256 event/export payload hashing is NOT present and should be created using Python's standard `hashlib` in Phase 4.
+13. Lifecycle Hooks & Signals: Dynamic SQLAlchemy after_insert/after_update listeners exist for core governable models. RelationshipAuditService and GovernanceEventService handle relationship, schedule, run, and agent boundary events. Auth user administration and policy/approval engines lack event hooks.
+14. PolicyBindings & EvidenceLinks: Schema tables are defined with composite indexes, but contain 0 live rows. Mutation logic is 100% stubbed/absent, while read-only GET endpoints in relationship/api.py exist and return empty lists.
+15. Execution Traceability & FKs: WorkflowRun defines Foreign Keys for schedule_id, workflow_id, and triggered_by_user_id. Direct FK columns for agent_id, ai_model_id, or tool_id are ABSENT on both WorkflowRun and WorkflowRunStep. Agent and model links are resolved via WorkflowScheduleAgentAssignment or stored inside JSON payloads.
+16. API Route Prefixes & Audit Routes: Two conventions co-exist: unversioned `/api/{module}` (Phase 1 core modules) and versioned `/api/v1/{module}` (Phase 2 & 3 modules). `/api/audit/events` and `/api/v1/audit/events` exist; `/api/v1/events` and `/api/events` are 100% ABSENT.
+17. Response Envelope Standard: 100% confirmed match with Phase 3 report. All responses enforce the `StandardResponse` / `make_envelope` envelope containing `success`, `status`, `request_id`, `timestamp`, `data`, and `message`/`error`.
+18. Service-Layer Conventions: Standardized on Class-Based Services (`GovernanceEventService`, `RelationshipService`, `ValidationEngine`, `AuthorizationDecisionService`, `WorkflowScheduleService`, `AgentRuntimeService`).
+19. Migration Tooling & Head Revision: Alembic tool (`backend/alembic.ini`). Naming convention `<revision_id>_<slug>.py`. Live database head revision is `73433bbfa6a5` (`73433bbfa6a5_add_phase3_composite_indexes.py`). Phase 4 migration must set `down_revision = '73433bbfa6a5'`.
+20. Frontend Page Conventions: Flat `frontend/src/pages/` directory. `Registry<Entity>Page.tsx` is Registry-specific. General domain pages use `<Domain>Page.tsx` (e.g. `AuditPage.tsx`, `AdminPanelPage.tsx`, `PoliciesDashboardPage.tsx`).
+21. Shared Frontend Components: Data Grid (`Table.tsx`/`RegistryDataTable.tsx`) and Timeline (`RunTimeline.tsx`/`AuditTimelinePanel.tsx`/`AuditTrailViewer.tsx`) exist. Standalone shared Event Drawer, Export Modal, and Retry Action components are ABSENT and need to be created in `frontend/src/components/common/`.
+22. Frontend Routing & Navigation: React Router v6 in `AppRouter.tsx`. Navigation menu registered in `AppShell.tsx`. "Audit Logs" (`/audit`) top-level navigation item ALREADY EXISTS today in `AppShell.tsx`.
+23. Pagination & Filtering Patterns: Standardized via `useRegistryFilters` hook (URL param sync via `useSearchParams`) and `RegistryDataTable` component (sortable headers, skeleton loaders, pagination footer). Event Explorer can 100% reuse these patterns.
+24. Data Classification & Sensitivity Levels: ALREADY EXISTS in codebase via `DataClassification` (`PUBLIC`, `INTERNAL`, `CONFIDENTIAL`, `RESTRICTED`) in `registry/constants.py` and `SensitivityLevel` (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) in `enums/sensitivity_level.py`. Used on `data_sources` and `tools` tables and evaluated in ABAC pipeline. Phase 4 will reuse existing enums.
+25. Payload Masking & Redaction: PARTIALLY PRESENT (localized). Found key sanitization (`password`, `token`, `secret`, `client_secret`) in `registry/audit_service.py`, clearance-based field redaction in `relationship/api.py`, and output masking (`VIEW_WORKFLOW_RUN_OUTPUT`) in `phase2_run_routes.py`. Phase 4 can consolidate into a shared `PayloadRedactorService`.
+26. Tenant Isolation Query Enforcement: PER-ENDPOINT & PER-SERVICE EXPLICIT MANUAL QUERY FILTERING. No automatic RLS or query mixin exists. Phase 4 query services must explicitly accept `tenant_id: UUID` and append `.where(Model.tenant_id == tenant_id)`.
+27. Phase 4 Spec Assumption vs Codebase Gap Matrix: Fully compiled across all 12 major Phase 4 dependencies (Correlation IDs, ABAC, Data Classification have Gap: None; Actor context, Producers, Routes, Components, Redaction have Gap: Partial; governance_events table, Outbox worker, Dead-letter log have Gap: Missing).
+28. Code Integrity: Zero code modifications were performed during this inspection.
+================================================================================

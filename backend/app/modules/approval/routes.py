@@ -57,6 +57,37 @@ def update_approval(approval_id: int, approval_in: ApprovalUpdate, db: Session =
         
     db.commit()
     db.refresh(db_obj)
+
+    # Emit APPROVAL_GRANTED or APPROVAL_REJECTED event
+    try:
+        from app.modules.events.service import EventPublisherService
+        from app.modules.events.schemas import GovernanceEventCreate
+
+        status_upper = str(db_obj.status).upper()
+        if status_upper in ["APPROVED", "GRANTED", "REJECTED"]:
+            event_type = "APPROVAL_GRANTED" if status_upper in ["APPROVED", "GRANTED"] else "APPROVAL_REJECTED"
+            event_data = GovernanceEventCreate(
+                event_type=event_type,
+                event_category="Approval",
+                event_version="1.0",
+                occurred_at=datetime.now(timezone.utc),
+                source_service="approval_service",
+                actor_json={"user_id": str(current_user.id)},
+                subject_json={"entity_type": "approvals", "entity_id": str(db_obj.id)},
+                payload_json={
+                    "approval_id": db_obj.id,
+                    "status": db_obj.status,
+                    "notes": db_obj.notes
+                },
+                classification="CONFIDENTIAL",
+                retention_class="STANDARD_90_DAYS"
+            )
+            publisher = EventPublisherService()
+            publisher.publish_event(db, event_data, tenant_id=current_user.id)
+            db.commit()
+    except Exception as e:
+        print(f"Error emitting approval event: {e}")
+
     return ResponseHelper.success(
         message="Approval updated successfully",
         data=ApprovalResponse.model_validate(db_obj).model_dump()

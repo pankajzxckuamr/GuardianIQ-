@@ -169,6 +169,29 @@ class BoundaryChecker:
             event_payload={"agent_id": str(assignment.agent_id), "reason": reason},
             db=db
         )
+        # Phase 4 Additive Governance Event Publish
+        try:
+            from app.modules.events.service import EventPublisherService
+            from app.modules.events.schemas import GovernanceEventCreate
+            from datetime import datetime, timezone
+            publisher = EventPublisherService()
+            tenant_id = getattr(assignment, "tenant_id", None) or getattr(getattr(assignment, "schedule", None), "tenant_id", None)
+            if tenant_id:
+                event_create = GovernanceEventCreate(
+                    event_type="UNAUTHORIZED_ACCESS_BLOCKED",
+                    event_category="Violation",
+                    event_version="1.0",
+                    occurred_at=datetime.now(timezone.utc),
+                    source_service="agent_runtime",
+                    actor_json={"user_id": str(tenant_id)},
+                    subject_json={"entity_type": "agents", "entity_id": str(assignment.agent_id)},
+                    payload_json={"reason": reason, "schedule_id": str(assignment.schedule_id)},
+                    classification="RESTRICTED",
+                    retention_class="STANDARD_90_DAYS"
+                )
+                publisher.publish_event(db, event_create, tenant_id=tenant_id)
+        except Exception as ex:
+            print(f"Warning: Phase 4 UNAUTHORIZED_ACCESS_BLOCKED publish skipped: {ex}")
 
     async def check(self, assignment, requested_tool: str | None, db) -> tuple[bool, str | None]:
         # 1. Load active entities

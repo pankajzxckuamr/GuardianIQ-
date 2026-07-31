@@ -85,11 +85,21 @@ add_exception_handlers(app)
 
 from app.modules.foundation.routes import router as foundation_router
 from app.modules.registry.routes import router as registry_router
-from app.modules.orchestration.routes import router as orchestration_router
-from app.api.phase2_authorization_routes import router as phase2_auth_router
-from app.api.phase2_scheduler_routes import router as phase2_scheduler_router
-from app.api.phase2_run_routes import router as phase2_run_router
-from app.api.phase2_notification_routes import router as phase2_notification_router
+try:
+    from app.modules.orchestration.routes import router as orchestration_router
+except (ModuleNotFoundError, ImportError):
+    orchestration_router = None
+
+try:
+    from app.api.phase2_authorization_routes import router as phase2_auth_router
+    from app.api.phase2_scheduler_routes import router as phase2_scheduler_router
+    from app.api.phase2_run_routes import router as phase2_run_router
+    from app.api.phase2_notification_routes import router as phase2_notification_router
+except (ModuleNotFoundError, ImportError):
+    phase2_auth_router = None
+    phase2_scheduler_router = None
+    phase2_run_router = None
+    phase2_notification_router = None
 
 from app.modules.relationship.api import router as relationships_router
 from app.modules.tenant.routes import router as tenant_router
@@ -106,15 +116,23 @@ app.include_router(approval_router)
 app.include_router(foundation_router)
 app.include_router(registry_router)
 app.include_router(relationships_router, prefix="/api/v1/relationships", tags=["v1 Relationships"])
-app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
+if orchestration_router:
+    app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
+from app.modules.events.router import router as events_router, audit_export_router
+
 app.include_router(tenant_router)
+app.include_router(events_router)
+app.include_router(audit_export_router)
 
 # Feature flag for Phase 2 endpoints
-if os.getenv("PHASE2_SCHEDULER_ENABLED", "True").lower() == "true":
-    app.include_router(phase2_auth_router)
+if os.getenv("PHASE2_SCHEDULER_ENABLED", "True").lower() == "true" and phase2_scheduler_router:
+    if phase2_auth_router:
+        app.include_router(phase2_auth_router)
     app.include_router(phase2_scheduler_router)
-    app.include_router(phase2_run_router)
-    app.include_router(phase2_notification_router)
+    if phase2_run_router:
+        app.include_router(phase2_run_router)
+    if phase2_notification_router:
+        app.include_router(phase2_notification_router)
 
 @app.get("/api/health", response_model=StandardResponse[dict])
 def health_check():

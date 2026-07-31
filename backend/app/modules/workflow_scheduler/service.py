@@ -1,8 +1,15 @@
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import inspect
-import pytz
-from croniter import croniter
+try:
+    import pytz
+except ImportError:
+    pytz = None
+
+try:
+    from croniter import croniter
+except ImportError:
+    croniter = None
 from fastapi import HTTPException
 import sqlalchemy as sa
 from sqlalchemy.future import select

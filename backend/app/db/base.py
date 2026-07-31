@@ -41,3 +41,12 @@ from app.modules.authorization.models import (
     WorkflowAuthorizationDecision,
     WorkflowDelegation
 )
+from app.modules.events.models import (
+    GovernanceEvent,
+    EventOutbox,
+    EventProcessingLog,
+    EventDeadLetter,
+    EventSchemaRegistry,
+    EventRetentionRule,
+    EventExportLog
+)

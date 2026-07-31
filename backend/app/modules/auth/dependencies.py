@@ -59,9 +59,15 @@ def get_current_user(
 
 def require_permission(permission_code: str):
     def permission_dependency(current_user: User = Depends(get_current_user)):
-        for role in current_user.roles:
-            for permission in role.permissions:
-                if permission.permission_code == permission_code:
+        user_role = getattr(current_user, "role", None)
+        if user_role in ["ADMIN", "GOVERNANCE_ADMIN", "SUPER_ADMIN"]:
+            return current_user
+        roles = getattr(current_user, "roles", []) or []
+        for role in roles:
+            if getattr(role, "role_code", None) in ["ADMIN", "GOVERNANCE_ADMIN", "SUPER_ADMIN"]:
+                return current_user
+            for permission in getattr(role, "permissions", []) or []:
+                if getattr(permission, "permission_code", None) == permission_code:
                     return current_user
         raise HTTPException(
             status_code=403,

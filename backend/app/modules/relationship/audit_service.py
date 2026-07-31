@@ -3,7 +3,7 @@ from typing import Optional, Dict
 from sqlalchemy.orm import Session
 from app.modules.audit.event_service import GovernanceEventService
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 def make_serializable(data):
     if isinstance(data, dict):
@@ -34,6 +34,27 @@ class RelationshipAuditService:
             event_payload=make_serializable(payload),
             db=self.db
         )
+        # Phase 4 Additive Governance Event Store Publish
+        try:
+            from app.modules.events.service import EventPublisherService
+            from app.modules.events.schemas import GovernanceEventCreate
+            publisher = EventPublisherService()
+            phase4_event_type = event_code if event_code in ["RELATIONSHIP_CREATED", "RELATIONSHIP_REVOKED", "RELATIONSHIP_DELETED"] else "RELATIONSHIP_CREATED"
+            event_create = GovernanceEventCreate(
+                event_type=phase4_event_type,
+                event_category="Relationship",
+                event_version="1.0",
+                occurred_at=datetime.now(timezone.utc),
+                source_service="relationship_service",
+                actor_json={"user_id": str(self.current_user_id)},
+                subject_json={"entity_type": entity_type, "entity_id": str(entity_id) if entity_id else ""},
+                payload_json=make_serializable(payload),
+                classification="INTERNAL",
+                retention_class="STANDARD_90_DAYS"
+            )
+            publisher.publish_event(self.db, event_create, tenant_id=self.current_user_id)
+        except Exception as ex:
+            print(f"Warning: Phase 4 event publish skipped in RelationshipAuditService: {ex}")
 
     async def publish_relationship_created(self, rel_id: uuid.UUID, payload: dict):
         await self._publish("RELATIONSHIP_CREATED", "generic_relationships", rel_id, "CREATE", "Relationship created", payload)

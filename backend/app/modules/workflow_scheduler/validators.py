@@ -1,6 +1,13 @@
 from uuid import UUID
-import pytz
-from croniter import croniter
+try:
+    import pytz
+except ImportError:
+    pytz = None
+
+try:
+    from croniter import croniter
+except ImportError:
+    croniter = None
 from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.future import select

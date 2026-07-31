@@ -7,12 +7,17 @@ import { Badge } from "../components/common/Badge";
 import { Table } from "../components/common/Table";
 import { useAuth } from "../hooks/useAuth";
 import { fetchDbHealth } from "../services/health/healthService";
-import { fetchAuditEvents } from "../services/audit/auditService";
+import { fetchAuditEvents, fetchEventMetrics, EventMetrics } from "../services/audit/auditService";
 import { 
   ShieldCheck, 
   Users, 
   Activity, 
-  FileText
+  FileText,
+  AlertTriangle,
+  AlertOctagon,
+  Clock,
+  Inbox,
+  ShieldAlert
 } from "lucide-react";
 import "./DashboardPage.css";
 
@@ -51,6 +56,7 @@ export const DashboardPage: React.FC = () => {
   const [tenantCount, setTenantCount] = useState<number>(1);
   const [activeTenantDesc, setActiveTenantDesc] = useState<string>("Active sessions on platform");
   const [auditCount, setAuditCount] = useState<number | null>(null);
+  const [eventMetrics, setEventMetrics] = useState<EventMetrics | null>(null);
   const [activeLogins, setActiveLogins] = useState<any[]>([]);
 
   useEffect(() => {
@@ -135,8 +141,22 @@ export const DashboardPage: React.FC = () => {
         }
       })();
 
+      const metricsPromise = (async () => {
+        try {
+          const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
+          if (token) {
+            const metrics = await fetchEventMetrics(token);
+            if (active) {
+              setEventMetrics(metrics);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fetch event metrics:", e);
+        }
+      })();
+
       try {
-        await Promise.all([healthPromise, tenantsPromise, auditPromise]);
+        await Promise.all([healthPromise, tenantsPromise, auditPromise, metricsPromise]);
       } finally {
         if (active) {
           setLoading(false);
@@ -231,6 +251,67 @@ export const DashboardPage: React.FC = () => {
           value={auditCount !== null ? auditCount : "SECURE"}
           icon={<FileText size={24} className="metric-icon warning" />}
           description={auditCount !== null ? "SECURE • All event digests verified" : "All event digests verified"}
+          onClick={() => navigate("/audit")}
+        />
+      </div>
+
+      <div style={{ margin: "2rem 0 1rem 0" }}>
+        <h2 style={{ fontSize: "1.125rem", fontWeight: 600, color: "#f8fafc", marginBottom: "0.25rem" }}>
+          Governance Event Telemetry & Operational Health
+        </h2>
+        <p style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>
+          Real-time metrics for outbox pipeline, policy violations, agent safety boundaries, and dead letters
+        </p>
+      </div>
+
+      <div className="dashboard-grid">
+        <MetricCard 
+          title="Event Volume"
+          value={eventMetrics?.total_events_count ?? 0}
+          icon={<FileText size={24} className="metric-icon info" />}
+          description="Total governance events ingested"
+          onClick={() => navigate("/audit")}
+        />
+
+        <MetricCard 
+          title="Policy Violations"
+          value={eventMetrics?.policy_violations_count ?? 0}
+          icon={<AlertTriangle size={24} className="metric-icon danger" />}
+          description="Detected policy boundary violations"
+          glow={!!eventMetrics?.policy_violations_count}
+          onClick={() => navigate("/audit")}
+        />
+
+        <MetricCard 
+          title="Blocked Agent Actions"
+          value={eventMetrics?.blocked_agent_actions_count ?? 0}
+          icon={<ShieldAlert size={24} className="metric-icon danger" />}
+          description="Unauthorized or high-risk agent blocks"
+          glow={!!eventMetrics?.blocked_agent_actions_count}
+          onClick={() => navigate("/audit")}
+        />
+
+        <MetricCard 
+          title="Outbox Lag"
+          value={eventMetrics ? `${eventMetrics.outbox_lag_seconds}s` : "0.0s"}
+          icon={<Clock size={24} className="metric-icon warning" />}
+          description="Max pending dispatch latency"
+        />
+
+        <MetricCard 
+          title="Dead Letter Queue"
+          value={eventMetrics?.dead_letter_count ?? 0}
+          icon={<Inbox size={24} className={`metric-icon ${(eventMetrics?.dead_letter_count ?? 0) > 0 ? "danger" : "success"}`} />}
+          description="Unresolved outbox dispatch failures"
+          glow={!!eventMetrics?.dead_letter_count}
+          onClick={() => navigate("/audit/dead-letter")}
+        />
+
+        <MetricCard 
+          title="SLA Breaches"
+          value={eventMetrics?.sla_breaches_count ?? 0}
+          icon={<AlertOctagon size={24} className="metric-icon warning" />}
+          description="Service-level agreement breaches"
           onClick={() => navigate("/audit")}
         />
       </div>

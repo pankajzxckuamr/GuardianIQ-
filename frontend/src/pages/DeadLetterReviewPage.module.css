@@ -1,0 +1,159 @@
+/* src/pages/DeadLetterReviewPage.module.css */
+.container {
+  padding: 1.5rem;
+  max-width: 80rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.description {
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background-color: rgba(15, 23, 42, 0.6);
+  border: 1px solid #1e293b;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+}
+
+.filterTabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab {
+  padding: 0.375rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #94a3b8;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab:hover {
+  color: #f8fafc;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.activeTab {
+  color: #ffffff;
+  background-color: #3b82f6;
+  border-color: #2563eb;
+}
+
+.searchInput {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  font-size: 0.875rem;
+  width: 16rem;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.tableWrapper {
+  background-color: rgba(15, 23, 42, 0.8);
+  border: 1px solid #1e293b;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  background-color: #1e293b;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #334155;
+}
+
+.table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #1e293b;
+  font-size: 0.875rem;
+  color: #e2e8f0;
+}
+
+.table tr:hover td {
+  background-color: rgba(30, 41, 59, 0.5);
+}
+
+.unresolvedBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.resolvedBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.attemptsBadge {
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  background-color: #334155;
+  color: #cbd5e1;
+  border-radius: 0.25rem;
+}
+
+.codeText {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: #a5b4fc;
+}
+
+.emptyState {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: #94a3b8;
+}

@@ -5,6 +5,11 @@ import { LoginPage } from "../pages/LoginPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { FoundationHealthPage } from "../pages/FoundationHealthPage";
 import { AuditPage } from "../pages/AuditPage";
+import { EventDetailPage } from "../pages/EventDetailPage";
+import { SubjectTimelinePage } from "../pages/SubjectTimelinePage";
+import { CorrelationTimelinePage } from "../pages/CorrelationTimelinePage";
+import { DeadLetterReviewPage } from "../pages/DeadLetterReviewPage";
+import { AuditExportPage } from "../pages/AuditExportPage";
 import { TenantsPage } from "../pages/TenantsPage";
 import { UnauthorizedPage } from "../pages/UnauthorizedPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
@@ -74,6 +79,56 @@ export const AppRouter: React.FC = () => {
             <ProtectedRoute>
               <AppShell>
                 <AuditPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit/events/:eventId"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <EventDetailPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit/timeline/:entityType/:entityId"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <SubjectTimelinePage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit/events/correlation/:correlationId"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <CorrelationTimelinePage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit/dead-letter"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <DeadLetterReviewPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit/export"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <AuditExportPage />
               </AppShell>
             </ProtectedRoute>
           }

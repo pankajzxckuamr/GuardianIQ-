@@ -99,6 +99,29 @@ class WorkflowRunService:
         await db_flush(db)
         
         await self.event_service.publish_run_started(run_id, run.schedule_id, db)
+        
+        # Phase 4 Additive Governance Event Publish
+        try:
+            from app.modules.events.service import EventPublisherService
+            from app.modules.events.schemas import GovernanceEventCreate
+            publisher = EventPublisherService()
+            event_create = GovernanceEventCreate(
+                event_type="WORKFLOW_RUN_STARTED",
+                event_category="Workflow",
+                event_version="1.0",
+                occurred_at=datetime.now(timezone.utc),
+                source_service="workflow_execution",
+                actor_json={"user_id": str(run.triggered_by_user_id or run.tenant_id)},
+                subject_json={"entity_type": "workflow_runs", "entity_id": str(run.id)},
+                correlation_id=run.id,
+                payload_json={"schedule_id": str(run.schedule_id), "workflow_id": str(run.workflow_id), "run_code": run.run_code},
+                classification="INTERNAL",
+                retention_class="STANDARD_90_DAYS"
+            )
+            publisher.publish_event(db, event_create, tenant_id=run.tenant_id)
+        except Exception as ex:
+            print(f"Warning: Phase 4 WORKFLOW_RUN_STARTED publish skipped: {ex}")
+            
         return run
 
     async def execute_run(self, run_id: UUID, db) -> None:
@@ -315,6 +338,36 @@ class WorkflowRunService:
             outputs_summary={"findings_count": len(parsed_output.findings), "recommendations_count": len(parsed_output.recommendations)} if parsed_output else {},
             db=db
         )
+        
+        # Phase 4 Additive Governance Event Publish
+        try:
+            from app.modules.events.service import EventPublisherService
+            from app.modules.events.schemas import GovernanceEventCreate
+            publisher = EventPublisherService()
+            resolved_agent_id = str(primary_assignment.agent_id) if primary_assignment and hasattr(primary_assignment, "agent_id") else None
+            event_create = GovernanceEventCreate(
+                event_type="WORKFLOW_RUN_COMPLETED",
+                event_category="Workflow",
+                event_version="1.0",
+                occurred_at=datetime.now(timezone.utc),
+                source_service="workflow_execution",
+                actor_json={"user_id": str(run.triggered_by_user_id or run.tenant_id)},
+                subject_json={"entity_type": "workflow_runs", "entity_id": str(run.id)},
+                correlation_id=run.id,
+                payload_json={
+                    "schedule_id": str(run.schedule_id),
+                    "workflow_id": str(run.workflow_id),
+                    "agent_id": resolved_agent_id,
+                    "duration_ms": run.duration_ms,
+                    "run_code": run.run_code
+                },
+                classification="INTERNAL",
+                retention_class="STANDARD_90_DAYS"
+            )
+            publisher.publish_event(db, event_create, tenant_id=run.tenant_id)
+        except Exception as ex:
+            print(f"Warning: Phase 4 WORKFLOW_RUN_COMPLETED publish skipped: {ex}")
+
         return run
 
     async def fail_run(self, run_id: UUID, failure_type: str, failure_code: str, failure_message: str, failed_step_id: UUID | None, db) -> WorkflowRun:
