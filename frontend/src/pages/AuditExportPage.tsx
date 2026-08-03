@@ -96,7 +96,12 @@ export const AuditExportPage: React.FC = () => {
         onSubmit={handleExportSubmit}
       />
 
-      {exportsList.length === 0 ? (
+      {loading ? (
+        <div className={styles.emptyState}>
+          <div style={{ width: "2rem", height: "2rem", border: "2px solid #3b82f6", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 1rem" }} />
+          <p style={{ fontSize: "1rem", color: "#cbd5e1" }}>Loading historical audit export packages...</p>
+        </div>
+      ) : exportsList.length === 0 ? (
         <div className={styles.emptyState}>
           <p style={{ fontSize: "1.125rem", color: "#cbd5e1", marginBottom: "0.5rem" }}>
             No audit export packages generated in this session
