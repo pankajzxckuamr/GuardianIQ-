@@ -37,7 +37,7 @@ export const CorrelationTimelinePage: React.FC = () => {
       payload_json: { step: "QUEUED_TO_RUNNING" },
       classification: "INTERNAL",
       retention_class: "STANDARD_90_DAYS",
-      event_hash: "a" * 64,
+      event_hash: "a".repeat(64),
       status: "VERIFIED"
     },
     {
@@ -55,7 +55,7 @@ export const CorrelationTimelinePage: React.FC = () => {
       payload_json: { reason: "Assignment execution mode READ_ONLY exceeds write operation" },
       classification: "RESTRICTED",
       retention_class: "STANDARD_90_DAYS",
-      event_hash: "b" * 64,
+      event_hash: "b".repeat(64),
       status: "VERIFIED"
     },
     {
@@ -73,7 +73,7 @@ export const CorrelationTimelinePage: React.FC = () => {
       payload_json: { duration_ms: 4500, run_code: "RUN-2026-001" },
       classification: "INTERNAL",
       retention_class: "STANDARD_90_DAYS",
-      event_hash: "c" * 64,
+      event_hash: "c".repeat(64),
       status: "VERIFIED"
     }
   ];

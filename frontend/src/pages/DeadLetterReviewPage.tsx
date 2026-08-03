@@ -1,13 +1,11 @@
 /* src/pages/DeadLetterReviewPage.tsx */
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
 import { useToast } from "../hooks/useToast";
 import { fetchDeadLetterEvents, retryDeadLetterEvent, DeadLetterEvent } from "../services/audit/auditService";
 import { RetryActionButton } from "../components/common/RetryActionButton";
 import styles from "./DeadLetterReviewPage.module.css";
 
 export const DeadLetterReviewPage: React.FC = () => {
-  const { token } = useAuth();
   const { showToast } = useToast();
   const [items, setItems] = useState<DeadLetterEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -16,12 +14,16 @@ export const DeadLetterReviewPage: React.FC = () => {
   const [search, setSearch] = useState<string>("");
 
   const loadData = async () => {
-    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchDeadLetterEvents(token);
-      setItems(data);
+      const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
+      if (token) {
+        const data = await fetchDeadLetterEvents(token);
+        setItems(data);
+      } else {
+        setItems([]);
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to load dead letter queue events");
     } finally {
@@ -31,9 +33,10 @@ export const DeadLetterReviewPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [token]);
+  }, []);
 
   const handleRetry = async (id: string) => {
+    const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
     if (!token) return;
     const updated = await retryDeadLetterEvent(token, id);
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, status: "RESOLVED", resolved_at: updated.resolved_at } : item)));

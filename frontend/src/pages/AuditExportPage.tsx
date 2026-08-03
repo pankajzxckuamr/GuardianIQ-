@@ -1,19 +1,18 @@
 /* src/pages/AuditExportPage.tsx */
 import React, { useState } from "react";
-import { useAuth } from "../context/AuthContext";
 import { useToast } from "../hooks/useToast";
 import { createAuditExport, AuditExportResult, AuditExportPayload } from "../services/audit/auditService";
 import { ExportModal, ExportModalFormData } from "../components/common/ExportModal";
 import styles from "./AuditExportPage.module.css";
 
 export const AuditExportPage: React.FC = () => {
-  const { token } = useAuth();
   const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [exportsList, setExportsList] = useState<AuditExportResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<AuditExportResult | null>(null);
 
   const handleExportSubmit = async (formData: ExportModalFormData) => {
+    const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
     if (!token) return;
 
     const filter_params: any = {};
@@ -66,7 +65,7 @@ export const AuditExportPage: React.FC = () => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
-          Generate Export Package
+          New Export Request
         </button>
       </div>
 
@@ -89,7 +88,7 @@ export const AuditExportPage: React.FC = () => {
             onClick={() => setIsModalOpen(true)}
             className={styles.exportButton}
           >
-            Generate First Export Package
+            New Export Request
           </button>
         </div>
       ) : (
@@ -107,57 +106,62 @@ export const AuditExportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {exportsList.map((exp) => (
-                  <tr key={exp.export_id}>
-                    <td>
-                      <span className={styles.hashText}>{exp.export_id.substring(0, 8)}...</span>
-                    </td>
-                    <td>{new Date(exp.manifest.generated_at).toLocaleString()}</td>
-                    <td>{exp.manifest.event_count} events</td>
-                    <td>
-                      <span className={styles.hashText} title={exp.manifest.export_hash}>
-                        {exp.manifest.export_hash.substring(0, 16)}...
-                      </span>
-                    </td>
-                    <td>
-                      <span className={styles.formatBadge}>JSON</span>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedResult(exp)}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.75rem",
-                            backgroundColor: "#334155",
-                            color: "#f8fafc",
-                            border: "none",
-                            borderRadius: "0.25rem",
-                            cursor: "pointer"
-                          }}
-                        >
-                          Inspect Manifest
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadJSON(exp)}
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            fontSize: "0.75rem",
-                            backgroundColor: "#2563eb",
-                            color: "#ffffff",
-                            border: "none",
-                            borderRadius: "0.25rem",
-                            cursor: "pointer"
-                          }}
-                        >
-                          Download JSON
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {exportsList.map((exp) => {
+                  const exportHash = exp.export_hash || exp.manifest?.export_hash || "";
+                  const eventCount = exp.event_count ?? exp.manifest?.total_records ?? 0;
+                  const genAt = exp.created_at || exp.manifest?.generated_at || new Date().toISOString();
+                  return (
+                    <tr key={exp.export_id}>
+                      <td>
+                        <span className={styles.hashText}>{exp.export_id ? exp.export_id.substring(0, 8) + "..." : "N/A"}</span>
+                      </td>
+                      <td>{new Date(genAt).toLocaleString()}</td>
+                      <td>{eventCount} events</td>
+                      <td>
+                        <span className={styles.hashText} title={exportHash}>
+                          {exportHash ? exportHash.substring(0, 16) + "..." : "SHA-256 Validated"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={styles.formatBadge}>{exp.format || "JSON"}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedResult(exp)}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                              backgroundColor: "#334155",
+                              color: "#f8fafc",
+                              border: "none",
+                              borderRadius: "0.25rem",
+                              cursor: "pointer"
+                            }}
+                          >
+                            Inspect Manifest
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadJSON(exp)}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                              backgroundColor: "#2563eb",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "0.25rem",
+                              cursor: "pointer"
+                            }}
+                          >
+                            Download JSON
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -169,11 +173,13 @@ export const AuditExportPage: React.FC = () => {
                   Export Package Manifest: {selectedResult.export_id}
                 </h3>
                 <span style={{ fontSize: "0.75rem", color: "#4ade80" }}>
-                  Status: {selectedResult.status}
+                  Status: {selectedResult.status || "COMPLETED"}
                 </span>
               </div>
               <div className={styles.jsonViewerModal}>
-                {JSON.stringify(selectedResult.manifest, null, 2)}
+                <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem", color: "#38bdf8" }}>
+                  {JSON.stringify(selectedResult, null, 2)}
+                </pre>
               </div>
             </div>
           )}

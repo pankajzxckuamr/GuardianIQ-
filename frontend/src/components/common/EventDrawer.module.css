@@ -162,6 +162,11 @@
   word-break: break-all;
 }
 
+.protectedPayload {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .hashBox {
   display: flex;
   align-items: center;

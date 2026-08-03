@@ -30,6 +30,28 @@ interface MetricCardProps {
   onClick?: () => void;
 }
 
+const formatOutboxLag = (seconds?: number | null): string => {
+  if (seconds === undefined || seconds === null || isNaN(seconds) || seconds <= 0) {
+    return "0.0s";
+  }
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) {
+    const secs = Math.floor(seconds % 60);
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (hours < 24) {
+    return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+};
+
 const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, description, glow = false, onClick }) => {
   return (
     <Card className={`metric-card ${onClick ? "clickable" : ""}`} glow={glow} onClick={onClick}>
@@ -279,7 +301,7 @@ export const DashboardPage: React.FC = () => {
           icon={<AlertTriangle size={24} className="metric-icon danger" />}
           description="Detected policy boundary violations"
           glow={!!eventMetrics?.policy_violations_count}
-          onClick={() => navigate("/audit")}
+          onClick={() => navigate("/audit?category=Violation")}
         />
 
         <MetricCard 
@@ -288,12 +310,12 @@ export const DashboardPage: React.FC = () => {
           icon={<ShieldAlert size={24} className="metric-icon danger" />}
           description="Unauthorized or high-risk agent blocks"
           glow={!!eventMetrics?.blocked_agent_actions_count}
-          onClick={() => navigate("/audit")}
+          onClick={() => navigate("/audit?search=BLOCKED")}
         />
 
         <MetricCard 
           title="Outbox Lag"
-          value={eventMetrics ? `${eventMetrics.outbox_lag_seconds}s` : "0.0s"}
+          value={formatOutboxLag(eventMetrics?.outbox_lag_seconds)}
           icon={<Clock size={24} className="metric-icon warning" />}
           description="Max pending dispatch latency"
         />
@@ -312,7 +334,7 @@ export const DashboardPage: React.FC = () => {
           value={eventMetrics?.sla_breaches_count ?? 0}
           icon={<AlertOctagon size={24} className="metric-icon warning" />}
           description="Service-level agreement breaches"
-          onClick={() => navigate("/audit")}
+          onClick={() => navigate("/audit?search=SLA")}
         />
       </div>
 

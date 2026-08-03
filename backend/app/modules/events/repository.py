@@ -52,9 +52,9 @@ class EventRepository:
         if filters.end_date:
             query = query.filter(GovernanceEvent.occurred_at <= filters.end_date)
         if filters.event_type:
-            query = query.filter(GovernanceEvent.event_type == filters.event_type)
+            query = query.filter(GovernanceEvent.event_type.ilike(f"%{filters.event_type}%"))
         if filters.event_category:
-            query = query.filter(GovernanceEvent.event_category == filters.event_category)
+            query = query.filter(GovernanceEvent.event_category.ilike(f"%{filters.event_category}%"))
         if filters.subject_type:
             query = query.filter(GovernanceEvent.subject_json["entity_type"].astext == filters.subject_type)
         if filters.subject_id:

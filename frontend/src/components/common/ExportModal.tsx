@@ -197,7 +197,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               className={styles.submitButton}
               disabled={loading}
             >
-              {loading ? "Generating Package..." : "Export Audit Package"}
+              {loading ? "Generating Package..." : "Generate Compliance Export"}
             </button>
           </div>
         </form>

@@ -149,18 +149,27 @@ export interface AuditExportPayload {
 
 export interface AuditExportResult {
   export_id: string;
-  status: string;
-  manifest: {
-    export_id: string;
-    tenant_id: string;
-    requested_by: string;
-    generated_at: string;
-    event_count: number;
-    export_hash: string;
-    file_reference: string;
-    scope_json: any;
+  tenant_id?: string;
+  requested_by?: string;
+  status?: string;
+  format?: string;
+  event_count?: number;
+  export_hash?: string;
+  file_reference?: string;
+  created_at?: string;
+  manifest?: {
+    manifest_version?: string;
+    export_format?: string;
+    generated_at?: string;
+    total_records?: number;
+    event_count?: number;
+    export_hash?: string;
+    scope_json?: any;
+    event_ids?: string[];
+    [key: string]: any;
   };
-  events: any[];
+  events?: any[];
+  [key: string]: any;
 }
 
 export async function createAuditExport(token: string, payload: AuditExportPayload): Promise<AuditExportResult> {

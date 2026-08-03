@@ -151,6 +151,15 @@ export const AuditPage: React.FC = () => {
       )
     },
     {
+      key: "source_service",
+      label: "Source Service",
+      render: (row: GovernanceEventRow) => (
+        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+          {row.source_service || "system"}
+        </span>
+      )
+    },
+    {
       key: "actor",
       label: "Actor",
       render: (row: GovernanceEventRow) => (
@@ -222,15 +231,24 @@ export const AuditPage: React.FC = () => {
         title="Event Explorer"
         description="Searchable, immutable ledger of all Phase 4 governance and security events."
         actions={
-          <Button
-            variant="secondary"
-            size="md"
-            icon={<RefreshCw size={14} className={loading ? "spin-icon" : ""} />}
-            onClick={loadEvents}
-            disabled={loading}
-          >
-            Refresh Events
-          </Button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button
+              variant="secondary"
+              size="md"
+              icon={<RefreshCw size={14} className={loading ? "spin-icon" : ""} />}
+              onClick={loadEvents}
+              disabled={loading}
+            >
+              Refresh Events
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => navigate("/audit/export")}
+            >
+              New Export Request
+            </Button>
+          </div>
         }
       />
 
@@ -307,6 +325,7 @@ export const AuditPage: React.FC = () => {
               <option value="">All Categories</option>
               <option value="Workflow">Workflow</option>
               <option value="Agent">Agent</option>
+              <option value="Boundary">Boundary</option>
               <option value="Policy">Policy</option>
               <option value="Approval">Approval</option>
               <option value="Registry">Registry</option>

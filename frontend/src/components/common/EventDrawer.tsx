@@ -14,8 +14,7 @@ import {
   Lock,
   Copy,
   Check,
-  ExternalLink,
-  AlertOctagon
+  ExternalLink
 } from "lucide-react";
 import styles from "./EventDrawer.module.css";
 
@@ -249,7 +248,7 @@ export const EventDrawer: React.FC<EventDrawerProps> = ({
               </button>
             </div>
 
-            <pre className={styles.jsonBox}>{payloadStr}</pre>
+            <pre className={`${styles.jsonBox} ${isPayloadMasked ? styles.protectedPayload : ""}`}>{payloadStr}</pre>
 
             {isPayloadMasked && (
               <div className={styles.disabledNotice}>
@@ -299,7 +298,7 @@ export const EventDrawer: React.FC<EventDrawerProps> = ({
                   navigate(`/audit/events/correlation/${event.correlation_id}`);
                 }}
               >
-                View Correlation Stream
+                View Correlation Trace Stream
               </Button>
             )}
           </div>
