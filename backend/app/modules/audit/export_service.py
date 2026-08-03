@@ -147,3 +147,39 @@ class AuditExportService:
             "status": "COMPLETED",
             "created_at": export_log.created_at.isoformat()
         }
+
+    @staticmethod
+    def list_exports(
+        db: Session,
+        tenant_id: uuid.UUID,
+        limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Retrieves history of previous audit export log records for tenant."""
+        logs = db.query(EventExportLog).filter(
+            EventExportLog.tenant_id == tenant_id
+        ).order_by(EventExportLog.created_at.desc()).limit(limit).all()
+
+        results = []
+        for log in logs:
+            created_str = log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat()
+            results.append({
+                "export_id": str(log.id),
+                "tenant_id": str(log.tenant_id),
+                "exported_by": str(log.exported_by),
+                "filter_params_json": log.filter_params_json,
+                "format": log.format,
+                "record_count": log.record_count,
+                "event_count": log.record_count,
+                "export_hash": log.file_hash,
+                "status": "COMPLETED",
+                "created_at": created_str,
+                "manifest": {
+                    "manifest_version": "1.0",
+                    "export_format": log.format,
+                    "generated_at": created_str,
+                    "total_records": log.record_count,
+                    "export_hash": log.file_hash,
+                    "scope_json": log.filter_params_json
+                }
+            })
+        return results

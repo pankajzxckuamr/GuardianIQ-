@@ -267,6 +267,24 @@ def retry_dead_letter_event(
 
 audit_export_router = APIRouter(prefix="/api/v1/audit/export", tags=["Audit Export"])
 
+@router.get("/export")
+@audit_export_router.get("")
+def list_audit_exports_api(
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("EXPORT_AUDIT_PACKAGE"))
+):
+    tenant_id = current_user.id
+    results = AuditExportService.list_exports(
+        db=db,
+        tenant_id=tenant_id,
+        limit=limit
+    )
+    return ResponseHelper.success(
+        data=results,
+        message="Audit package exports history retrieved successfully"
+    )
+
 @router.post("/export", status_code=status.HTTP_201_CREATED)
 @audit_export_router.post("", status_code=status.HTTP_201_CREATED)
 def create_audit_export_api(

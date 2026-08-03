@@ -1,7 +1,6 @@
-/* src/pages/AuditExportPage.tsx */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useToast } from "../hooks/useToast";
-import { createAuditExport, AuditExportResult, AuditExportPayload } from "../services/audit/auditService";
+import { createAuditExport, fetchAuditExportsList, AuditExportResult, AuditExportPayload } from "../services/audit/auditService";
 import { ExportModal, ExportModalFormData } from "../components/common/ExportModal";
 import styles from "./AuditExportPage.module.css";
 
@@ -10,6 +9,28 @@ export const AuditExportPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [exportsList, setExportsList] = useState<AuditExportResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<AuditExportResult | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const loadExportsHistory = async () => {
+    setLoading(true);
+    try {
+      const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
+      if (token) {
+        const history = await fetchAuditExportsList(token);
+        if (Array.isArray(history)) {
+          setExportsList(history);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load export history:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadExportsHistory();
+  }, []);
 
   const handleExportSubmit = async (formData: ExportModalFormData) => {
     const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");

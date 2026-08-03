@@ -172,6 +172,16 @@ export interface AuditExportResult {
   [key: string]: any;
 }
 
+export async function fetchAuditExportsList(token: string): Promise<AuditExportResult[]> {
+  const res = await fetch("/api/v1/audit/export", {
+    headers: auditHeaders(token),
+    credentials: "include",
+  });
+  if (!res.ok) throw await parseErrorResponse(res);
+  const body = await res.json();
+  return body.data ?? body;
+}
+
 export async function createAuditExport(token: string, payload: AuditExportPayload): Promise<AuditExportResult> {
   const query = new URLSearchParams();
   if (payload.export_format) query.set("export_format", payload.export_format);
