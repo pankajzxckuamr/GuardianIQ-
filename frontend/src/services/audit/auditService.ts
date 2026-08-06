@@ -77,7 +77,7 @@ export async function fetchGovernanceEventById(token: string, eventId: string) {
 }
 
 export async function fetchSubjectTimeline(token: string, entityType: string, entityId: string) {
-  const res = await fetch(`/api/v1/audit/timeline/${entityType}/${entityId}`, {
+  const res = await fetch(`/api/v1/events/subject/${entityType}/${entityId}`, {
     headers: auditHeaders(token),
     credentials: "include",
   });

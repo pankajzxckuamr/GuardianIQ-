@@ -125,9 +125,11 @@ def search_governance_events(
 
 
 
-from app.modules.audit.timeline_service import AuditTimelineService
+audit_timeline_router = APIRouter(prefix="/api/v1/audit/timeline", tags=["Audit Timeline"])
 
 @router.get("/subject/{entity_type}/{entity_id}")
+@router.get("/timeline/{entity_type}/{entity_id}")
+@audit_timeline_router.get("/{entity_type}/{entity_id}")
 def get_subject_audit_timeline(
     entity_type: str,
     entity_id: str,
