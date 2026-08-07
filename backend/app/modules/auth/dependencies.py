@@ -29,17 +29,26 @@ def get_current_user(
             algorithms=[settings.ALGORITHM]
         )
 
-        user_id = payload.get("sub")
+        sub = payload.get("sub") or payload.get("user_id")
 
-        if user_id is None:
+        if sub is None:
             raise credentials_exception
 
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(
-        User.id == user_id
-    ).first()
+    is_uuid = False
+    try:
+        from uuid import UUID as PyUUID
+        PyUUID(str(sub))
+        is_uuid = True
+    except (ValueError, TypeError):
+        pass
+
+    if is_uuid:
+        user = db.query(User).filter(User.id == sub).first()
+    else:
+        user = db.query(User).filter(User.email == str(sub)).first()
 
     if user is None:
         raise credentials_exception
