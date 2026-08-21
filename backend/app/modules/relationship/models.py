@@ -65,15 +65,18 @@ class RelationshipGraphSnapshot(Base):
 class PolicyBinding(Base, WorkflowBaseMixin):
     __tablename__ = "policy_bindings"
 
-    policy_id = Column(UUID(as_uuid=True), ForeignKey("policies.id"), nullable=False)
+    policy_id = Column(UUID(as_uuid=True), ForeignKey("governance_policies.id", ondelete="CASCADE"), nullable=False, index=True)
     target_type = Column(String(100), nullable=False, index=True)
     target_id = Column(String(255), nullable=False, index=True)
     binding_scope = Column(String(255), nullable=True)
     priority = Column(Integer, nullable=False, default=0)
     is_mandatory = Column(Boolean, nullable=False, default=True)
-    effective_from = Column(TIMESTAMP(timezone=True), nullable=False)
+    effective_from = Column(TIMESTAMP(timezone=True), nullable=False, default=func.now())
     effective_to = Column(TIMESTAMP(timezone=True), nullable=True)
     status = Column(String(50), nullable=False, default="ACTIVE")
+    version_strategy = Column(String(50), nullable=False, default="LATEST")  # LATEST, PINNED, STRICT_LATEST
+    pinned_policy_version_id = Column(UUID(as_uuid=True), ForeignKey("policy_versions.id", ondelete="SET NULL"), nullable=True)
+    condition_json = Column(JSONB, nullable=True)
 
 class EvidenceLink(Base, WorkflowBaseMixin):
     __tablename__ = "evidence_links"

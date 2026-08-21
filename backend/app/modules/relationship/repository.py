@@ -24,15 +24,47 @@ class RelationshipRepository:
         return db.execute(stmt).scalar_one_or_none()
 
     @staticmethod
+    def _normalize_entity_types(etype: str) -> List[str]:
+        norm = (etype or "").lower()
+        if norm in {"agent", "agents", "ai_agent", "ai_agents"}:
+            return ["agent", "agents", "ai_agent", "ai_agents"]
+        if norm in {"model", "models", "ai_model", "ai_models"}:
+            return ["model", "models", "ai_model", "ai_models"]
+        if norm in {"tool", "tools"}:
+            return ["tool", "tools"]
+        if norm in {"workflow", "workflows"}:
+            return ["workflow", "workflows"]
+        if norm in {"datasource", "data_source", "data_sources"}:
+            return ["datasource", "data_source", "data_sources"]
+        if norm in {"department", "departments"}:
+            return ["department", "departments"]
+        if norm in {"user", "users"}:
+            return ["user", "users"]
+        if norm in {"role", "roles"}:
+            return ["role", "roles"]
+        return [norm]
+
+    @staticmethod
+    def _normalize_rel_types(rel: str) -> List[str]:
+        norm = (rel or "").upper()
+        if norm in {"USES_TOOL", "USES"}:
+            return ["USES_TOOL", "USES", "uses_tool", "uses"]
+        if norm in {"USES_DATA_SOURCE", "USES"}:
+            return ["USES_DATA_SOURCE", "USES", "uses_data_source", "uses"]
+        if norm in {"USES_MODEL", "USES"}:
+            return ["USES_MODEL", "USES", "uses_model", "uses"]
+        return [norm, norm.lower()]
+
+    @staticmethod
     def find_active(db: Session, tenant_id: UUID, source_type: str, source_id: str, relationship_type: Optional[str] = None, as_of: Optional[datetime] = None) -> List[GenericRelationship]:
         conditions = [
             GenericRelationship.tenant_id == tenant_id,
-            GenericRelationship.source_type == source_type,
-            GenericRelationship.source_id == source_id,
+            func.lower(GenericRelationship.source_type).in_(RelationshipRepository._normalize_entity_types(source_type)),
+            GenericRelationship.source_id == str(source_id),
             GenericRelationship.status != LifecycleState.ARCHIVED.value
         ]
         if relationship_type:
-            conditions.append(GenericRelationship.relationship_type == relationship_type)
+            conditions.append(GenericRelationship.relationship_type.in_(RelationshipRepository._normalize_rel_types(relationship_type)))
         if as_of:
             conditions.append(or_(GenericRelationship.effective_from <= as_of, GenericRelationship.effective_from.is_(None)))
             conditions.append(or_(GenericRelationship.effective_to >= as_of, GenericRelationship.effective_to.is_(None)))
@@ -44,9 +76,9 @@ class RelationshipRepository:
     def find_targets(db: Session, tenant_id: UUID, source_type: str, source_id: str, relationship_type: str, scope: Optional[str] = None, as_of: Optional[datetime] = None) -> List[GenericRelationship]:
         conditions = [
             GenericRelationship.tenant_id == tenant_id,
-            GenericRelationship.source_type == source_type,
-            GenericRelationship.source_id == source_id,
-            GenericRelationship.relationship_type == relationship_type,
+            func.lower(GenericRelationship.source_type).in_(RelationshipRepository._normalize_entity_types(source_type)),
+            GenericRelationship.source_id == str(source_id),
+            GenericRelationship.relationship_type.in_(RelationshipRepository._normalize_rel_types(relationship_type)),
             GenericRelationship.status != LifecycleState.ARCHIVED.value
         ]
         if scope:
@@ -62,12 +94,12 @@ class RelationshipRepository:
     def find_reverse(db: Session, tenant_id: UUID, target_type: str, target_id: str, relationship_type: Optional[str] = None) -> List[GenericRelationship]:
         conditions = [
             GenericRelationship.tenant_id == tenant_id,
-            GenericRelationship.target_type == target_type,
-            GenericRelationship.target_id == target_id,
+            func.lower(GenericRelationship.target_type).in_(RelationshipRepository._normalize_entity_types(target_type)),
+            GenericRelationship.target_id == str(target_id),
             GenericRelationship.status != LifecycleState.ARCHIVED.value
         ]
         if relationship_type:
-            conditions.append(GenericRelationship.relationship_type == relationship_type)
+            conditions.append(GenericRelationship.relationship_type.in_(RelationshipRepository._normalize_rel_types(relationship_type)))
             
         stmt = select(GenericRelationship).where(and_(*conditions))
         return list(db.execute(stmt).scalars().all())

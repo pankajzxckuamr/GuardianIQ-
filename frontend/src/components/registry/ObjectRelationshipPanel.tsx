@@ -14,16 +14,16 @@ interface ObjectRelationshipPanelProps {
 }
 
 const mapToBackendType = (type: string): string => {
-  const t = type.toUpperCase();
-  if (t === "AGENT" || t === "AGENTS") return "agents";
-  if (t === "MODEL" || t === "AI_MODELS" || t === "AI_MODEL") return "ai_models";
-  if (t === "TOOL" || t === "TOOLS") return "tools";
-  if (t === "WORKFLOW" || t === "WORKFLOWS") return "workflows";
-  if (t === "DATA_SOURCE" || t === "DATA_SOURCES") return "data_sources";
-  if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "departments";
-  if (t === "USER" || t === "USERS") return "users";
-  if (t === "ROLE" || t === "ROLES") return "roles";
-  return type.toLowerCase();
+  const t = (type || "").toUpperCase();
+  if (t === "AGENT" || t === "AGENTS" || t === "AI_AGENT" || t === "AI_AGENTS") return "AGENT";
+  if (t === "MODEL" || t === "MODELS" || t === "AI_MODEL" || t === "AI_MODELS") return "MODEL";
+  if (t === "TOOL" || t === "TOOLS") return "TOOL";
+  if (t === "WORKFLOW" || t === "WORKFLOWS") return "WORKFLOW";
+  if (t === "DATA_SOURCE" || t === "DATA_SOURCES" || t === "DATASOURCE" || t === "DATASOURCES") return "DATA_SOURCE";
+  if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "DEPARTMENT";
+  if (t === "USER" || t === "USERS") return "USER";
+  if (t === "ROLE" || t === "ROLES") return "ROLE";
+  return (type || "").toUpperCase();
 };
 
 export const ObjectRelationshipPanel: React.FC<ObjectRelationshipPanelProps> = ({ objectType, objectId }) => {
@@ -37,7 +37,7 @@ export const ObjectRelationshipPanel: React.FC<ObjectRelationshipPanelProps> = (
     try {
       const backendType = mapToBackendType(objectType);
       const res = await registryService.listRelationships({ source_type: backendType, source_id: objectId, per_page: 100 });
-      setRelationships(res.data?.items || []);
+      setRelationships(res?.data?.items || res?.items || (Array.isArray(res?.data) ? res.data : []));
     } catch (err: any) {
       showToast(err.message || "Failed to load relationships", "error");
     } finally {

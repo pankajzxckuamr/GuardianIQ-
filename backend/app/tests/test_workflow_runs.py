@@ -92,6 +92,21 @@ class WorkflowRunTests(unittest.TestCase):
                 self.db.query(ApprovalGroupMember).filter(ApprovalGroupMember.approval_group_id == old_group.id).delete(synchronize_session=False)
                 self.db.query(ApprovalGroup).filter(ApprovalGroup.id == old_group.id).delete(synchronize_session=False)
 
+            from app.modules.agent_boundary.models import RuntimeEnforcementLog, AgentRuntimeBoundary
+            from app.modules.relationship.models import PolicyBinding, GenericRelationship
+
+            if test_agent:
+                self.db.query(RuntimeEnforcementLog).filter(RuntimeEnforcementLog.agent_id == test_agent.id).delete(synchronize_session=False)
+                self.db.query(AgentRuntimeBoundary).filter(AgentRuntimeBoundary.agent_id == test_agent.id).delete(synchronize_session=False)
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "AGENT", PolicyBinding.target_id == str(test_agent.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(test_agent.id), GenericRelationship.target_id == str(test_agent.id))).delete(synchronize_session=False)
+            if test_tool:
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "TOOL", PolicyBinding.target_id == str(test_tool.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(test_tool.id), GenericRelationship.target_id == str(test_tool.id))).delete(synchronize_session=False)
+            if test_model:
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "MODEL", PolicyBinding.target_id == str(test_model.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(test_model.id), GenericRelationship.target_id == str(test_model.id))).delete(synchronize_session=False)
+
             if test_tool:
                 self.db.delete(test_tool)
             if test_model:
@@ -242,12 +257,56 @@ class WorkflowRunTests(unittest.TestCase):
             status="ACTIVE"
         )
         self.db.add(self.assignment)
+
+        # Setup Phase 5 Relationships & Boundaries for Agent Invocation Governance
+        from app.modules.agent_boundary.models import AgentRuntimeBoundary, RuntimeEnforcementLog, ToolCapability
+        from app.modules.relationship.models import GenericRelationship, PolicyBinding
+
+        self.rel_model = GenericRelationship(
+            tenant_id=self.admin_uuid,
+            source_type="AGENT",
+            source_id=str(self.agent.id),
+            relationship_type="USES_MODEL",
+            target_type="MODEL",
+            target_id=str(self.model.id),
+            effective_from=datetime.now(timezone.utc) - timedelta(days=1),
+            status="ACTIVE"
+        )
+        self.rel_tool = GenericRelationship(
+            tenant_id=self.admin_uuid,
+            source_type="AGENT",
+            source_id=str(self.agent.id),
+            relationship_type="USES_TOOL",
+            target_type="TOOL",
+            target_id=str(self.write_tool.id),
+            effective_from=datetime.now(timezone.utc) - timedelta(days=1),
+            status="ACTIVE"
+        )
+        self.boundary = AgentRuntimeBoundary(
+            id=uuid4(),
+            tenant_id=self.admin_uuid,
+            agent_id=self.agent.id,
+            max_autonomy_level="AUTONOMOUS",
+            allowed_access_modes_json=["READ_ONLY", "WRITE", "EXECUTE"],
+            is_active=True
+        )
+        self.tool_cap = ToolCapability(
+            id=uuid4(),
+            tenant_id=self.admin_uuid,
+            tool_id=self.write_tool.id,
+            capability_name="write_tool",
+            access_mode="WRITE"
+        )
+        self.db.add_all([self.rel_model, self.rel_tool, self.boundary, self.tool_cap])
         self.db.commit()
 
         self.runs_to_cleanup = []
 
     def tearDown(self):
         try:
+            from app.modules.agent_boundary.models import AgentRuntimeBoundary, RuntimeEnforcementLog, ToolCapability
+            from app.modules.relationship.models import GenericRelationship, PolicyBinding
+
             # Delete steps, outputs, failures and runs for this schedule
             runs = self.db.query(WorkflowRun).filter(WorkflowRun.schedule_id == self.schedule.id).all()
             for r in runs:
@@ -263,6 +322,12 @@ class WorkflowRunTests(unittest.TestCase):
                 self.db.query(WorkflowRun).filter(WorkflowRun.id == rid).delete()
 
             # Delete schedule related structures
+            self.db.query(RuntimeEnforcementLog).filter(RuntimeEnforcementLog.agent_id == self.agent.id).delete()
+            self.db.query(AgentRuntimeBoundary).filter(AgentRuntimeBoundary.agent_id == self.agent.id).delete()
+            self.db.query(ToolCapability).filter(ToolCapability.tool_id == self.write_tool.id).delete()
+            self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(self.agent.id), GenericRelationship.target_id == str(self.agent.id))).delete()
+            self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(self.write_tool.id), GenericRelationship.target_id == str(self.write_tool.id))).delete()
+            self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(self.model.id), GenericRelationship.target_id == str(self.model.id))).delete()
             self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.schedule_id == self.schedule.id).delete()
             self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.id == self.schedule.id).delete()
             self.db.query(ApprovalGroupMember).filter(ApprovalGroupMember.approval_group_id == self.group.id).delete()

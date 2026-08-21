@@ -12,6 +12,9 @@
   gap: 0.5rem;
   border-bottom: 1px solid var(--card-border, #334155);
   margin-bottom: var(--spacing-md, 1rem);
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 2px;
 }
 
 .tabBtn {
@@ -24,6 +27,8 @@
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tabBtn:hover {

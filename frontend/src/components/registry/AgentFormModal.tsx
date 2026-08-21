@@ -11,6 +11,11 @@ import { AuditTrailViewer } from "./AuditTrailViewer";
 import { ConfirmDeleteModal } from "../common/ConfirmDeleteModal";
 import { ObjectRelationshipPanel } from "./ObjectRelationshipPanel";
 import { ResponsibilityPanel } from "./ResponsibilityPanel";
+import { AutonomyLimitsTab } from "../common/AutonomyLimitsTab";
+import { ToolAccessTab } from "../common/ToolAccessTab";
+import { DataAccessTab } from "../common/DataAccessTab";
+import { AgentPoliciesTab } from "../common/AgentPoliciesTab";
+import { EnforcementHistoryTab } from "../common/EnforcementHistoryTab";
 import WizardShell from "../common/WizardShell";
 import styles from "./AgentFormModal.module.css";
 
@@ -34,7 +39,9 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   defaultUserId
 }) => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<"details" | "relationships" | "audit">("details");
+  const [activeTab, setActiveTab] = useState<
+    "details" | "autonomy" | "tools" | "data" | "policies" | "enforcement" | "relationships" | "audit"
+  >("details");
   const [currentWizardStep, setCurrentWizardStep] = useState(0);
 
   // Lookups data
@@ -380,6 +387,41 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
               onClick={() => setActiveTab("details")}
             >
               Details
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === "autonomy" ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab("autonomy")}
+            >
+              Autonomy & Limits
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === "tools" ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab("tools")}
+            >
+              Tool Access
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === "data" ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab("data")}
+            >
+              Data Access
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === "policies" ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab("policies")}
+            >
+              Policies
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === "enforcement" ? styles.activeTab : ""}`}
+              onClick={() => setActiveTab("enforcement")}
+            >
+              Enforcement History
             </button>
             <button
               type="button"
@@ -801,6 +843,26 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                 )}
               </WizardShell>
             </form>
+          )}
+
+          {activeTab === "autonomy" && agentId && (
+            <AutonomyLimitsTab agentId={agentId} />
+          )}
+
+          {activeTab === "tools" && agentId && (
+            <ToolAccessTab agentId={agentId} />
+          )}
+
+          {activeTab === "data" && agentId && (
+            <DataAccessTab agentId={agentId} />
+          )}
+
+          {activeTab === "policies" && agentId && (
+            <AgentPoliciesTab agentId={agentId} />
+          )}
+
+          {activeTab === "enforcement" && agentId && (
+            <EnforcementHistoryTab agentId={agentId} />
           )}
 
           {activeTab === "relationships" && agentId && (

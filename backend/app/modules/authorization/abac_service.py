@@ -191,38 +191,33 @@ async def check_relationship_modification_access(subject: dict, object_type: str
 def get_object_sensitivity(db, object_type: str, object_id: str) -> str:
     try:
         from sqlalchemy import text
-        normalized = object_type.lower()
-        if normalized == "model": normalized = "ai_models"
-        elif normalized == "agent": normalized = "agents"
-        elif normalized == "tool": normalized = "tools"
-        elif normalized == "workflow": normalized = "workflows"
-        elif normalized == "datasource" or normalized == "data_source": normalized = "data_sources"
-        elif normalized == "department": normalized = "departments"
-        elif normalized == "user": normalized = "users"
+        from app.modules.relationship.constants import canonicalize_entity_type, table_for_entity_type
+        c_type = canonicalize_entity_type(object_type)
+        table_name = table_for_entity_type(object_type)
         
         # Only query tables that actually contain the columns to prevent Postgres transaction aborts
-        if normalized in ["tools", "data_sources"]:
+        if c_type in ["TOOL", "DATA_SOURCE"]:
             try:
-                res = db.execute(text(f"SELECT sensitivity_level FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})
+                res = db.execute(text(f"SELECT sensitivity_level FROM {table_name} WHERE id = :id LIMIT 1"), {"id": str(object_id)})
                 val = res.scalar()
                 if val:
                     return str(val).upper()
             except Exception:
                 pass
                 
-        # Fallback to risk_level for ai_models and agents
-        if normalized in ["ai_models", "agents"]:
+        # Fallback to risk_level for MODEL and AGENT
+        if c_type in ["MODEL", "AGENT"]:
             try:
-                res = db.execute(text(f"SELECT risk_level FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})
+                res = db.execute(text(f"SELECT risk_level FROM {table_name} WHERE id = :id LIMIT 1"), {"id": str(object_id)})
                 val = res.scalar()
                 if val:
                     return str(val).upper()
             except Exception:
                 pass
                 
-        if normalized in ["workflow_run_outputs", "workflow_run_failures"]:
+        if str(object_type).lower() in ["workflow_run_outputs", "workflow_run_failures"]:
             try:
-                res = db.execute(text(f"SELECT severity FROM {normalized} WHERE id = :id LIMIT 1"), {"id": object_id})
+                res = db.execute(text(f"SELECT severity FROM {str(object_type).lower()} WHERE id = :id LIMIT 1"), {"id": str(object_id)})
                 val = res.scalar()
                 if val:
                     return str(val).upper()

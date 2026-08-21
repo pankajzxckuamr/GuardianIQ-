@@ -40,38 +40,23 @@ class ValidationEngine:
         self.tenant_id = tenant_id
 
     def _check_entity_exists(self, entity_type: str, entity_id: str) -> bool:
-        normalized = entity_type.lower() if entity_type else ""
-        if normalized in {"model", "ai_model", "ai_models"}:
-            entity_type = "ai_models"
-        elif normalized in {"agent", "ai_agent", "agents"}:
-            entity_type = "agents"
-        elif normalized in {"tool", "tools"}:
-            entity_type = "tools"
-        elif normalized in {"workflow", "workflows"}:
-            entity_type = "workflows"
-        elif normalized in {"datasource", "data_source", "data_sources"}:
-            entity_type = "data_sources"
-        elif normalized in {"department", "departments"}:
-            entity_type = "departments"
-        elif normalized in {"user", "users"}:
-            entity_type = "users"
-        elif normalized in {"role", "roles"}:
-            entity_type = "roles"
+        from app.modules.relationship.constants import canonicalize_entity_type, table_for_entity_type
+        table_name = table_for_entity_type(entity_type)
 
         valid_tables = {"ai_models", "agents", "tools", "workflows", "data_sources", "departments", "users", "roles"}
-        if entity_type not in valid_tables:
+        if table_name not in valid_tables:
             return False
             
-        sql = f"SELECT 1 FROM {entity_type} WHERE id = :id"
-        params = {"id": entity_id}
+        sql = f"SELECT 1 FROM {table_name} WHERE id = :id"
+        params = {"id": str(entity_id)}
         
         # Check tenant_id mapping
-        if entity_type not in {"users", "roles"}:
+        if table_name not in {"users", "roles"}:
             sql += " AND tenant_id = :tenant_id"
             params["tenant_id"] = self.tenant_id
             
         # Check status mapping
-        if entity_type != "roles":
+        if table_name != "roles":
             sql += " AND status != 'ARCHIVED'"
             
         stmt = text(sql)
@@ -79,61 +64,61 @@ class ValidationEngine:
         return bool(res)
 
     def _get_object_risk(self, entity_type: str, entity_id: str) -> str:
-        normalized = entity_type.lower() if entity_type else ""
-        if normalized in {"model", "ai_model", "ai_models"}:
-            table_name = "ai_models"
-            column_name = "risk_level"
-        elif normalized in {"agent", "ai_agent", "agents"}:
-            table_name = "agents"
-            column_name = "risk_level"
-        elif normalized in {"tool", "tools"}:
-            table_name = "tools"
-            column_name = "sensitivity_level"
-        elif normalized in {"workflow", "workflows"}:
-            table_name = "workflows"
-            column_name = "business_criticality"
-        elif normalized in {"datasource", "data_source", "data_sources"}:
-            table_name = "data_sources"
-            column_name = "sensitivity_level"
-        else:
+        from app.modules.relationship.constants import canonicalize_entity_type, table_for_entity_type
+        c_type = canonicalize_entity_type(entity_type)
+        table_name = table_for_entity_type(entity_type)
+        
+        column_map = {
+            "MODEL": "risk_level",
+            "AGENT": "risk_level",
+            "TOOL": "sensitivity_level",
+            "WORKFLOW": "business_criticality",
+            "DATA_SOURCE": "sensitivity_level"
+        }
+        column_name = column_map.get(c_type)
+        if not column_name:
             return "LOW"
 
         sql = f"SELECT {column_name} FROM {table_name} WHERE id = :id AND tenant_id = :tenant_id"
         try:
-            res = self.db.execute(text(sql), {"id": entity_id, "tenant_id": self.tenant_id}).scalar()
+            res = self.db.execute(text(sql), {"id": str(entity_id), "tenant_id": self.tenant_id}).scalar()
             return str(res).upper() if res else "LOW"
         except Exception:
             return "LOW"
 
     def _has_owner_and_approver(self, object_type: str, object_id: str) -> bool:
+        from app.modules.relationship.constants import canonicalize_entity_type
+        c_type = canonicalize_entity_type(object_type)
         # Check OWNER
         sql_owner = """
             SELECT 1 FROM object_responsibilities 
             WHERE tenant_id = :tenant_id 
-              AND object_type = :object_type 
+              AND (object_type = :c_type OR lower(object_type) = :lower_type)
               AND object_id = :object_id 
               AND responsibility_type = 'OWNER' 
               AND status = 'ACTIVE'
         """
         has_owner = bool(self.db.execute(text(sql_owner), {
             "tenant_id": self.tenant_id,
-            "object_type": object_type,
-            "object_id": object_id
+            "c_type": c_type,
+            "lower_type": object_type.lower(),
+            "object_id": str(object_id)
         }).scalar())
 
         # Check APPROVER
         sql_approver = """
             SELECT 1 FROM object_responsibilities 
             WHERE tenant_id = :tenant_id 
-              AND object_type = :object_type 
+              AND (object_type = :c_type OR lower(object_type) = :lower_type)
               AND object_id = :object_id 
               AND responsibility_type = 'APPROVER' 
               AND status = 'ACTIVE'
         """
         has_approver = bool(self.db.execute(text(sql_approver), {
             "tenant_id": self.tenant_id,
-            "object_type": object_type,
-            "object_id": object_id
+            "c_type": c_type,
+            "lower_type": object_type.lower(),
+            "object_id": str(object_id)
         }).scalar())
 
         return has_owner and has_approver
@@ -198,12 +183,13 @@ class ValidationEngine:
         return False
 
     def validate_payload(self, request_id: str, payload: dict, is_update: bool = False, current_status: Optional[str] = None) -> List[ValidationResult]:
+        from app.modules.relationship.constants import canonicalize_entity_type, canonicalize_rel_type
         results = []
-        source_type = payload.get("source_type")
-        source_id = payload.get("source_id")
-        target_type = payload.get("target_type")
-        target_id = payload.get("target_id")
-        relationship_type = payload.get("relationship_type")
+        source_type = canonicalize_entity_type(payload.get("source_type"))
+        source_id = str(payload.get("source_id"))
+        target_type = canonicalize_entity_type(payload.get("target_type"))
+        target_id = str(payload.get("target_id"))
+        relationship_type = canonicalize_rel_type(payload.get("relationship_type"))
         status = payload.get("status", "PROPOSED")
 
         # Rule: REL-VAL-032 - Cross-tenant relationship is blocked
@@ -238,7 +224,7 @@ class ValidationEngine:
                 self.db, self.tenant_id, source_type, source_id, relationship_type, scope=payload.get("relationship_scope")
             )
             for rel in existing:
-                if rel.target_type == target_type and rel.target_id == target_id:
+                if canonicalize_entity_type(rel.target_type) == target_type and str(rel.target_id) == target_id:
                     results.append(ValidationResult(
                         rule_id="REL-VAL-006",
                         status="FAIL",
@@ -327,8 +313,9 @@ class ValidationEngine:
         # Rule: REL-VAL-017 - Agent cannot use tool without active USES_TOOL
         normalized_source = source_type.lower() if source_type else ""
         normalized_target = target_type.lower() if target_type else ""
+        rel_type_upper = (relationship_type or "").upper()
         if normalized_source in {"agent", "ai_agent", "agents"} and normalized_target in {"tool", "tools"}:
-            if relationship_type != "USES_TOOL":
+            if rel_type_upper not in {"USES_TOOL", "USES"}:
                 results.append(ValidationResult(
                     rule_id="REL-VAL-017",
                     status="FAIL",

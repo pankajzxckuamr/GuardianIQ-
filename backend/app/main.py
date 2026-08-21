@@ -119,11 +119,22 @@ app.include_router(relationships_router, prefix="/api/v1/relationships", tags=["
 if orchestration_router:
     app.include_router(orchestration_router, prefix="/api/orchestration", tags=["Orchestration"])
 from app.modules.events.router import router as events_router, audit_export_router, audit_timeline_router
+from app.modules.policy_engine.router import router as policy_engine_router, binding_router as policy_binding_router
+from app.modules.agent_boundary.router import router as agent_boundary_router
+from app.modules.tool_governance.router import router as tool_governance_router
+from app.modules.data_governance.router import router as data_governance_router
+from app.modules.enforcement.router import router as enforcement_router
 
 app.include_router(tenant_router)
 app.include_router(events_router)
 app.include_router(audit_export_router)
 app.include_router(audit_timeline_router)
+app.include_router(policy_engine_router)
+app.include_router(policy_binding_router)
+app.include_router(agent_boundary_router)
+app.include_router(tool_governance_router)
+app.include_router(data_governance_router)
+app.include_router(enforcement_router)
 
 # Feature flag for Phase 2 endpoints
 if os.getenv("PHASE2_SCHEDULER_ENABLED", "True").lower() == "true" and phase2_scheduler_router:

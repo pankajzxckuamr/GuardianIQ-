@@ -20,21 +20,22 @@ interface AddRelationshipModalProps {
 // Map the strict backend ALLOWED_RELATIONSHIPS combinations
 const PERMITTED_COMBINATIONS: Record<string, { rel: string; target: string }[]> = {
   MODEL: [
-    { rel: "USES", target: "DATA_SOURCE" },
-    { rel: "USES", target: "TOOL" }
+    { rel: "USES_DATA_SOURCE", target: "DATA_SOURCE" },
+    { rel: "USES_TOOL", target: "TOOL" }
   ],
   AGENT: [
-    { rel: "USES", target: "TOOL" },
-    { rel: "USES", target: "MODEL" },
-    { rel: "EXECUTES", target: "WORKFLOW" }
+    { rel: "USES_TOOL", target: "TOOL" },
+    { rel: "USES_MODEL", target: "MODEL" },
+    { rel: "PARTICIPATES_IN_WORKFLOW", target: "WORKFLOW" }
   ],
   WORKFLOW: [
-    { rel: "USES", target: "DATA_SOURCE" },
-    { rel: "USES", target: "TOOL" },
+    { rel: "USES_DATA_SOURCE", target: "DATA_SOURCE" },
+    { rel: "USES_TOOL", target: "TOOL" },
     { rel: "GOVERNED_BY", target: "DEPARTMENT" }
   ],
   USER: [
-    { rel: "OWNS", target: "ROLE" }
+    { rel: "MEMBER_OF", target: "DEPARTMENT" },
+    { rel: "BELONGS_TO", target: "ROLE" }
   ],
   DEPARTMENT: [
     { rel: "GOVERNED_BY", target: "USER" }
@@ -254,14 +255,15 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
 
   const mapToBackendType = (type: string): string => {
     const t = type.toUpperCase();
-    if (t === "AGENT" || t === "AGENTS") return "agents";
-    if (t === "MODEL" || t === "AI_MODELS") return "ai_models";
-    if (t === "TOOL" || t === "TOOLS") return "tools";
-    if (t === "WORKFLOW" || t === "WORKFLOWS") return "workflows";
-    if (t === "DATA_SOURCE" || t === "DATA_SOURCES") return "data_sources";
-    if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "departments";
-    if (t === "USER" || t === "USERS") return "users";
-    return type.toLowerCase();
+    if (t === "AGENT" || t === "AGENTS" || t === "AI_AGENT" || t === "AI_AGENTS") return "AGENT";
+    if (t === "MODEL" || t === "MODELS" || t === "AI_MODEL" || t === "AI_MODELS") return "MODEL";
+    if (t === "TOOL" || t === "TOOLS") return "TOOL";
+    if (t === "WORKFLOW" || t === "WORKFLOWS") return "WORKFLOW";
+    if (t === "DATA_SOURCE" || t === "DATA_SOURCES" || t === "DATASOURCE" || t === "DATASOURCES") return "DATA_SOURCE";
+    if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "DEPARTMENT";
+    if (t === "USER" || t === "USERS") return "USER";
+    if (t === "ROLE" || t === "ROLES") return "ROLE";
+    return type.toUpperCase();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -283,7 +285,7 @@ export const AddRelationshipModal: React.FC<AddRelationshipModalProps> = ({
       source_id: sourceEntityId,
       target_type: mapToBackendType(targetEntityType),
       target_id: targetEntityId,
-      relationship_type: relationshipType.toLowerCase(),
+      relationship_type: relationshipType.toUpperCase(),
       relationship_scope: relationshipScope || null,
       responsibility_type: responsibilityType || null,
       effective_from: effectiveFrom ? new Date(effectiveFrom).toISOString() : null,

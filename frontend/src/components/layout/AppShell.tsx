@@ -32,7 +32,9 @@ import {
   Calendar,
   CheckSquare,
   Settings,
-  Bell
+  Bell,
+  ShieldCheck,
+  ShieldAlert
 } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import "./AppShell.css";
@@ -256,10 +258,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   ].filter(i => i.show);
 
   const phase2ConfigItems = [
+    { label: "Policies & Bindings", path: "/policies", icon: ShieldCheck, show: true },
     { label: "Agent Assignments", path: "/agent-assignments", icon: Plug, show: true },
   ].filter(i => i.show);
 
   const phase2ToolsItems = [
+    { label: "Enforcement Simulator", path: "/enforcement/simulate", icon: ShieldAlert, show: true },
     { label: "Authorization Simulator", path: "/authorization-simulator", icon: Settings, show: true },
   ].filter(i => i.show);
 

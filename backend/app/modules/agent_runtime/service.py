@@ -14,8 +14,14 @@ from app.modules.audit.event_service import GovernanceEventService
 from app.modules.audit.event_codes import WorkflowEventCode
 from app.shared.db_compat import db_get, db_flush, execute_statement
 
+from app.modules.policy_engine.enums import Decision
+from app.modules.enforcement.context_builder import GovernedRuntimeContextBuilder
+from app.modules.enforcement.engine import RuntimeEnforcementEngine
+
+
 class BoundaryViolationError(Exception):
     pass
+
 
 class AgentRuntimeService:
     def __init__(self):
@@ -23,14 +29,66 @@ class AgentRuntimeService:
         self.event_service = GovernanceEventService()
 
     async def invoke_agent(self, run_id: UUID, assignment, context: dict, db) -> dict:
-        # 1. Run boundary check — if fails, raise BoundaryViolationError
+        # 1. Unified Runtime Enforcement Gateway Check (Context -> Boundaries -> Policies -> Combiner)
+        tenant_id = getattr(assignment, "tenant_id", None) or getattr(getattr(assignment, "schedule", None), "tenant_id", None)
+        workflow_id = str(assignment.schedule.workflow_id) if getattr(assignment, "schedule", None) and getattr(assignment.schedule, "workflow_id", None) else None
+        model_id = str(assignment.model_id) if getattr(assignment, "model_id", None) else None
         requested_tool = context.get("requested_tool")
-        passed, reason = await self.boundary_checker.check(assignment, requested_tool, db)
-        if not passed:
-            raise BoundaryViolationError(reason)
+        tool_id = context.get("tool_id")
+        tool_params = context.get("tool_parameters", {})
+        data_reqs = context.get("data_requests", [])
+        facts = dict(context.get("facts", context))
+
+        if tenant_id:
+            gov_req = GovernedRuntimeContextBuilder.build_request(
+                tenant_id=tenant_id,
+                agent_id=str(assignment.agent_id) if getattr(assignment, "agent_id", None) else None,
+                workflow_id=workflow_id,
+                model_id=model_id,
+                tool_id=str(tool_id) if tool_id else None,
+                tool_name=requested_tool,
+                tool_parameters=tool_params,
+                data_requests=data_reqs,
+                facts=facts,
+                operation=context.get("operation") or requested_tool or "invoke",
+                environment=context.get("environment") or "PRODUCTION",
+            )
+            enforcement_engine = RuntimeEnforcementEngine(db)
+            enforce_res = enforcement_engine.enforce(gov_req, tenant_id=tenant_id)
+
+            # Route DENY -> Block execution
+            if enforce_res.decision == Decision.DENY:
+                reason = enforce_res.reason or "Execution blocked by runtime governance enforcement"
+                if enforce_res.violations:
+                    v_msgs = [v.message if hasattr(v, "message") else str(v) for v in enforce_res.violations]
+                    reason = f"{reason} - {'; '.join(v_msgs)}"
+                raise BoundaryViolationError(reason)
+
+            # Route REQUIRE_APPROVAL -> Intercept before execution
+            if enforce_res.decision == Decision.REQUIRE_APPROVAL:
+                return {
+                    "status": "APPROVAL_REQUIRED",
+                    "execution_permitted": False,
+                    "approval_requirements": [a.model_dump() for a in (enforce_res.approval_requirements or [])],
+                    "reason": enforce_res.reason,
+                    "trace": enforce_res.trace,
+                }
+
+            # Route ESCALATE -> Security escalation
+            if enforce_res.decision == Decision.ESCALATE:
+                return {
+                    "status": "ESCALATED",
+                    "execution_permitted": False,
+                    "reason": enforce_res.reason,
+                    "trace": enforce_res.trace,
+                }
+        else:
+            # Fallback to procedural boundary check if no tenant context
+            passed, reason = await self.boundary_checker.check(assignment, requested_tool, db)
+            if not passed:
+                raise BoundaryViolationError(reason)
 
         # 2. Add run step or update existing: AGENT_INVOCATION, status=RUNNING
-        # We search for the step record that was pre-created in execute_run
         stmt = select(WorkflowRunStep).where(
             WorkflowRunStep.run_id == run_id,
             WorkflowRunStep.step_code == "AGENT_INVOCATION"
@@ -38,7 +96,6 @@ class AgentRuntimeService:
         res = await execute_statement(db, stmt)
         step = res.scalar()
         if not step:
-            # If not pre-created for some reason, create it
             step = WorkflowRunStep(
                 id=uuid4(),
                 run_id=run_id,
@@ -54,7 +111,7 @@ class AgentRuntimeService:
         step.input_json = context
         await db_flush(db)
 
-        # 4. Publish AGENT_EXECUTION_STARTED
+        # 3. Publish AGENT_EXECUTION_STARTED
         run = await db_get(db, WorkflowRun, run_id)
         await self.event_service.publish_event(
             event_code=WorkflowEventCode.AGENT_EXECUTION_STARTED,
@@ -68,7 +125,7 @@ class AgentRuntimeService:
             db=db
         )
 
-        # 3. Call Claude if ANTHROPIC_API_KEY set, else return mock structured output
+        # 4. Call Claude if ANTHROPIC_API_KEY set, else return mock structured output
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         raw_output = None
         if api_key:

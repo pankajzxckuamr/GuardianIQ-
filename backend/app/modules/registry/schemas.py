@@ -425,17 +425,17 @@ class GuardianUserLookup(BaseModel):
 # ---------------------------------------------------------
 
 class DataSourceBase(BaseModel):
-    source_name: str
-    source_type: SourceType
+    source_name: str = Field(..., min_length=1)
+    source_type: Optional[Union[SourceType, str]] = None
     owner_user_id: Optional[UUID] = None
     department_id: Optional[UUID] = None
-    classification: DataClassification
-    sensitivity_level: SensitivityLevel
+    classification: Optional[Union[DataClassification, str]] = None
+    sensitivity_level: Optional[Union[SensitivityLevel, str]] = None
     region: Optional[str] = None
     contains_pii: bool = False
     retention_policy: Optional[str] = None
     connection_reference: Optional[str] = None
-    status: EntityStatus = EntityStatus.ACTIVE
+    status: Optional[Union[EntityStatus, str]] = EntityStatus.ACTIVE
     metadata_json: Optional[dict] = None
 
 class DataSourceCreate(DataSourceBase):
@@ -443,16 +443,16 @@ class DataSourceCreate(DataSourceBase):
 
 class DataSourceUpdate(BaseModel):
     source_name: Optional[str] = None
-    source_type: Optional[SourceType] = None
+    source_type: Optional[Union[SourceType, str]] = None
     owner_user_id: Optional[UUID] = None
     department_id: Optional[UUID] = None
-    classification: Optional[DataClassification] = None
-    sensitivity_level: Optional[SensitivityLevel] = None
+    classification: Optional[Union[DataClassification, str]] = None
+    sensitivity_level: Optional[Union[SensitivityLevel, str]] = None
     region: Optional[str] = None
     contains_pii: Optional[bool] = None
     retention_policy: Optional[str] = None
     connection_reference: Optional[str] = None
-    status: Optional[EntityStatus] = None
+    status: Optional[Union[EntityStatus, str]] = None
     metadata_json: Optional[dict] = None
 
 class DataSourceResponse(DataSourceBase):
@@ -460,12 +460,15 @@ class DataSourceResponse(DataSourceBase):
     source_code: str
     created_at: datetime
     updated_at: datetime
+    owner_name: Optional[str] = None
+    department_name: Optional[str] = None
     class Config: from_attributes = True
 
 class DataSourceListResponse(BaseModel):
     items: List[DataSourceResponse]
     total: int
     page: int
+    page_size: int
     total_pages: int
     has_next: bool
     has_prev: bool

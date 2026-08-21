@@ -83,12 +83,67 @@ async def list_relationships(
     from app.modules.relationship.models import GenericRelationship
     
     conditions = [GenericRelationship.tenant_id == tenant_id]
-    if source_type: conditions.append(GenericRelationship.source_type == source_type)
-    if source_id: conditions.append(GenericRelationship.source_id == source_id)
-    if target_type: conditions.append(GenericRelationship.target_type == target_type)
-    if target_id: conditions.append(GenericRelationship.target_id == target_id)
-    if relationship_type: conditions.append(GenericRelationship.relationship_type == relationship_type)
-    if status: conditions.append(GenericRelationship.status == status)
+    if source_type:
+        st_norm = source_type.lower()
+        if st_norm in {"agent", "agents", "ai_agent", "ai_agents"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["agent", "agents", "ai_agent", "ai_agents"]))
+        elif st_norm in {"model", "models", "ai_model", "ai_models"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["model", "models", "ai_model", "ai_models"]))
+        elif st_norm in {"tool", "tools"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["tool", "tools"]))
+        elif st_norm in {"workflow", "workflows"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["workflow", "workflows"]))
+        elif st_norm in {"datasource", "data_source", "data_sources"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["datasource", "data_source", "data_sources"]))
+        elif st_norm in {"department", "departments"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["department", "departments"]))
+        elif st_norm in {"user", "users"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["user", "users"]))
+        elif st_norm in {"role", "roles"}:
+            conditions.append(func.lower(GenericRelationship.source_type).in_(["role", "roles"]))
+        else:
+            conditions.append(func.lower(GenericRelationship.source_type) == st_norm)
+
+    if source_id:
+        conditions.append(GenericRelationship.source_id == str(source_id))
+
+    if target_type:
+        tt_norm = target_type.lower()
+        if tt_norm in {"agent", "agents", "ai_agent", "ai_agents"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["agent", "agents", "ai_agent", "ai_agents"]))
+        elif tt_norm in {"model", "models", "ai_model", "ai_models"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["model", "models", "ai_model", "ai_models"]))
+        elif tt_norm in {"tool", "tools"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["tool", "tools"]))
+        elif tt_norm in {"workflow", "workflows"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["workflow", "workflows"]))
+        elif tt_norm in {"datasource", "data_source", "data_sources"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["datasource", "data_source", "data_sources"]))
+        elif tt_norm in {"department", "departments"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["department", "departments"]))
+        elif tt_norm in {"user", "users"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["user", "users"]))
+        elif tt_norm in {"role", "roles"}:
+            conditions.append(func.lower(GenericRelationship.target_type).in_(["role", "roles"]))
+        else:
+            conditions.append(func.lower(GenericRelationship.target_type) == tt_norm)
+
+    if target_id:
+        conditions.append(GenericRelationship.target_id == str(target_id))
+
+    if relationship_type:
+        rt_norm = relationship_type.upper()
+        if rt_norm in {"USES_TOOL", "USES"}:
+            conditions.append(func.upper(GenericRelationship.relationship_type).in_(["USES_TOOL", "USES"]))
+        elif rt_norm in {"USES_DATA_SOURCE", "USES"}:
+            conditions.append(func.upper(GenericRelationship.relationship_type).in_(["USES_DATA_SOURCE", "USES"]))
+        elif rt_norm in {"USES_MODEL", "USES"}:
+            conditions.append(func.upper(GenericRelationship.relationship_type).in_(["USES_MODEL", "USES"]))
+        else:
+            conditions.append(func.upper(GenericRelationship.relationship_type) == rt_norm)
+
+    if status:
+        conditions.append(func.upper(GenericRelationship.status) == status.upper())
     
     stmt = select(GenericRelationship).where(and_(*conditions))
     total_stmt = select(func.count()).select_from(GenericRelationship).where(and_(*conditions))
@@ -495,51 +550,38 @@ async def get_responsibilities(
 def resolve_entity_name(db: Session, entity_type: str, entity_id: str) -> str:
     try:
         from sqlalchemy import text
-        normalized = entity_type.lower()
-        if normalized == "model": normalized = "ai_models"
-        elif normalized == "agent": normalized = "agents"
-        elif normalized == "tool": normalized = "tools"
-        elif normalized == "workflow": normalized = "workflows"
-        elif normalized == "datasource": normalized = "data_sources"
-        elif normalized == "department": normalized = "departments"
-        elif normalized == "user": normalized = "users"
-        elif normalized == "role": normalized = "roles"
+        from app.modules.relationship.constants import canonicalize_entity_type, table_for_entity_type
+        c_type = canonicalize_entity_type(entity_type)
+        table_name = table_for_entity_type(entity_type)
 
         name_cols = {
-            "ai_models": "model_name",
-            "agents": "agent_name",
-            "tools": "tool_name",
-            "workflows": "workflow_name",
-            "data_sources": "source_name",
-            "departments": "department_name",
-            "users": "name",
-            "roles": "role_name"
+            "MODEL": "model_name",
+            "AGENT": "agent_name",
+            "TOOL": "tool_name",
+            "WORKFLOW": "workflow_name",
+            "DATA_SOURCE": "source_name",
+            "DEPARTMENT": "department_name",
+            "USER": "name",
+            "ROLE": "role_name"
         }
-        col = name_cols.get(normalized, "name")
-        res = db.execute(text(f"SELECT {col} FROM {normalized} WHERE id = '{entity_id}' LIMIT 1"))
+        col = name_cols.get(c_type, "name")
+        res = db.execute(text(f"SELECT {col} FROM {table_name} WHERE id = :id LIMIT 1"), {"id": str(entity_id)})
         val = res.scalar()
         if val:
             return str(val)
     except Exception:
         pass
-    return f"{entity_type} ({entity_id[:8]})"
+    return f"{entity_type} ({str(entity_id)[:8]})"
 
 def resolve_entity_status_and_risk(db: Session, entity_type: str, entity_id: str):
     status = "ACTIVE"
     risk_level = "LOW"
     try:
         from sqlalchemy import text
-        normalized = entity_type.lower()
-        if normalized == "model": normalized = "ai_models"
-        elif normalized == "agent": normalized = "agents"
-        elif normalized == "tool": normalized = "tools"
-        elif normalized == "workflow": normalized = "workflows"
-        elif normalized == "datasource": normalized = "data_sources"
-        elif normalized == "department": normalized = "departments"
-        elif normalized == "user": normalized = "users"
-        elif normalized == "role": normalized = "roles"
+        from app.modules.relationship.constants import canonicalize_entity_type, table_for_entity_type
+        table_name = table_for_entity_type(entity_type)
 
-        res = db.execute(text(f"SELECT * FROM {normalized} WHERE id = '{entity_id}' LIMIT 1"))
+        res = db.execute(text(f"SELECT * FROM {table_name} WHERE id = :id LIMIT 1"), {"id": str(entity_id)})
         row = res.mappings().first()
         if row:
             if "status" in row:
@@ -713,6 +755,8 @@ async def get_relationship_graph(
         
     # Gather policies & evidence for traversed nodes
     from app.modules.relationship.models import PolicyBinding, EvidenceLink
+    from app.modules.relationship.repository import RelationshipRepository
+    from sqlalchemy import func
     
     policies_mapped = []
     evidence_mapped = []
@@ -727,7 +771,7 @@ async def get_relationship_graph(
         # Get active policies
         p_bindings = db.query(PolicyBinding).filter(
             PolicyBinding.tenant_id == tenant_id,
-            PolicyBinding.target_type == nt,
+            func.lower(PolicyBinding.target_type).in_(RelationshipRepository._normalize_entity_types(nt)),
             PolicyBinding.target_id == nid,
             PolicyBinding.status == "ACTIVE"
         ).all()
@@ -755,7 +799,7 @@ async def get_relationship_graph(
         # Get evidence links
         e_links = db.query(EvidenceLink).filter(
             EvidenceLink.tenant_id == tenant_id,
-            EvidenceLink.target_type == nt,
+            func.lower(EvidenceLink.target_type).in_(RelationshipRepository._normalize_entity_types(nt)),
             EvidenceLink.target_id == nid
         ).all()
         for el in e_links:

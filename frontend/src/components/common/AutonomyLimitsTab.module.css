@@ -1,0 +1,82 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 4px 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  letter-spacing: 0.02em;
+}
+
+.input, .select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border, rgba(99, 102, 241, 0.2));
+  background: var(--bg-tertiary, #151d30) !important;
+  color: var(--text-primary, #f8fafc) !important;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.input:focus, .select:focus {
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.select option {
+  background: #151d30;
+  color: #f8fafc;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border, rgba(99, 102, 241, 0.15));
+  background: var(--bg-tertiary, #151d30);
+  color: var(--text-primary, #f8fafc);
+}
+
+.checkboxRow input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-primary, #6366f1);
+  cursor: pointer;
+}
+
+.checkboxRow label {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkboxRow label strong {
+  color: var(--text-primary, #f8fafc);
+}
+
+.saveRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border, rgba(99, 102, 241, 0.15));
+}

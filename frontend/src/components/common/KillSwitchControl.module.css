@@ -1,0 +1,71 @@
+.killSwitchContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border, rgba(99, 102, 241, 0.2));
+  background: var(--bg-tertiary, #151d30);
+  transition: all 0.2s ease;
+}
+
+.activeKillSwitch {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
+.infoSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary, #f8fafc);
+}
+
+.desc {
+  font-size: 0.825rem;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+}
+
+.toggleBtn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+}
+
+.engageBtn {
+  background: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.engageBtn:hover {
+  background: #dc2626;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.disengageBtn {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.disengageBtn:hover {
+  background: rgba(16, 185, 129, 0.25);
+}

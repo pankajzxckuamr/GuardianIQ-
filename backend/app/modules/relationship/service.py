@@ -28,15 +28,16 @@ class RelationshipService:
                     await self.audit.publish_validation_failed(request_id, r.rule_id, r.message)
             return None, [{"rule_id": r.rule_id, "message": r.message} for r in validation_results if r.status == "FAIL"]
 
+        from app.modules.relationship.constants import canonicalize_entity_type, canonicalize_rel_type
         # Create
         new_rel = GenericRelationship(
             id=uuid.uuid4(),
             tenant_id=self.tenant_id,
-            source_type=payload.source_type,
-            source_id=payload.source_id,
-            relationship_type=payload.relationship_type,
-            target_type=payload.target_type,
-            target_id=payload.target_id,
+            source_type=canonicalize_entity_type(payload.source_type),
+            source_id=str(payload.source_id),
+            relationship_type=canonicalize_rel_type(payload.relationship_type),
+            target_type=canonicalize_entity_type(payload.target_type),
+            target_id=str(payload.target_id),
             relationship_scope=payload.relationship_scope,
             scope_json=payload.scope_json,
             responsibility_type=payload.responsibility_type,
@@ -131,7 +132,7 @@ class RelationshipService:
         return False
 
     async def approve_relationship(self, relationship_id: uuid.UUID) -> bool:
-        rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.PENDING_APPROVAL.value)
+        rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.ACTIVE.value)
         if rel:
             rel.approved_by = self.current_user_id
             await self.audit.publish_relationship_approved(relationship_id, {"approved_by": str(self.current_user_id)})

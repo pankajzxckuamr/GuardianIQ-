@@ -748,7 +748,7 @@ class RejectScheduleRequest(BaseModel):
 async def activate_schedule(
     request: Request,
     id: UUID,
-    payload: ActivateScheduleRequest = None,
+    payload: Optional[ActivateScheduleRequest] = None,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
 ):

@@ -30,6 +30,7 @@ import { PoliciesDashboardPage } from "../pages/PoliciesDashboardPage";
 import { RiskWorkspacePage } from "../pages/RiskWorkspacePage";
 import { ApprovalHubPage } from "../pages/ApprovalHubPage";
 import { AdminPanelPage } from "../pages/AdminPanelPage";
+import { EnforcementSimulationPage } from "../pages/EnforcementSimulationPage";
 
 const WorkflowSchedulerDashboard = React.lazy(() => import('../pages/WorkflowSchedulerDashboard'));
 const CreateScheduleWizard = React.lazy(() => import('../pages/CreateScheduleWizard'));
@@ -270,6 +271,7 @@ export const AppRouter: React.FC = () => {
 
         {/* Phase 3 Workspace Routes */}
         <Route path="/policies" element={<ProtectedRoute><AppShell><PoliciesDashboardPage /></AppShell></ProtectedRoute>} />
+        <Route path="/enforcement/simulate" element={<ProtectedRoute><AppShell><EnforcementSimulationPage /></AppShell></ProtectedRoute>} />
         <Route path="/risk" element={<ProtectedRoute><AppShell><RiskWorkspacePage /></AppShell></ProtectedRoute>} />
         <Route path="/approvals" element={<ProtectedRoute><AppShell><ApprovalHubPage /></AppShell></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />

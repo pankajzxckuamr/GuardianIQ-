@@ -42,21 +42,34 @@ interface RelationshipItem {
   other_entity_risk?: string;
 }
 
-const getEntityBadgeClass = (type: string) => {
+const canonicalizeEntityType = (type: string): string => {
   const t = (type || "").toUpperCase();
-  if (t === "MODEL" || t === "MODELS" || t === "AI_MODEL" || t === "AI_MODELS") return styles.badgeModel;
-  if (t === "AGENT" || t === "AGENTS") return styles.badgeAgent;
-  if (t === "TOOL" || t === "TOOLS") return styles.badgeTool;
-  if (t === "WORKFLOW" || t === "WORKFLOWS") return styles.badgeWorkflow;
-  if (t === "DATA_SOURCE" || t === "DATA_SOURCES") return styles.badgeDataSource;
-  if (t === "DEPARTMENT" || t === "DEPARTMENTS") return styles.badgeDepartment;
-  if (t === "USER" || t === "USERS") return styles.badgeUser;
-  if (t === "ROLE" || t === "ROLES") return styles.badgeRole;
+  if (t === "AGENT" || t === "AGENTS" || t === "AI_AGENT" || t === "AI_AGENTS") return "AGENT";
+  if (t === "MODEL" || t === "MODELS" || t === "AI_MODEL" || t === "AI_MODELS") return "MODEL";
+  if (t === "TOOL" || t === "TOOLS") return "TOOL";
+  if (t === "WORKFLOW" || t === "WORKFLOWS") return "WORKFLOW";
+  if (t === "DATA_SOURCE" || t === "DATA_SOURCES" || t === "DATASOURCE" || t === "DATASOURCES") return "DATA_SOURCE";
+  if (t === "DEPARTMENT" || t === "DEPARTMENTS") return "DEPARTMENT";
+  if (t === "USER" || t === "USERS") return "USER";
+  if (t === "ROLE" || t === "ROLES") return "ROLE";
+  return (type || "").toUpperCase();
+};
+
+const getEntityBadgeClass = (type: string) => {
+  const t = canonicalizeEntityType(type);
+  if (t === "AGENT") return styles.badgeAgent;
+  if (t === "MODEL") return styles.badgeModel;
+  if (t === "TOOL") return styles.badgeTool;
+  if (t === "WORKFLOW") return styles.badgeWorkflow;
+  if (t === "DATA_SOURCE") return styles.badgeDataSource;
+  if (t === "DEPARTMENT") return styles.badgeDepartment;
+  if (t === "USER") return styles.badgeUser;
+  if (t === "ROLE") return styles.badgeRole;
   return styles.badgeGeneric;
 };
 
 const formatEntityLabel = (type: string) => {
-  return (type || "").replace("_", " ");
+  return canonicalizeEntityType(type).replace("_", " ");
 };
 
 const getRiskBadgeStyle = (risk: string) => {
@@ -315,7 +328,7 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
           {/* Source Entity */}
           <div className={styles.entityNode}>
             <span className={`${styles.entityBadge} ${getEntityBadgeClass(sourceType)}`}>
-              {sourceType}
+              {canonicalizeEntityType(sourceType)}
             </span>
             <span className={styles.entityName} title={sourceLabel}>{sourceLabel}</span>
           </div>
@@ -332,7 +345,7 @@ export const RelationshipViewer: React.FC<RelationshipViewerProps> = ({
           {/* Target Entity */}
           <div className={styles.entityNode}>
             <span className={`${styles.entityBadge} ${getEntityBadgeClass(targetType)}`}>
-              {targetType}
+              {canonicalizeEntityType(targetType)}
             </span>
             <span className={styles.entityName} title={targetLabel}>{targetLabel}</span>
           </div>

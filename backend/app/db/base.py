@@ -50,3 +50,22 @@ from app.modules.events.models import (
     EventRetentionRule,
     EventExportLog
 )
+from app.modules.policy_engine.models import (
+    GovernancePolicy,
+    PolicyVersion,
+    PolicyRule,
+    PolicyException,
+    PolicyEvaluation,
+    PolicyRuleEvaluation,
+    EnforcementDecision,
+    PolicyApproval
+)
+from app.modules.agent_boundary.models import (
+    AgentRuntimeBoundary,
+    ToolCapability,
+    AgentToolPermission,
+    DataSourceField,
+    AgentDataPermission,
+    RuntimeAuthorization,
+    RuntimeEnforcementLog
+)

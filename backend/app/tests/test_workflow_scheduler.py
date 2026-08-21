@@ -68,6 +68,59 @@ class WorkflowSchedulerTests(unittest.TestCase):
         dept = self.db.query(RegistryDepartment).filter(RegistryDepartment.department_code == "COMPLIANCE").first()
         self.assertIsNotNone(dept)
         self.department_id = dept.id
+        # Pre-cleanup of any existing test entities from previous failed test runs
+        try:
+            from app.modules.agent_boundary.models import RuntimeEnforcementLog, AgentRuntimeBoundary
+            from app.modules.relationship.models import PolicyBinding, GenericRelationship
+
+            old_wf = self.db.query(RegistryWorkflow).filter(RegistryWorkflow.workflow_code == "WF-SCHED-TEST-2").first()
+            old_ag = self.db.query(RegistryAIAgent).filter(RegistryAIAgent.agent_code == "AG-SCHED-TEST-2").first()
+            old_md = self.db.query(RegistryAIModel).filter(RegistryAIModel.model_code == "MOD-SCHED-TEST-2").first()
+            old_tr = self.db.query(RegistryTool).filter(RegistryTool.tool_code == "TL-READ-2").first()
+            old_tw = self.db.query(RegistryTool).filter(RegistryTool.tool_code == "TL-WRITE-2").first()
+            old_grp = self.db.query(ApprovalGroup).filter(ApprovalGroup.name == "Sched Test Group").first()
+
+            if old_grp:
+                self.db.query(ApprovalGroupMember).filter(ApprovalGroupMember.approval_group_id == old_grp.id).delete(synchronize_session=False)
+                self.db.delete(old_grp)
+
+            if old_wf:
+                scheds = self.db.query(Phase2WorkflowSchedule).filter(Phase2WorkflowSchedule.workflow_id == old_wf.id).all()
+                for s in scheds:
+                    self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.schedule_id == s.id).delete(synchronize_session=False)
+                    self.db.query(WorkflowScheduleApproval).filter(WorkflowScheduleApproval.schedule_id == s.id).delete(synchronize_session=False)
+                    self.db.query(WorkflowScheduleHistory).filter(WorkflowScheduleHistory.schedule_id == s.id).delete(synchronize_session=False)
+                    self.db.delete(s)
+                self.db.delete(old_wf)
+
+            if old_ag:
+                self.db.query(RuntimeEnforcementLog).filter(RuntimeEnforcementLog.agent_id == old_ag.id).delete(synchronize_session=False)
+                self.db.query(AgentRuntimeBoundary).filter(AgentRuntimeBoundary.agent_id == old_ag.id).delete(synchronize_session=False)
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "AGENT", PolicyBinding.target_id == str(old_ag.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(old_ag.id), GenericRelationship.target_id == str(old_ag.id))).delete(synchronize_session=False)
+                self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.agent_id == old_ag.id).delete(synchronize_session=False)
+                self.db.delete(old_ag)
+
+            if old_md:
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "MODEL", PolicyBinding.target_id == str(old_md.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(old_md.id), GenericRelationship.target_id == str(old_md.id))).delete(synchronize_session=False)
+                self.db.query(WorkflowScheduleAgentAssignment).filter(WorkflowScheduleAgentAssignment.model_id == old_md.id).delete(synchronize_session=False)
+                self.db.delete(old_md)
+
+            if old_tr:
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "TOOL", PolicyBinding.target_id == str(old_tr.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(old_tr.id), GenericRelationship.target_id == str(old_tr.id))).delete(synchronize_session=False)
+                self.db.delete(old_tr)
+
+            if old_tw:
+                self.db.query(PolicyBinding).filter(sa.and_(PolicyBinding.target_type == "TOOL", PolicyBinding.target_id == str(old_tw.id))).delete(synchronize_session=False)
+                self.db.query(GenericRelationship).filter(sa.or_(GenericRelationship.source_id == str(old_tw.id), GenericRelationship.target_id == str(old_tw.id))).delete(synchronize_session=False)
+                self.db.delete(old_tw)
+
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            print("Pre-cleanup error:", e)
 
         # Setup workflow
         self.workflow = RegistryWorkflow(
