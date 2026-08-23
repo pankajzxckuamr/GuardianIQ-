@@ -80,24 +80,45 @@ class WorkflowScheduleAgentAssignment(Base, WorkflowBaseMixin):
     model = relationship("AIModel", foreign_keys=[model_id])
 
 
+class ScheduleApprovalLayerSelection(Base, WorkflowBaseMixin):
+    __tablename__ = "schedule_approval_layer_selections"
+
+    schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id", ondelete="CASCADE"), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
+    layer_order = Column(Integer, nullable=False)
+
+    schedule = relationship("Phase2WorkflowSchedule")
+    department = relationship("Department")
+
+
 class WorkflowScheduleApproval(Base, WorkflowBaseMixin):
     __tablename__ = "workflow_schedule_approvals"
 
 
     schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id"), nullable=False)
+    approval_cycle_id = Column(UUID(as_uuid=True), nullable=False)
+    approval_layer = Column(Integer, nullable=False, server_default="1")
+    parent_approval_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedule_approvals.id"), nullable=True)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=True)
+    
     approval_type = Column(String(100), server_default="ACTIVATION", nullable=True, default="ACTIVATION")
     approver_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     approval_group_id = Column(UUID(as_uuid=True), ForeignKey("approval_groups.id"), nullable=True)
     approval_status = Column(String(50), server_default="PENDING", nullable=True, default="PENDING")
     decision_reason = Column(Text, nullable=True)
+    skip_reason = Column(Text, nullable=True)
     decided_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    decided_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     submitted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     # Relationships
     schedule = relationship("Phase2WorkflowSchedule", back_populates="approvals")
+    department = relationship("Department", foreign_keys=[department_id])
+    parent_approval = relationship("WorkflowScheduleApproval", remote_side="[WorkflowScheduleApproval.id]")
     approver_user = relationship("User", foreign_keys=[approver_user_id])
     approval_group = relationship("ApprovalGroup", back_populates="approvals", foreign_keys=[approval_group_id])
     submitter_user = relationship("User", foreign_keys=[submitted_by])
+    decider_user = relationship("User", foreign_keys=[decided_by])
 
 
 class WorkflowScheduleHistory(Base, WorkflowBaseMixin):

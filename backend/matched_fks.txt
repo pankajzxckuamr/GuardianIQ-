@@ -1,0 +1,4 @@
+DELETE FROM orchestration_workflow_executions WHERE workflow_id NOT IN (SELECT id FROM workflows) AND workflow_id IS NOT NULL
+DELETE FROM orchestration_workflow_schedules WHERE workflow_id NOT IN (SELECT id FROM workflows) AND workflow_id IS NOT NULL
+DELETE FROM orchestration_workflow_schedules WHERE workflow_id NOT IN (SELECT id FROM registry_workflows) AND workflow_id IS NOT NULL
+DELETE FROM orchestration_workflow_executions WHERE workflow_id NOT IN (SELECT id FROM registry_workflows) AND workflow_id IS NOT NULL

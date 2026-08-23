@@ -327,6 +327,127 @@ def get_audit_export_status_api(
     )
 
 
+# -----------------------------------------------------------------------------
+# Event Schema Registry and Retention Rules Endpoints (Phase 4 Extension)
+# -----------------------------------------------------------------------------
+from app.modules.events.models import EventSchemaRegistry, EventRetentionRule
+from app.modules.events.schemas import (
+    EventSchemaRegistryCreate, EventSchemaRegistryUpdate, EventSchemaRegistryResponse,
+    EventRetentionRuleCreate, EventRetentionRuleUpdate, EventRetentionRuleResponse
+)
+
+@router.get("/schemas")
+def list_event_schemas(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("VIEW_REFERENCE_DATA"))
+):
+    schemas = db.query(EventSchemaRegistry).all()
+    response_data = [EventSchemaRegistryResponse.model_validate(s).model_dump(mode="json") for s in schemas]
+    return ResponseHelper.success(data=response_data, message="Event schemas retrieved successfully")
+
+@router.post("/schemas")
+def create_event_schema(
+    schema_data: EventSchemaRegistryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("MANAGE_EVENT_SCHEMA"))
+):
+    new_schema = EventSchemaRegistry(**schema_data.model_dump(), created_by=current_user.id)
+    db.add(new_schema)
+    db.commit()
+    db.refresh(new_schema)
+    response_data = EventSchemaRegistryResponse.model_validate(new_schema).model_dump(mode="json")
+    return ResponseHelper.success(data=response_data, message="Event schema created successfully", status_code=201)
+
+@router.put("/schemas/{schema_id}")
+def update_event_schema(
+    schema_id: UUID,
+    schema_data: EventSchemaRegistryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("MANAGE_EVENT_SCHEMA"))
+):
+    schema_record = db.query(EventSchemaRegistry).filter(EventSchemaRegistry.id == schema_id).first()
+    if not schema_record:
+        raise HTTPException(status_code=404, detail="Event schema not found")
+    
+    update_data = schema_data.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        setattr(schema_record, k, v)
+    
+    db.commit()
+    db.refresh(schema_record)
+    response_data = EventSchemaRegistryResponse.model_validate(schema_record).model_dump(mode="json")
+    return ResponseHelper.success(data=response_data, message="Event schema updated successfully")
+
+
+@router.get("/retention-rules")
+def list_retention_rules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("VIEW_REFERENCE_DATA"))
+):
+    tenant_id = current_user.id
+    rules = db.query(EventRetentionRule).filter(EventRetentionRule.tenant_id == tenant_id).all()
+    response_data = [EventRetentionRuleResponse.model_validate(r).model_dump(mode="json") for r in rules]
+    return ResponseHelper.success(data=response_data, message="Retention rules retrieved successfully")
+
+@router.post("/retention-rules")
+def create_retention_rule(
+    rule_data: EventRetentionRuleCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("MANAGE_RETENTION_RULES"))
+):
+    tenant_id = current_user.id
+    new_rule = EventRetentionRule(**rule_data.model_dump(), tenant_id=tenant_id)
+    db.add(new_rule)
+    db.commit()
+    db.refresh(new_rule)
+    response_data = EventRetentionRuleResponse.model_validate(new_rule).model_dump(mode="json")
+    return ResponseHelper.success(data=response_data, message="Retention rule created successfully", status_code=201)
+
+@router.put("/retention-rules/{rule_id}")
+def update_retention_rule(
+    rule_id: UUID,
+    rule_data: EventRetentionRuleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("MANAGE_RETENTION_RULES"))
+):
+    tenant_id = current_user.id
+    rule_record = db.query(EventRetentionRule).filter(
+        EventRetentionRule.id == rule_id, 
+        EventRetentionRule.tenant_id == tenant_id
+    ).first()
+    
+    if not rule_record:
+        raise HTTPException(status_code=404, detail="Retention rule not found")
+        
+    update_data = rule_data.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        setattr(rule_record, k, v)
+        
+    now = datetime.now(timezone.utc)
+    
+    audit_event_create = GovernanceEventCreate(
+        event_type="EVENT_CORRECTION_RECORDED",
+        event_category="Audit",
+        event_version="1.0",
+        occurred_at=now,
+        source_service="event_management",
+        actor_json={"user_id": str(current_user.id)},
+        subject_json={"entity_type": "event_retention_rule", "entity_id": str(rule_record.id)},
+        payload_json={"updated_fields": update_data},
+        classification="INTERNAL",
+        retention_class="STANDARD_90_DAYS"
+    )
+    publisher_service.publish_event(db, audit_event_create, tenant_id)
+    
+    db.commit()
+    db.refresh(rule_record)
+    response_data = EventRetentionRuleResponse.model_validate(rule_record).model_dump(mode="json")
+    return ResponseHelper.success(data=response_data, message="Retention rule updated successfully")
+
+
+# -----------------------------------------------------------------------------
+# Dynamic Event Endpoint (Must remain at the bottom to prevent route shadowing)
+# -----------------------------------------------------------------------------
 @router.get("/{event_id}")
 def get_governance_event_by_id(
     event_id: UUID,
@@ -346,4 +467,3 @@ def get_governance_event_by_id(
         data=response_data.model_dump(mode="json"),
         message="Governance event details retrieved successfully"
     )
-

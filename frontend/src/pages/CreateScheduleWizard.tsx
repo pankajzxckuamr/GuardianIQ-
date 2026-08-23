@@ -17,6 +17,14 @@ import styles from './phase2Shared.module.css';
 const getAgentLabel = (agent: any) => agent?.agent_name || agent?.name || agent?.agent_code || 'Unknown agent';
 const getModelLabel = (model: any) => model?.model_name || model?.name || model?.model_code || 'Unknown model';
 
+const DEPARTMENTS = [
+  { code: 'BUSINESS_OWNER', label: 'Business Owner' },
+  { code: 'TECHNICAL_OWNER', label: 'Technical Owner' },
+  { code: 'AUDIT', label: 'Audit' },
+  { code: 'HR', label: 'HR' },
+  { code: 'LEGAL', label: 'Legal' }
+];
+
 const steps = [
   { label: 'Select Workflow' },
   { label: 'Agent & Model' },
@@ -55,7 +63,7 @@ export const CreateScheduleWizard: React.FC = () => {
     retry_policy_json: { max_retries: 0, retry_delay_seconds: 60 },
     owner_user_id: '',
     reviewer_user_id: '',
-    approval_group_id: '',
+    approval_departments: [],
     risk_level: 'LOW',
     sla_hours: '',
     notification_recipients_json: [],
@@ -149,7 +157,7 @@ export const CreateScheduleWizard: React.FC = () => {
             retry_policy_json: sched.retry_policy_json || { max_retries: 0, retry_delay_seconds: 60 },
             owner_user_id: sched.owner_user_id || '',
             reviewer_user_id: sched.metadata_json?.reviewer_user_id || '',
-            approval_group_id: sched.approval_group_id || '',
+            approval_departments: sched.approval_departments || [],
             risk_level: sched.risk_level || 'LOW',
             sla_hours: sched.metadata_json?.sla_hours || '',
             notification_recipients_json: sched.metadata_json?.notification_recipients_json || [],
@@ -635,12 +643,34 @@ export const CreateScheduleWizard: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className={styles.fieldLabel}>Approval Group {isApprovalRequired && <span className={styles.req}>*</span>}</label>
-              <select className={`${styles.formControl} ${backendErrors.approval_group_id ? styles.errorControl : ''}`} value={formData.approval_group_id} onChange={e => handleChange('approval_group_id', e.target.value)}>
-                <option value="">Select a group</option>
-                {approvalGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
-              {backendErrors.approval_group_id && <span className={styles.errorText}>{backendErrors.approval_group_id}</span>}
+              <label className={styles.fieldLabel}>Approval Departments {isApprovalRequired && <span className={styles.req}>*</span>}</label>
+              <div className={styles.checkboxGroup} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                {DEPARTMENTS.map(dept => {
+                  const isSelected = formData.approval_departments.includes(dept.code);
+                  return (
+                    <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={isSelected}
+                        onChange={(e) => {
+                          let newSelection;
+                          if (e.target.checked) {
+                            newSelection = [...formData.approval_departments, dept.code];
+                          } else {
+                            newSelection = formData.approval_departments.filter((c: string) => c !== dept.code);
+                          }
+                          newSelection.sort((a, b) => 
+                            DEPARTMENTS.findIndex(d => d.code === a) - DEPARTMENTS.findIndex(d => d.code === b)
+                          );
+                          handleChange('approval_departments', newSelection);
+                        }}
+                      />
+                      {dept.label}
+                    </label>
+                  );
+                })}
+              </div>
+              {backendErrors.approval_departments && <span className={styles.errorText}>{backendErrors.approval_departments}</span>}
             </div>
             <div>
               <label className={styles.fieldLabel}>Risk Level</label>

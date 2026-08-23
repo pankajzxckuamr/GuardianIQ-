@@ -34,6 +34,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
 
   const [selectedSchedule, setSelectedSchedule] = useState<any | null>(null);
   const [scheduleDetails, setScheduleDetails] = useState<any | null>(null);
+  const [scheduleApprovals, setScheduleApprovals] = useState<any[]>([]);
   const [approvalId, setApprovalId] = useState<string | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
   const [reason, setReason] = useState('');
@@ -72,6 +73,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
     fetchQueue();
     setSelectedSchedule(null);
     setScheduleDetails(null);
+    setScheduleApprovals([]);
     setApprovalId(null);
     setDecision(null);
     setReason('');
@@ -88,6 +90,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
       scheduleApi.getApprovals(selectedSchedule.id)
         .then((res: any) => {
           const approvals = res.data || res;
+          setScheduleApprovals(approvals);
           const pending = approvals.find((a: any) => a.approval_status === 'PENDING' || a.approval_status === 'ESCALATED');
           if (pending) {
             setApprovalId(pending.id);
@@ -142,6 +145,9 @@ export const ScheduleApprovalQueue: React.FC = () => {
   }
 
   const assignment = scheduleDetails ? getPrimaryAssignment(scheduleDetails.assignments) : null;
+  const nonSkippedLayers = scheduleApprovals.filter(a => a.approval_status !== 'SKIPPED').length;
+  const activeApproval = scheduleApprovals.find(a => a.id === approvalId);
+  const currentLayerOrder = activeApproval?.layer_order || 1;
 
   return (
     <div className={styles.page}>
@@ -327,9 +333,17 @@ export const ScheduleApprovalQueue: React.FC = () => {
                 </div>
               )}
 
-              {activeTab !== 'COMPLETED' && (
+              {activeTab !== 'COMPLETED' && activeApproval && (
                 <div className={styles.section} style={{ marginTop: '24px' }}>
-                  <h3 className={styles.sectionTitle}>Record Decision</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Record Decision</h3>
+                    <span className={styles.pill} style={{ background: '#f3f4f6', color: '#374151' }}>
+                      Stage {currentLayerOrder} of {nonSkippedLayers}
+                    </span>
+                  </div>
+                  <div className={styles.subText} style={{ marginBottom: '16px', marginTop: '4px' }}>
+                    Current layer: <strong>{activeApproval.department_code?.replace('_', ' ')}</strong>
+                  </div>
                   <div className={styles.decisionButtons}>
                     <button
                       className={`${styles.decisionBtn} ${decision === 'APPROVED' ? styles.selectedApprove : ''}`}
@@ -381,6 +395,63 @@ export const ScheduleApprovalQueue: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {scheduleApprovals.length > 0 && (
+                <div className={styles.section} style={{ marginTop: '24px' }}>
+                  <h3 className={styles.sectionTitle}>Approval Chain</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                    {scheduleApprovals.map((appr: any) => {
+                      const isSkipped = appr.approval_status === 'SKIPPED';
+                      return (
+                        <div 
+                          key={appr.id} 
+                          style={{ 
+                            padding: '12px 16px', 
+                            borderLeft: `4px solid ${isSkipped ? '#d1d5db' : appr.approval_status === 'APPROVED' ? '#10b981' : '#3b82f6'}`,
+                            background: isSkipped ? '#f9fafb' : '#ffffff',
+                            borderTop: '1px solid #f3f4f6',
+                            borderRight: '1px solid #f3f4f6',
+                            borderBottom: '1px solid #f3f4f6',
+                            borderRadius: '0 6px 6px 0',
+                            opacity: isSkipped ? 0.7 : 1
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <strong style={{ color: isSkipped ? '#6b7280' : '#111827' }}>
+                              Stage {appr.layer_order}: {appr.department_code?.replace('_', ' ')}
+                            </strong>
+                            <span className={styles.subText}>{appr.approval_status}</span>
+                          </div>
+                          
+                          {isSkipped && (
+                            <div className={styles.subText} style={{ fontStyle: 'italic' }}>
+                              Skipped — {appr.skip_reason}
+                            </div>
+                          )}
+                          
+                          {appr.decided_by && (
+                            <div className={styles.subText}>
+                              Decided by: <strong>{appr.decided_by}</strong>
+                            </div>
+                          )}
+                          
+                          {appr.decision_reason && (
+                            <div className={styles.subText} style={{ marginTop: '4px' }}>
+                              Note: {appr.decision_reason}
+                            </div>
+                          )}
+                          
+                          {appr.decided_at && (
+                            <div className={styles.subText} style={{ fontSize: '0.75rem', marginTop: '8px', color: '#9ca3af' }}>
+                              {new Date(appr.decided_at).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

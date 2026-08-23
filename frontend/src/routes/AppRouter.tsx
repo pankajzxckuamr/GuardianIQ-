@@ -31,6 +31,8 @@ import { RiskWorkspacePage } from "../pages/RiskWorkspacePage";
 import { ApprovalHubPage } from "../pages/ApprovalHubPage";
 import { AdminPanelPage } from "../pages/AdminPanelPage";
 import { EnforcementSimulationPage } from "../pages/EnforcementSimulationPage";
+import { EventSchemaRegistryPage } from "../pages/EventSchemaRegistryPage";
+import { EventRetentionRulesPage } from "../pages/EventRetentionRulesPage";
 
 const WorkflowSchedulerDashboard = React.lazy(() => import('../pages/WorkflowSchedulerDashboard'));
 const CreateScheduleWizard = React.lazy(() => import('../pages/CreateScheduleWizard'));
@@ -277,6 +279,8 @@ export const AppRouter: React.FC = () => {
         <Route path="/admin/users" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
         <Route path="/admin/roles" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
+        <Route path="/admin/event-schemas" element={<ProtectedRoute><AppShell><EventSchemaRegistryPage /></AppShell></ProtectedRoute>} />
+        <Route path="/admin/event-retention" element={<ProtectedRoute><AppShell><EventRetentionRulesPage /></AppShell></ProtectedRoute>} />
 
         {/* Root Redirects */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

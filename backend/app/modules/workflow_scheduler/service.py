@@ -315,8 +315,31 @@ class WorkflowScheduleService:
             ass_dict["updated_by"] = actor_uuid
             processed_assignments.append(ass_dict)
 
+        approval_departments = data.pop("approval_departments", [])
+
         # 4. Insert records
         schedule = await self.repo.create(db, data, processed_assignments)
+        
+        if approval_departments:
+            from app.modules.department.models import Department
+            from app.modules.workflow_scheduler.models import ScheduleApprovalLayerSelection
+            from app.shared.db_compat import execute_statement
+            
+            stmt = select(Department.id, Department.department_code).where(Department.department_code.in_(approval_departments))
+            res = await execute_statement(db, stmt)
+            dept_map = {row[1]: row[0] for row in res.fetchall()}
+            
+            for i, code in enumerate(approval_departments):
+                dept_id = dept_map.get(code)
+                if dept_id:
+                    layer = ScheduleApprovalLayerSelection(
+                        id=uuid4(),
+                        tenant_id=schedule.tenant_id,
+                        schedule_id=schedule.id,
+                        department_id=dept_id,
+                        layer_order=i+1
+                    )
+                    db.add(layer)
 
         history_rec = WorkflowScheduleHistory(
             id=uuid4(),
@@ -441,9 +464,38 @@ class WorkflowScheduleService:
                 processed_assignments.append(ass_dict)
             update_data["agent_assignments"] = processed_assignments
 
+        approval_departments = update_data.pop("approval_departments", None)
+
         # Update in database
         updated_schedule = await self.repo.update(db, schedule, update_data)
         updated_schedule.updated_by = actor_uuid
+        
+        if approval_departments is not None:
+            from app.modules.department.models import Department
+            from app.modules.workflow_scheduler.models import ScheduleApprovalLayerSelection
+            from app.shared.db_compat import execute_statement
+            
+            # Delete existing
+            del_stmt = sa.delete(ScheduleApprovalLayerSelection).where(ScheduleApprovalLayerSelection.schedule_id == schedule.id)
+            await execute_statement(db, del_stmt)
+            
+            if approval_departments:
+                # Fetch all matching departments
+                stmt = select(Department.id, Department.department_code).where(Department.department_code.in_(approval_departments))
+                res = await execute_statement(db, stmt)
+                dept_map = {row[1]: row[0] for row in res.fetchall()}
+                
+                for i, code in enumerate(approval_departments):
+                    dept_id = dept_map.get(code)
+                    if dept_id:
+                        layer = ScheduleApprovalLayerSelection(
+                            id=uuid4(),
+                            tenant_id=schedule.tenant_id,
+                            schedule_id=schedule.id,
+                            department_id=dept_id,
+                            layer_order=i+1
+                        )
+                        db.add(layer)
 
         # Write history row
         history_rec = WorkflowScheduleHistory(
@@ -503,6 +555,115 @@ class WorkflowScheduleService:
 
         return updated_schedule
 
+    async def resolve_next_layer(self, schedule_id: UUID, approval_cycle_id: UUID, already_decided_owner_ids: set, actor_uuid: UUID, db):
+        from app.modules.workflow_scheduler.models import ScheduleApprovalLayerSelection, WorkflowScheduleApproval
+        from app.modules.department.models import DepartmentOwnerAssignment, Department
+        
+        # Walk this schedule's layer selections in fixed layer_order
+        stmt = sa.select(ScheduleApprovalLayerSelection, Department.department_code).join(
+            Department, Department.id == ScheduleApprovalLayerSelection.department_id
+        ).where(
+            ScheduleApprovalLayerSelection.schedule_id == schedule_id
+        ).order_by(ScheduleApprovalLayerSelection.layer_order.asc())
+        res = await execute_statement(db, stmt)
+        selections_with_codes = res.all()
+        
+        for sel, dept_code in selections_with_codes:
+            # Skip any department that already has an approval row in this cycle
+            check_stmt = sa.select(WorkflowScheduleApproval).where(
+                WorkflowScheduleApproval.schedule_id == schedule_id,
+                WorkflowScheduleApproval.approval_cycle_id == approval_cycle_id,
+                WorkflowScheduleApproval.department_id == sel.department_id
+            )
+            check_res = await execute_statement(db, check_stmt)
+            if check_res.scalar() is not None:
+                continue
+
+            # Resolve owner for this department
+            owner_stmt = sa.select(DepartmentOwnerAssignment).where(
+                DepartmentOwnerAssignment.department_id == sel.department_id
+            )
+            owner_res = await execute_statement(db, owner_stmt)
+            assignment = owner_res.scalar()
+
+            if not assignment:
+                raise HTTPException(status_code=400, detail=f"No owner assigned for department {sel.department_id}")
+
+            # Treat owner_user_id or owner_group_id as the distinct "owner" unit
+            owner_id = str(assignment.owner_user_id) if assignment.owner_user_id else str(assignment.owner_group_id)
+
+            # Find parent approval id for chaining
+            parent_stmt = sa.select(WorkflowScheduleApproval.id).where(
+                WorkflowScheduleApproval.schedule_id == schedule_id,
+                WorkflowScheduleApproval.approval_cycle_id == approval_cycle_id
+            ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
+            parent_res = await execute_statement(db, parent_stmt)
+            parent_id = parent_res.scalar()
+
+            if owner_id in already_decided_owner_ids:
+                # AUTO-SKIP this layer
+                skipped_approval = WorkflowScheduleApproval(
+                    id=uuid4(),
+                    tenant_id=sel.tenant_id,
+                    schedule_id=schedule_id,
+                    approval_cycle_id=approval_cycle_id,
+                    approval_layer=sel.layer_order,
+                    department_id=sel.department_id,
+                    approval_type="ACTIVATION",
+                    approval_status="SKIPPED",
+                    approver_user_id=assignment.owner_user_id,
+                    approval_group_id=assignment.owner_group_id,
+                    parent_approval_id=parent_id,
+                    skip_reason=f"Auto-skipped: owner unit ({owner_id}) already decided in an earlier layer of this cycle",
+                    decided_by=None,
+                    decided_at=datetime.now(timezone.utc),
+                    submitted_by=actor_uuid,
+                    created_by=actor_uuid,
+                    updated_by=actor_uuid
+                )
+                db.add(skipped_approval)
+                await db_flush(db)
+                
+                await self.event_service.publish_layer_skipped(
+                    schedule_id=schedule_id,
+                    actor_id=actor_uuid,
+                    approval_cycle_id=approval_cycle_id,
+                    correlation_id=str(approval_cycle_id),
+                    approval_layer=sel.layer_order,
+                    department_code=dept_code,
+                    parent_approval_id=parent_id,
+                    approval_id=skipped_approval.id,
+                    skip_reason=skipped_approval.skip_reason,
+                    db=db
+                )
+                
+                # Keep the same decided-owner set, continue loop to next department
+                continue
+            else:
+                # First department that is NOT a duplicate: create PENDING row
+                pending_approval = WorkflowScheduleApproval(
+                    id=uuid4(),
+                    tenant_id=sel.tenant_id,
+                    schedule_id=schedule_id,
+                    approval_cycle_id=approval_cycle_id,
+                    approval_layer=sel.layer_order,
+                    department_id=sel.department_id,
+                    approval_type="ACTIVATION",
+                    approval_status="PENDING",
+                    approver_user_id=assignment.owner_user_id,
+                    approval_group_id=assignment.owner_group_id,
+                    parent_approval_id=parent_id,
+                    submitted_by=actor_uuid,
+                    created_by=actor_uuid,
+                    updated_by=actor_uuid
+                )
+                db.add(pending_approval)
+                await db_flush(db)
+                return pending_approval
+        
+        # Chain exhausted
+        return None
+
     async def submit_for_approval(self, id: UUID, current_user, db) -> Phase2WorkflowSchedule:
         schedule = await self.repo.get_by_id(db, id)
         if not schedule:
@@ -519,7 +680,7 @@ class WorkflowScheduleService:
         before_json = serialize_schedule_history(schedule)
 
         # Enforce exactly one PRIMARY assignment
-        from app.modules.workflow_scheduler.models import WorkflowScheduleAgentAssignment
+        from app.modules.workflow_scheduler.models import WorkflowScheduleAgentAssignment, ScheduleApprovalLayerSelection
         stmt = sa.select(sa.func.count()).select_from(WorkflowScheduleAgentAssignment).where(
             WorkflowScheduleAgentAssignment.schedule_id == id,
             WorkflowScheduleAgentAssignment.assignment_role == "PRIMARY",
@@ -536,39 +697,82 @@ class WorkflowScheduleService:
             )
 
         # Enforce that schedule has approval required and group set
-        if not schedule.approval_required or not schedule.approval_group_id:
+        if not schedule.approval_required:
             raise HTTPException(
                 status_code=400,
                 detail=ResponseHelper.error(
-                    message="Approval is not required or approval group is not set for this schedule.",
+                    message="Approval is not required for this schedule.",
                     error_code="VALIDATION_ERROR"
                 ).model_dump()
             )
+            
+        layer_stmt = sa.select(sa.func.count()).select_from(ScheduleApprovalLayerSelection).where(
+            ScheduleApprovalLayerSelection.schedule_id == id
+        )
+        layer_res = await execute_statement(db, layer_stmt)
+        if layer_res.scalar() == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=ResponseHelper.error(
+                    message="Schedule must have at least one department approval layer selected.",
+                    error_code="VALIDATION_ERROR"
+                ).model_dump()
+            )
+
+        # Check if >1 departments are selected but they all resolve to the exact same owner unit
+        dept_ids_stmt = sa.select(ScheduleApprovalLayerSelection.department_id).where(
+            ScheduleApprovalLayerSelection.schedule_id == id
+        )
+        dept_ids_res = await execute_statement(db, dept_ids_stmt)
+        dept_ids = dept_ids_res.scalars().all()
+        
+        if len(dept_ids) > 1:
+            from app.modules.department.models import DepartmentOwnerAssignment
+            owner_stmt = sa.select(DepartmentOwnerAssignment).where(
+                DepartmentOwnerAssignment.department_id.in_(dept_ids)
+            )
+            owner_res = await execute_statement(db, owner_stmt)
+            assignments = owner_res.scalars().all()
+            
+            unique_owners = set()
+            for a in assignments:
+                owner = str(a.owner_user_id) if a.owner_user_id else str(a.owner_group_id)
+                unique_owners.add(owner)
+                
+            if len(unique_owners) == 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail=ResponseHelper.error(
+                        message="Entire selected department set resolves to a single owner.",
+                        error_code="VALIDATION_ERROR"
+                    ).model_dump()
+                )
 
         # Update status
         await self.repo.update_status(db, schedule, "PENDING_APPROVAL")
         schedule.updated_by = actor_uuid
 
-        # Create approval record
-        approval = WorkflowScheduleApproval(
-            id=uuid4(),
-            tenant_id=schedule.tenant_id,
-            schedule_id=schedule.id,
-            approval_type="ACTIVATION",
-            approval_status="PENDING",
-            approval_group_id=schedule.approval_group_id,
-            submitted_by=actor_uuid,
-            created_by=actor_uuid,
-            updated_by=actor_uuid
-        )
-        db.add(approval)
+        # Create NEW approval_cycle_id for every submission (resubmissions rebuild chain from scratch)
+        approval_cycle_id = uuid4()
+        already_decided_owner_ids = set()
+
+        next_layer = await self.resolve_next_layer(id, approval_cycle_id, already_decided_owner_ids, actor_uuid, db)
         
+        if next_layer is None:
+            raise HTTPException(
+                status_code=400,
+                detail=ResponseHelper.error(
+                    message="Approval chain resolved to zero genuine approvals (all skipped or missing owners).",
+                    error_code="VALIDATION_ERROR"
+                ).model_dump()
+            )
+
         history_rec = WorkflowScheduleHistory(
             id=uuid4(),
             tenant_id=schedule.tenant_id,
             schedule_id=schedule.id,
             change_type="SUBMIT",
-            change_summary="Schedule submitted for approval",
+            change_summary="Schedule submitted for multi-layer approval",
             before_json=before_json,
             after_json=serialize_schedule_history(schedule),
             changed_by=actor_uuid,
@@ -577,32 +781,16 @@ class WorkflowScheduleService:
         )
         db.add(history_rec)
 
-        # Create notifications for group members
-        stmt = select(ApprovalGroupMember.user_id).where(ApprovalGroupMember.approval_group_id == schedule.approval_group_id)
-        res = await execute_statement(db, stmt)
-        member_ids = [r[0] for r in res.fetchall()]
-
-        for member_id in member_ids:
-            notif = WorkflowNotification(
-                id=uuid4(),
-                tenant_id=schedule.tenant_id,
-                recipient_user_id=member_id,
-                notification_type="APPROVAL_REQUIRED",
-                title="Schedule Approval Required",
-                message=f"Approval is required for schedule {schedule.schedule_name} ({schedule.schedule_code}).",
-                severity="HIGH",
-                entity_type="WORKFLOW_SCHEDULE",
-                entity_id=schedule.id,
-                status="UNREAD",
-                created_by=actor_uuid,
-                updated_by=actor_uuid
-            )
-            db.add(notif)
-
         await db_flush(db)
 
         # Publish event
-        await self.event_service.publish_schedule_submitted(schedule.id, actor_uuid, db)
+        await self.event_service.publish_schedule_submitted(
+            schedule_id=schedule.id,
+            actor_id=actor_uuid,
+            approval_cycle_id=approval_cycle_id,
+            correlation_id=str(approval_cycle_id),
+            db=db
+        )
 
         return schedule
 
@@ -633,6 +821,28 @@ class WorkflowScheduleService:
                     detail=ResponseHelper.error(
                         message="Access denied: missing ACTIVATE_WORKFLOW_SCHEDULE permission or ABAC validation failed",
                         error_code="FORBIDDEN"
+                    ).model_dump()
+                )
+
+        from app.modules.workflow_scheduler.models import WorkflowScheduleApproval
+        stmt = sa.select(WorkflowScheduleApproval.approval_cycle_id).where(
+            WorkflowScheduleApproval.schedule_id == id
+        ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
+        res = await execute_statement(db, stmt)
+        latest_cycle_id = res.scalar()
+        
+        if latest_cycle_id:
+            pending_check_stmt = sa.select(sa.func.count()).select_from(WorkflowScheduleApproval).where(
+                WorkflowScheduleApproval.approval_cycle_id == latest_cycle_id,
+                WorkflowScheduleApproval.approval_status == 'PENDING'
+            )
+            pending_res = await execute_statement(db, pending_check_stmt)
+            if pending_res.scalar() > 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=ResponseHelper.error(
+                        message="Cannot activate schedule: PENDING approvals still exist in the current approval cycle.",
+                        error_code="VALIDATION_ERROR"
                     ).model_dump()
                 )
 
@@ -772,7 +982,21 @@ class WorkflowScheduleService:
         
         await db_flush(db)
 
-        await self.event_service.publish_schedule_activated(schedule.id, actor_uuid, db)
+        # Need to find the latest approval cycle id for the correlation_id
+        from app.modules.workflow_scheduler.models import WorkflowScheduleApproval
+        cycle_stmt = sa.select(WorkflowScheduleApproval.approval_cycle_id).where(
+            WorkflowScheduleApproval.schedule_id == schedule.id
+        ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
+        cycle_res = await execute_statement(db, cycle_stmt)
+        latest_cycle_id = cycle_res.scalar() or schedule.id
+
+        await self.event_service.publish_schedule_activated(
+            schedule_id=schedule.id, 
+            actor_id=actor_uuid, 
+            approval_cycle_id=latest_cycle_id,
+            correlation_id=str(latest_cycle_id),
+            db=db
+        )
 
         return schedule
 
@@ -882,37 +1106,32 @@ class WorkflowScheduleService:
 
     async def decide_approval(self, approval_id: UUID, decision: str, reason: str, current_user, db) -> Phase2WorkflowSchedule:
         # Load approval record
+        from app.shared.database import db_get
         approval = await db_get(db, WorkflowScheduleApproval, approval_id)
         if not approval:
             # Fallback: check if the approval_id matches a schedule_id
-            stmt = select(WorkflowScheduleApproval).where(
+            stmt = sa.select(WorkflowScheduleApproval).where(
                 WorkflowScheduleApproval.schedule_id == approval_id
             ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
             res = await execute_statement(db, stmt)
             approval = res.scalar()
 
         if not approval:
-            # Self-healing: if the schedule is in PENDING_APPROVAL but has no record, auto-create it
-            schedule = await self.repo.get_by_id(db, approval_id)
-            sched_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
-            if schedule and sched_status_str == "PENDING_APPROVAL":
-                approval = WorkflowScheduleApproval(
-                    id=uuid4(),
-                    tenant_id=schedule.tenant_id,
-                    schedule_id=schedule.id,
-                    approval_type="ACTIVATION",
-                    approval_status="PENDING",
-                    approval_group_id=schedule.approval_group_id,
-                    submitted_by=resolve_user_uuid(db, current_user.id),
-                    created_by=resolve_user_uuid(db, current_user.id),
-                    updated_by=resolve_user_uuid(db, current_user.id)
-                )
-                db.add(approval)
-            else:
-                raise HTTPException(
-                    status_code=404,
-                    detail=ResponseHelper.error(message="Approval record not found", error_code="NOT_FOUND").model_dump()
-                )
+            raise HTTPException(
+                status_code=404,
+                detail=ResponseHelper.error(message="Approval record not found", error_code="NOT_FOUND").model_dump()
+            )
+            
+        stale_check_stmt = sa.select(sa.func.count()).select_from(WorkflowScheduleApproval).where(
+            WorkflowScheduleApproval.approval_cycle_id == approval.approval_cycle_id,
+            WorkflowScheduleApproval.created_at > approval.created_at
+        )
+        stale_res = await execute_statement(db, stale_check_stmt)
+        if stale_res.scalar() > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=ResponseHelper.error(message="Approval record is stale (a newer record exists in this cycle).", error_code="STALE_APPROVAL").model_dump()
+            )
 
         if approval.approval_status not in ["PENDING", "ESCALATED"]:
             raise HTTPException(
@@ -935,7 +1154,7 @@ class WorkflowScheduleService:
         # Verify decider permissions and group association
         is_member = False
         if approval.approval_group_id is not None:
-            member_stmt = select(ApprovalGroupMember).where(
+            member_stmt = sa.select(ApprovalGroupMember).where(
                 ApprovalGroupMember.approval_group_id == approval.approval_group_id,
                 ApprovalGroupMember.user_id == actor_uuid
             )
@@ -945,8 +1164,9 @@ class WorkflowScheduleService:
         role_code = getattr(current_user, "role_code", None)
         is_admin = role_code in ["ADMIN", "GOVERNANCE_MANAGER"]
         is_general_approver = role_code in ["APPROVER", "REVIEWER"]
+        is_direct_user = approval.approver_user_id == actor_uuid
 
-        if not is_member and not is_admin and not is_general_approver:
+        if not is_member and not is_admin and not is_general_approver and not is_direct_user:
             raise HTTPException(
                 status_code=403,
                 detail=ResponseHelper.error(
@@ -956,27 +1176,95 @@ class WorkflowScheduleService:
             )
 
         # Update approval entry
-        approval.approver_user_id = actor_uuid
-        approval.approval_status = decision
-        approval.decision_reason = reason
-        approval.decided_at = datetime.now(timezone.utc)
         approval.updated_by = actor_uuid
 
-        if decision == "APPROVED":
-            # Transition status and activate
-            schedule = await self.activate_schedule(schedule.id, current_user, db, bypass_abac=True)
+        # Fetch department code for event payloads
+        dept_code = "UNKNOWN"
+        if approval.department_id:
+            from app.modules.department.models import Department
+            dept_res = await execute_statement(db, sa.select(Department.department_code).where(Department.id == approval.department_id))
+            fetched = dept_res.scalar()
+            if fetched: dept_code = fetched
             
-            await self.event_service.publish_event(
-                event_code=WorkflowEventCode.WORKFLOW_SCHEDULE_APPROVED,
-                entity_type="workflow_schedules",
-                entity_id=schedule.id,
-                actor_type="USER",
-                actor_id=actor_uuid,
-                action_type="APPROVE",
-                event_summary=f"Approval decision: APPROVED for schedule {schedule.schedule_name}",
-                event_payload={"approval_id": str(approval.id), "reason": reason},
-                db=db
+        base_event_payload = {
+            "schedule_id": str(schedule.id),
+            "approval_cycle_id": str(approval.approval_cycle_id),
+            "correlation_id": str(approval.approval_cycle_id),
+            "approval_layer": approval.approval_layer,
+            "department_code": dept_code,
+            "parent_approval_id": str(approval.parent_approval_id) if approval.parent_approval_id else None,
+            "approval_id": str(approval.id)
+        }
+
+        if decision == "APPROVED":
+            approval.approval_status = "APPROVED"
+            approval.decided_by = actor_uuid
+            approval.decided_at = datetime.now(timezone.utc)
+            approval.decision_reason = reason
+            await db_flush(db)
+
+            # Build the decided-owner set from all APPROVED + SKIPPED rows in this cycle
+            stmt = sa.select(WorkflowScheduleApproval).where(
+                WorkflowScheduleApproval.approval_cycle_id == approval.approval_cycle_id,
+                WorkflowScheduleApproval.approval_status.in_(["APPROVED", "SKIPPED"])
             )
+            res = await execute_statement(db, stmt)
+            decided_rows = res.scalars().all()
+            
+            already_decided_owner_ids = set()
+            for r in decided_rows:
+                # Add the originally assigned unit (user or group) to the deduplication set
+                owner_id = str(r.approver_user_id) if r.approver_user_id else str(r.approval_group_id)
+                if owner_id:
+                    already_decided_owner_ids.add(owner_id)
+
+            next_layer = await self.resolve_next_layer(schedule.id, approval.approval_cycle_id, already_decided_owner_ids, actor_uuid, db)
+            
+            if next_layer:
+                # Schedule stays PENDING_APPROVAL
+                await self.event_service.publish_event(
+                    event_code=WorkflowEventCode.WORKFLOW_SCHEDULE_APPROVED,
+                    entity_type="workflow_schedules",
+                    entity_id=schedule.id,
+                    actor_type="USER",
+                    actor_id=actor_uuid,
+                    action_type="APPROVE_LAYER",
+                    event_summary=f"Layer {approval.approval_layer} approval granted for schedule {schedule.schedule_name}",
+                    event_payload={**base_event_payload, "reason": reason},
+                    db=db
+                )
+            else:
+                # Chain exhausted - Verify no PENDING row remains anywhere in this cycle
+                pending_check_stmt = sa.select(sa.func.count()).select_from(WorkflowScheduleApproval).where(
+                    WorkflowScheduleApproval.approval_cycle_id == approval.approval_cycle_id,
+                    WorkflowScheduleApproval.approval_status == 'PENDING'
+                )
+                pending_res = await execute_statement(db, pending_check_stmt)
+                
+                if pending_res.scalar() > 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=ResponseHelper.error(
+                            message="Cannot activate schedule: PENDING approvals still exist in this cycle.",
+                            error_code="VALIDATION_ERROR"
+                        ).model_dump()
+                    )
+                
+                # Activate schedule
+                schedule = await self.activate_schedule(schedule.id, current_user, db, bypass_abac=True)
+                
+                await self.event_service.publish_event(
+                    event_code=WorkflowEventCode.WORKFLOW_SCHEDULE_APPROVED,
+                    entity_type="workflow_schedules",
+                    entity_id=schedule.id,
+                    actor_type="USER",
+                    actor_id=actor_uuid,
+                    action_type="APPROVE",
+                    event_summary=f"Final approval decision: APPROVED for schedule {schedule.schedule_name}",
+                    event_payload={**base_event_payload, "reason": reason},
+                    db=db
+                )
+
         elif decision in ["REJECTED", "CHANGES_REQUESTED"]:
             # Transition PENDING_APPROVAL -> DRAFT
             validate_transition(schedule.schedule_status, ScheduleStatus.DRAFT, schedule.approval_required)
@@ -1000,6 +1288,12 @@ class WorkflowScheduleService:
             )
             db.add(history_rec)
             
+            approval.approval_status = decision
+            approval.decided_by = actor_uuid
+            approval.decided_at = datetime.now(timezone.utc)
+            approval.decision_reason = reason
+            await db_flush(db)
+            
             await self.event_service.publish_event(
                 event_code=WorkflowEventCode.WORKFLOW_SCHEDULE_UPDATED,
                 entity_type="workflow_schedules",
@@ -1008,11 +1302,14 @@ class WorkflowScheduleService:
                 actor_id=actor_uuid,
                 action_type="REJECT" if decision == "REJECTED" else "CHANGES_REQUESTED",
                 event_summary=f"Approval decision: {decision} for schedule {schedule.schedule_name}",
-                event_payload={"approval_id": str(approval.id), "reason": reason},
+                event_payload={**base_event_payload, "reason": reason},
                 db=db
             )
+            
         elif decision == "ESCALATED":
-            # Leaves the schedule in PENDING_APPROVAL, but logs the escalation
+            approval.approval_status = "ESCALATED"
+            await db_flush(db)
+            
             history_rec = WorkflowScheduleHistory(
                 id=uuid4(),
                 tenant_id=schedule.tenant_id,
@@ -1035,9 +1332,8 @@ class WorkflowScheduleService:
                 actor_id=actor_uuid,
                 action_type="ESCALATE",
                 event_summary=f"Approval decision: ESCALATED for schedule {schedule.schedule_name}",
-                event_payload={"approval_id": str(approval.id), "reason": reason},
+                event_payload={**base_event_payload, "reason": reason},
                 db=db
             )
 
-        await db_flush(db)
         return schedule

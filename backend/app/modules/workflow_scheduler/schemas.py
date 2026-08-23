@@ -10,6 +10,14 @@ from app.shared.enums import (
     RiskLevel,
     ConcurrencyPolicy,
 )
+from enum import Enum
+
+class DepartmentCode(str, Enum):
+    BUSINESS_OWNER = "BUSINESS_OWNER"
+    TECHNICAL_OWNER = "TECHNICAL_OWNER"
+    AUDIT = "AUDIT"
+    HR = "HR"
+    LEGAL = "LEGAL"
 
 class BoundaryRules(BaseModel):
     max_records: int
@@ -96,6 +104,27 @@ class WorkflowScheduleCreate(BaseModel):
     schedule_status: ScheduleStatus = ScheduleStatus.DRAFT
     metadata_json: dict | None = None
     agent_assignments: list[AgentAssignmentCreate] = Field(default_factory=list)
+    approval_departments: list[DepartmentCode] = Field(default_factory=list)
+
+    @field_validator('approval_departments')
+    @classmethod
+    def validate_departments_order(cls, v: list[DepartmentCode]) -> list[DepartmentCode]:
+        if len(v) != len(set(v)):
+            raise ValueError("Duplicate department codes are not allowed.")
+        order_map = {
+            DepartmentCode.BUSINESS_OWNER: 1,
+            DepartmentCode.TECHNICAL_OWNER: 2,
+            DepartmentCode.AUDIT: 3,
+            DepartmentCode.HR: 4,
+            DepartmentCode.LEGAL: 5
+        }
+        last_order = 0
+        for code in v:
+            current_order = order_map[code]
+            if current_order < last_order:
+                raise ValueError("Departments must be selected in the correct hierarchical order.")
+            last_order = current_order
+        return v
 
     @field_validator('schedule_code')
     @classmethod
@@ -138,6 +167,29 @@ class WorkflowScheduleUpdate(BaseModel):
     schedule_status: ScheduleStatus | None = None
     metadata_json: dict | None = None
     agent_assignments: list[AgentAssignmentCreate] | None = None
+    approval_departments: list[DepartmentCode] | None = None
+
+    @field_validator('approval_departments')
+    @classmethod
+    def validate_departments_order_update(cls, v: list[DepartmentCode] | None) -> list[DepartmentCode] | None:
+        if v is None:
+            return v
+        if len(v) != len(set(v)):
+            raise ValueError("Duplicate department codes are not allowed.")
+        order_map = {
+            DepartmentCode.BUSINESS_OWNER: 1,
+            DepartmentCode.TECHNICAL_OWNER: 2,
+            DepartmentCode.AUDIT: 3,
+            DepartmentCode.HR: 4,
+            DepartmentCode.LEGAL: 5
+        }
+        last_order = 0
+        for code in v:
+            current_order = order_map[code]
+            if current_order < last_order:
+                raise ValueError("Departments must be selected in the correct hierarchical order.")
+            last_order = current_order
+        return v
 
     @model_validator(mode='after')
     def validate_schedule_update(self) -> 'WorkflowScheduleUpdate':
@@ -148,6 +200,14 @@ class WorkflowScheduleUpdate(BaseModel):
         return self
 
     model_config = ConfigDict(from_attributes=True)
+
+class WorkflowScheduleUpdateRequest(WorkflowScheduleUpdate):
+    pass
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: str
+    reason: str
 
 
 class WorkflowScheduleResponse(BaseModel):

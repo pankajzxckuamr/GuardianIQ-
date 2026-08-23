@@ -11,6 +11,17 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+
+def add_col_if_not_exists(table_name, column):
+    from sqlalchemy import inspect
+    from alembic import op
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    if column.name not in columns:
+        op.add_column(table_name, column)
+
+
 # revision identifiers, used by Alembic.
 revision: str = '7e72dc221571'
 down_revision: Union[str, Sequence[str], None] = 'c8946d1c5403'
@@ -20,7 +31,416 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+
+    op.execute('''
+DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT c.conname, c.conrelid::regclass::text as tablename
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_attribute a ON a.attnum = ANY(c.conkey) AND a.attrelid = c.conrelid
+        JOIN pg_class t2 ON t2.oid = c.confrelid
+        JOIN pg_attribute a2 ON a2.attnum = ANY(c.confkey) AND a2.attrelid = c.confrelid
+        WHERE c.contype = 'f'
+          AND (
+             (t.relname = 'agents' AND a.attname = 'ai_model_id')
+             OR (t.relname = 'agents' AND a.attname = 'id')
+             OR (t.relname = 'ai_models' AND a.attname = 'data_source_id')
+             OR (t.relname = 'ai_models' AND a.attname = 'id')
+             OR (t.relname = 'approvals' AND a.attname = 'reviewer_id')
+             OR (t.relname = 'data_sources' AND a.attname = 'id')
+             OR (t.relname = 'departments' AND a.attname = 'parent_id')
+             OR (t.relname = 'departments' AND a.attname = 'owner_user_id')
+             OR (t.relname = 'departments' AND a.attname = 'id')
+             OR (t.relname = 'policies' AND a.attname = 'id')
+             OR (t.relname = 'policies' AND a.attname = 'created_by')
+             OR (t.relname = 'recommendations' AND a.attname = 'agent_id')
+             OR (t.relname = 'recommendations' AND a.attname = 'policy_id')
+             OR (t.relname = 'role_permissions' AND a.attname = 'role_id')
+             OR (t.relname = 'roles' AND a.attname = 'id')
+             OR (t.relname = 'user_roles' AND a.attname = 'user_id')
+             OR (t.relname = 'user_roles' AND a.attname = 'role_id')
+             OR (t.relname = 'users' AND a.attname = 'id')
+             OR (t2.relname = 'agents' AND a2.attname = 'ai_model_id')
+             OR (t2.relname = 'agents' AND a2.attname = 'id')
+             OR (t2.relname = 'ai_models' AND a2.attname = 'data_source_id')
+             OR (t2.relname = 'ai_models' AND a2.attname = 'id')
+             OR (t2.relname = 'approvals' AND a2.attname = 'reviewer_id')
+             OR (t2.relname = 'data_sources' AND a2.attname = 'id')
+             OR (t2.relname = 'departments' AND a2.attname = 'parent_id')
+             OR (t2.relname = 'departments' AND a2.attname = 'owner_user_id')
+             OR (t2.relname = 'departments' AND a2.attname = 'id')
+             OR (t2.relname = 'policies' AND a2.attname = 'id')
+             OR (t2.relname = 'policies' AND a2.attname = 'created_by')
+             OR (t2.relname = 'recommendations' AND a2.attname = 'agent_id')
+             OR (t2.relname = 'recommendations' AND a2.attname = 'policy_id')
+             OR (t2.relname = 'role_permissions' AND a2.attname = 'role_id')
+             OR (t2.relname = 'roles' AND a2.attname = 'id')
+             OR (t2.relname = 'user_roles' AND a2.attname = 'user_id')
+             OR (t2.relname = 'user_roles' AND a2.attname = 'role_id')
+             OR (t2.relname = 'users' AND a2.attname = 'id')
+          )
+    )
+    LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.tablename) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname);
+    END LOOP;
+END $$;
+    ''')
+    op.execute('ALTER TABLE departments DROP CONSTRAINT IF EXISTS fk_departments_parent_id')
+    op.execute('ALTER TABLE approvals DROP CONSTRAINT IF EXISTS approvals_reviewer_id_fkey')
+    op.drop_constraint(op.f('ai_models_owner_department_id_fkey'), 'ai_models', type_='foreignkey')
+    op.drop_constraint(op.f('approval_group_members_user_id_fkey'), 'approval_group_members', type_='foreignkey')
+    op.drop_constraint(op.f('approval_groups_tenant_id_fkey'), 'approval_groups', type_='foreignkey')
+    op.drop_constraint(op.f('approval_groups_updated_by_fkey'), 'approval_groups', type_='foreignkey')
+    op.drop_constraint(op.f('approval_groups_created_by_fkey'), 'approval_groups', type_='foreignkey')
+    op.drop_constraint(op.f('data_sources_owner_department_id_fkey'), 'data_sources', type_='foreignkey')
+    op.drop_constraint(op.f('orchestration_workflow_executions_workflow_id_fkey'), 'orchestration_workflow_executions', type_='foreignkey')
+    op.drop_constraint(op.f('orchestration_workflow_schedules_workflow_id_fkey'), 'orchestration_workflow_schedules', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_authorization_decisions_updated_by_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_authorization_decisions_created_by_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_authorization_decisions_subject_user_id_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_authorization_decisions_tenant_id_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_authorization_decisions_subject_agent_id_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_delegations_delegatee_user_id_fkey'), 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_delegations_tenant_id_fkey'), 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_delegations_created_by_fkey'), 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_delegations_delegator_user_id_fkey'), 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_delegations_updated_by_fkey'), 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_notifications_updated_by_fkey'), 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_notifications_recipient_user_id_fkey'), 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_notifications_tenant_id_fkey'), 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_notifications_created_by_fkey'), 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_failures_updated_by_fkey'), 'workflow_run_failures', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_failures_created_by_fkey'), 'workflow_run_failures', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_failures_tenant_id_fkey'), 'workflow_run_failures', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_outputs_updated_by_fkey'), 'workflow_run_outputs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_outputs_created_by_fkey'), 'workflow_run_outputs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_outputs_tenant_id_fkey'), 'workflow_run_outputs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_steps_created_by_fkey'), 'workflow_run_steps', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_steps_tenant_id_fkey'), 'workflow_run_steps', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_run_steps_updated_by_fkey'), 'workflow_run_steps', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_runs_workflow_id_fkey'), 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_runs_created_by_fkey'), 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_runs_triggered_by_user_id_fkey'), 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_runs_tenant_id_fkey'), 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_runs_updated_by_fkey'), 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_agent_assignments_agent_id_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_agent_assignments_model_id_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_agent_assignments_tenant_id_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_agent_assignments_updated_by_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_agent_assignments_created_by_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_approvals_submitted_by_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_approvals_tenant_id_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_approvals_created_by_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_approvals_approver_user_id_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_approvals_updated_by_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_history_created_by_fkey'), 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_history_tenant_id_fkey'), 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_history_updated_by_fkey'), 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedule_history_changed_by_fkey'), 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedules_created_by_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedules_updated_by_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedules_owner_department_id_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedules_owner_user_id_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedules_tenant_id_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(op.f('workflow_schedules_workflow_id_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.execute('ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_user_id_fkey')
+    op.execute('ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ai_models_data_source_id_fkey')
+    op.execute('ALTER TABLE policies DROP CONSTRAINT IF EXISTS policies_created_by_fkey')
+    op.execute('ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS recommendations_agent_id_fkey')
+    op.execute('ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_role_id_fkey')
+    op.execute('ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS role_permissions_role_id_fkey')
+    op.execute('ALTER TABLE departments DROP CONSTRAINT IF EXISTS departments_owner_user_id_fkey')
+    op.execute('ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS recommendations_policy_id_fkey')
+    op.execute('ALTER TABLE agents DROP CONSTRAINT IF EXISTS agents_ai_model_id_fkey')
     # ### commands auto generated by Alembic - please adjust! ###
+    op.execute('ALTER TABLE agents ALTER COLUMN id DROP DEFAULT')
+    op.execute('ALTER TABLE ai_models ALTER COLUMN id DROP DEFAULT')
+    op.execute('ALTER TABLE data_sources ALTER COLUMN id DROP DEFAULT')
+    op.execute('ALTER TABLE departments ALTER COLUMN id DROP DEFAULT')
+    op.execute('ALTER TABLE policies ALTER COLUMN id DROP DEFAULT')
+    op.execute('ALTER TABLE roles ALTER COLUMN id DROP DEFAULT')
+    op.execute('ALTER TABLE users ALTER COLUMN id DROP DEFAULT')
+    add_col_if_not_exists('agents', sa.Column('agent_code', sa.String(length=80), nullable=False))
+    add_col_if_not_exists('agents', sa.Column('agent_type', sa.String(length=80), nullable=False))
+    add_col_if_not_exists('agents', sa.Column('owner_user_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('department_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('risk_level', sa.String(length=50), nullable=False))
+    add_col_if_not_exists('agents', sa.Column('confidence_threshold', sa.Numeric(precision=5, scale=2), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('status', sa.String(length=30), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('capabilities_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
+    add_col_if_not_exists('agents', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
+    add_col_if_not_exists('agents', sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True))
+    add_col_if_not_exists('agents', sa.Column('tenant_id', sa.UUID(), nullable=False))
+    add_col_if_not_exists('agents', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('created_by', sa.UUID(), nullable=True))
+    add_col_if_not_exists('agents', sa.Column('updated_by', sa.UUID(), nullable=True))
+    op.alter_column('agents', 'description',
+               existing_type=sa.VARCHAR(),
+               type_=sa.Text(),
+               existing_nullable=True)
+    op.alter_column('agents', 'execution_mode',
+               existing_type=postgresql.ENUM('READ_ONLY', 'RECOMMEND_ONLY', 'APPROVAL_REQUIRED', 'LIMITED_EXECUTION', 'FULLY_BLOCKED', name='executionmode'),
+               type_=sa.String(length=80),
+               existing_nullable=False)
+    op.alter_column('agents', 'ai_model_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('agents', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.drop_index(op.f('ix_agents_id'), table_name='agents')
+    op.create_unique_constraint(None, 'agents', ['agent_code'])
+    add_col_if_not_exists('ai_models', sa.Column('model_code', sa.String(length=80), nullable=False))
+    add_col_if_not_exists('ai_models', sa.Column('provider_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('purpose', sa.Text(), nullable=False))
+    add_col_if_not_exists('ai_models', sa.Column('owner_user_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('department_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('deployment_environment', sa.String(length=50), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('tenant_id', sa.UUID(), nullable=False))
+    add_col_if_not_exists('ai_models', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('created_by', sa.UUID(), nullable=True))
+    add_col_if_not_exists('ai_models', sa.Column('updated_by', sa.UUID(), nullable=True))
+    op.alter_column('ai_models', 'version',
+               existing_type=sa.VARCHAR(),
+               nullable=True)
+    op.alter_column('ai_models', 'data_source_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('ai_models', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.drop_index(op.f('ix_ai_models_id'), table_name='ai_models')
+    op.create_unique_constraint(None, 'ai_models', ['model_code'])
+    op.drop_column('ai_models', 'owner_department_id')
+    op.alter_column('approval_groups', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.alter_column('approvals', 'reviewer_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    add_col_if_not_exists('data_sources', sa.Column('source_code', sa.String(length=80), nullable=False))
+    add_col_if_not_exists('data_sources', sa.Column('owner_user_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('department_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('classification', sa.String(length=80), nullable=False))
+    add_col_if_not_exists('data_sources', sa.Column('sensitivity_level', sa.String(length=50), nullable=False))
+    add_col_if_not_exists('data_sources', sa.Column('region', sa.String(length=80), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('contains_pii', sa.Boolean(), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('retention_policy', sa.String(length=200), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('connection_reference', sa.String(length=500), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('tenant_id', sa.UUID(), nullable=False))
+    add_col_if_not_exists('data_sources', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('created_by', sa.UUID(), nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('updated_by', sa.UUID(), nullable=True))
+    op.alter_column('data_sources', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.drop_index(op.f('ix_data_sources_id'), table_name='data_sources')
+    op.create_unique_constraint(None, 'data_sources', ['source_code'])
+    op.drop_column('data_sources', 'owner_department_id')
+    op.drop_column('data_sources', 'description')
+    add_col_if_not_exists('departments', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
+    add_col_if_not_exists('departments', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
+    add_col_if_not_exists('departments', sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True))
+    add_col_if_not_exists('departments', sa.Column('tenant_id', sa.UUID(), nullable=False))
+    add_col_if_not_exists('departments', sa.Column('created_by', sa.UUID(), nullable=True))
+    add_col_if_not_exists('departments', sa.Column('updated_by', sa.UUID(), nullable=True))
+    op.alter_column('departments', 'parent_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('departments', 'owner_user_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('departments', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.alter_column('departments', 'created_at',
+               existing_type=postgresql.TIMESTAMP(timezone=True),
+               nullable=True,
+               existing_server_default=sa.text('now()'))
+    op.alter_column('departments', 'updated_at',
+               existing_type=postgresql.TIMESTAMP(timezone=True),
+               nullable=True,
+               existing_server_default=sa.text('now()'))
+    op.drop_index(op.f('ix_departments_id'), table_name='departments')
+    add_col_if_not_exists('policies', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
+    add_col_if_not_exists('policies', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
+    add_col_if_not_exists('policies', sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True))
+    add_col_if_not_exists('policies', sa.Column('tenant_id', sa.UUID(), nullable=False))
+    add_col_if_not_exists('policies', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('policies', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
+    add_col_if_not_exists('policies', sa.Column('updated_by', sa.UUID(), nullable=True))
+    op.alter_column('policies', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.alter_column('policies', 'created_by',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.drop_index(op.f('ix_policies_id'), table_name='policies')
+    op.alter_column('recommendations', 'agent_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('recommendations', 'policy_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('role_permissions', 'role_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('roles', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.drop_index(op.f('ix_roles_id'), table_name='roles')
+    op.alter_column('user_roles', 'user_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    op.alter_column('user_roles', 'role_id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=True)
+    add_col_if_not_exists('users', sa.Column('department_id', sa.UUID(), nullable=True))
+    add_col_if_not_exists('users', sa.Column('approval_limit_level', sa.String(length=50), nullable=True))
+    op.alter_column('users', 'id',
+               existing_type=sa.INTEGER(),
+               type_=sa.UUID(),
+               server_default=sa.text('gen_random_uuid()'),
+               postgresql_using='gen_random_uuid()',
+               existing_nullable=False)
+    op.drop_index(op.f('ix_users_id'), table_name='users')
+    op.alter_column('workflow_authorization_decisions', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.alter_column('workflow_delegations', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    # add_col_if_not_exists('workflow_notifications', sa.Column('related_entity_type', sa.String(length=100), nullable=True))
+    # add_col_if_not_exists('workflow_notifications', sa.Column('related_entity_id', sa.UUID(), nullable=True))
+    op.alter_column('workflow_notifications', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_notifications_recipient_status'), table_name='workflow_notifications')
+    op.drop_column('workflow_notifications', 'entity_id')
+    op.drop_column('workflow_notifications', 'entity_type')
+    add_col_if_not_exists('workflow_run_failures', sa.Column('next_retry_at', sa.TIMESTAMP(timezone=True), nullable=True))
+    op.alter_column('workflow_run_failures', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    add_col_if_not_exists('workflow_run_outputs', sa.Column('raw_output', sa.Text(), nullable=True))
+    op.alter_column('workflow_run_outputs', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_run_outputs_findings_json'), table_name='workflow_run_outputs', postgresql_using='gin')
+    add_col_if_not_exists('workflow_run_steps', sa.Column('error_detail', sa.Text(), nullable=True))
+    op.alter_column('workflow_run_steps', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_run_steps_run_id'), table_name='workflow_run_steps')
+    op.alter_column('workflow_runs', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_runs_created_at_desc'), table_name='workflow_runs')
+    op.drop_index(op.f('ix_workflow_runs_result_json'), table_name='workflow_runs', postgresql_using='gin')
+    op.drop_index(op.f('ix_workflow_runs_run_status'), table_name='workflow_runs')
+    op.drop_index(op.f('ix_workflow_runs_schedule_id'), table_name='workflow_runs')
+    op.drop_constraint(op.f('uq_workflow_runs_tenant_run_code'), 'workflow_runs', type_='unique')
+    op.alter_column('workflow_schedule_agent_assignments', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_constraint(op.f('uq_wf_sch_agent_assg_tenant_sch_agent_role'), 'workflow_schedule_agent_assignments', type_='unique')
+    op.alter_column('workflow_schedule_approvals', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_schedule_approvals_sched_status'), table_name='workflow_schedule_approvals')
+    op.alter_column('workflow_schedule_history', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_schedule_history_schedule_id'), table_name='workflow_schedule_history')
+    op.alter_column('workflow_schedules', 'metadata_json',
+               existing_type=postgresql.JSONB(astext_type=sa.Text()),
+               type_=postgresql.JSONB(astext_type=sa.Text()),
+               existing_nullable=True,
+               existing_server_default=sa.text("'{}'::jsonb"))
+    op.drop_index(op.f('ix_workflow_schedules_metadata_json'), table_name='workflow_schedules', postgresql_using='gin')
+    op.drop_index(op.f('ix_workflow_schedules_next_run_at'), table_name='workflow_schedules')
+    op.drop_index(op.f('ix_workflow_schedules_owner_user_id'), table_name='workflow_schedules')
+    op.drop_index(op.f('ix_workflow_schedules_schedule_status'), table_name='workflow_schedules')
+    op.drop_index(op.f('ix_workflow_schedules_tenant_id'), table_name='workflow_schedules')
+    op.drop_index(op.f('ix_workflow_schedules_workflow_id'), table_name='workflow_schedules')
+    op.drop_constraint(op.f('uq_workflow_schedules_tenant_code'), 'workflow_schedules', type_='unique')
+    op.create_unique_constraint('uix_tenant_schedule_code', 'workflow_schedules', ['tenant_id', 'schedule_code'])
+    op.create_unique_constraint('uix_tenant_schedule_name', 'workflow_schedules', ['tenant_id', 'schedule_name'])
     op.create_table('ai_model_providers',
     sa.Column('provider_type', sa.String(length=80), nullable=False),
     sa.Column('provider_name', sa.String(length=200), nullable=False),
@@ -32,7 +452,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -53,7 +473,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -83,7 +503,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -113,7 +533,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -172,7 +592,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -200,7 +620,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -228,7 +648,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -255,7 +675,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('version_no', sa.Integer(), server_default='1', nullable=True),
     sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True),
-    sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True),
+    sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), server_default='{}', nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -274,422 +694,1498 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.drop_table('registry_relationships')
-    op.drop_table('registry_audit_events')
-    op.drop_table('registry_workflows')
-    op.drop_table('registry_roles')
-    op.drop_table('guardian_users')
-    op.drop_table('registry_ai_agents')
-    op.drop_table('registry_departments')
-    op.drop_table('registry_ai_models')
-    op.drop_table('registry_ai_model_providers')
-    op.drop_table('registry_data_sources')
-    op.drop_table('registry_tools')
-    op.drop_table('registry_register_all')
-    op.add_column('agents', sa.Column('agent_code', sa.String(length=80), nullable=False))
-    op.add_column('agents', sa.Column('agent_type', sa.String(length=80), nullable=False))
-    op.add_column('agents', sa.Column('owner_user_id', sa.UUID(), nullable=True))
-    op.add_column('agents', sa.Column('department_id', sa.UUID(), nullable=True))
-    op.add_column('agents', sa.Column('risk_level', sa.String(length=50), nullable=False))
-    op.add_column('agents', sa.Column('confidence_threshold', sa.Numeric(precision=5, scale=2), nullable=True))
-    op.add_column('agents', sa.Column('status', sa.String(length=30), nullable=True))
-    op.add_column('agents', sa.Column('capabilities_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column('agents', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
-    op.add_column('agents', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
-    op.add_column('agents', sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True))
-    op.add_column('agents', sa.Column('tenant_id', sa.UUID(), nullable=False))
-    op.add_column('agents', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('agents', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('agents', sa.Column('created_by', sa.UUID(), nullable=True))
-    op.add_column('agents', sa.Column('updated_by', sa.UUID(), nullable=True))
-    op.alter_column('agents', 'description',
-               existing_type=sa.VARCHAR(),
-               type_=sa.Text(),
-               existing_nullable=True)
-    op.alter_column('agents', 'execution_mode',
-               existing_type=postgresql.ENUM('READ_ONLY', 'RECOMMEND_ONLY', 'APPROVAL_REQUIRED', 'LIMITED_EXECUTION', 'FULLY_BLOCKED', name='executionmode'),
-               type_=sa.String(length=80),
-               existing_nullable=False)
-    op.alter_column('agents', 'ai_model_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('agents', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.drop_index(op.f('ix_agents_id'), table_name='agents')
-    op.create_unique_constraint(None, 'agents', ['agent_code'])
+    op.execute('DROP TABLE IF EXISTS \"registry_relationships\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_audit_events\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_workflows\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_roles\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"guardian_users\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_ai_agents\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_departments\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_ai_models\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_ai_model_providers\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_data_sources\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_tools\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"registry_register_all\" CASCADE')
+
+    # --- DYNAMIC ORPHAN CLEANUP WITH SAVEPOINTS ---
+    conn = op.get_bind()
+    orphan_queries = [
+        "DELETE FROM agents WHERE owner_user_id NOT IN (SELECT id FROM users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM agents WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM agents WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM agents WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM agents WHERE department_id NOT IN (SELECT id FROM departments) AND department_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE department_id NOT IN (SELECT id FROM departments) AND department_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM ai_models WHERE owner_user_id NOT IN (SELECT id FROM users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM ai_models WHERE provider_id NOT IN (SELECT id FROM ai_model_providers) AND provider_id IS NOT NULL",
+        "DELETE FROM approval_group_members WHERE user_id NOT IN (SELECT id FROM users) AND user_id IS NOT NULL",
+        "DELETE FROM approval_groups WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM approval_groups WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM approval_groups WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM data_sources WHERE department_id NOT IN (SELECT id FROM departments) AND department_id IS NOT NULL",
+        "DELETE FROM data_sources WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM data_sources WHERE owner_user_id NOT IN (SELECT id FROM users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM data_sources WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM data_sources WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM departments WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM departments WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM departments WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM orchestration_workflow_executions WHERE workflow_id NOT IN (SELECT id FROM workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM orchestration_workflow_schedules WHERE workflow_id NOT IN (SELECT id FROM workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM policies WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM policies WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM policies WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM users WHERE department_id NOT IN (SELECT id FROM departments) AND department_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE subject_agent_id NOT IN (SELECT id FROM agents) AND subject_agent_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE subject_user_id NOT IN (SELECT id FROM users) AND subject_user_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE delegatee_user_id NOT IN (SELECT id FROM users) AND delegatee_user_id IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE delegator_user_id NOT IN (SELECT id FROM users) AND delegator_user_id IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE recipient_user_id NOT IN (SELECT id FROM users) AND recipient_user_id IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_failures WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_failures WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_run_failures WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_run_outputs WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_run_outputs WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_run_outputs WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_steps WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_steps WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_run_steps WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE workflow_id NOT IN (SELECT id FROM workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE triggered_by_user_id NOT IN (SELECT id FROM users) AND triggered_by_user_id IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE agent_id NOT IN (SELECT id FROM agents) AND agent_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE model_id NOT IN (SELECT id FROM ai_models) AND model_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE submitted_by NOT IN (SELECT id FROM users) AND submitted_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE approver_user_id NOT IN (SELECT id FROM users) AND approver_user_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE changed_by NOT IN (SELECT id FROM users) AND changed_by IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE tenant_id NOT IN (SELECT id FROM users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE updated_by NOT IN (SELECT id FROM users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE owner_department_id NOT IN (SELECT id FROM departments) AND owner_department_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE owner_user_id NOT IN (SELECT id FROM users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE workflow_id NOT IN (SELECT id FROM workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM agents WHERE ai_model_id NOT IN (SELECT id FROM ai_models) AND ai_model_id IS NOT NULL",
+        "DELETE FROM departments WHERE owner_user_id NOT IN (SELECT id FROM users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE data_source_id NOT IN (SELECT id FROM data_sources) AND data_source_id IS NOT NULL",
+        "DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users) AND user_id IS NOT NULL",
+        "DELETE FROM policies WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM user_roles WHERE role_id NOT IN (SELECT id FROM roles) AND role_id IS NOT NULL",
+        "DELETE FROM role_permissions WHERE role_id NOT IN (SELECT id FROM roles) AND role_id IS NOT NULL",
+        "DELETE FROM recommendations WHERE agent_id NOT IN (SELECT id FROM agents) AND agent_id IS NOT NULL",
+        "DELETE FROM recommendations WHERE policy_id NOT IN (SELECT id FROM policies) AND policy_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE workflow_id NOT IN (SELECT id FROM registry_workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE owner_user_id NOT IN (SELECT id FROM guardian_users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE owner_department_id NOT IN (SELECT id FROM registry_departments) AND owner_department_id IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedules WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE changed_by NOT IN (SELECT id FROM guardian_users) AND changed_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_history WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE approver_user_id NOT IN (SELECT id FROM guardian_users) AND approver_user_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_approvals WHERE submitted_by NOT IN (SELECT id FROM guardian_users) AND submitted_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE model_id NOT IN (SELECT id FROM registry_ai_models) AND model_id IS NOT NULL",
+        "DELETE FROM workflow_schedule_agent_assignments WHERE agent_id NOT IN (SELECT id FROM registry_ai_agents) AND agent_id IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE triggered_by_user_id NOT IN (SELECT id FROM guardian_users) AND triggered_by_user_id IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_runs WHERE workflow_id NOT IN (SELECT id FROM registry_workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM workflow_run_steps WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_run_steps WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_run_steps WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_outputs WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_run_outputs WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_outputs WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_run_failures WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_run_failures WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_run_failures WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE recipient_user_id NOT IN (SELECT id FROM guardian_users) AND recipient_user_id IS NOT NULL",
+        "DELETE FROM workflow_notifications WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE delegator_user_id NOT IN (SELECT id FROM guardian_users) AND delegator_user_id IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_delegations WHERE delegatee_user_id NOT IN (SELECT id FROM guardian_users) AND delegatee_user_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE subject_agent_id NOT IN (SELECT id FROM registry_ai_agents) AND subject_agent_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE subject_user_id NOT IN (SELECT id FROM guardian_users) AND subject_user_id IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM workflow_authorization_decisions WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM orchestration_workflow_schedules WHERE workflow_id NOT IN (SELECT id FROM registry_workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM orchestration_workflow_executions WHERE workflow_id NOT IN (SELECT id FROM registry_workflows) AND workflow_id IS NOT NULL",
+        "DELETE FROM data_sources WHERE owner_department_id NOT IN (SELECT id FROM departments) AND owner_department_id IS NOT NULL",
+        "DELETE FROM approval_groups WHERE created_by NOT IN (SELECT id FROM guardian_users) AND created_by IS NOT NULL",
+        "DELETE FROM approval_groups WHERE updated_by NOT IN (SELECT id FROM guardian_users) AND updated_by IS NOT NULL",
+        "DELETE FROM approval_groups WHERE tenant_id NOT IN (SELECT id FROM guardian_users) AND tenant_id IS NOT NULL",
+        "DELETE FROM approval_group_members WHERE user_id NOT IN (SELECT id FROM guardian_users) AND user_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE owner_department_id NOT IN (SELECT id FROM departments) AND owner_department_id IS NOT NULL",
+        "DELETE FROM agents WHERE ai_model_id NOT IN (SELECT id FROM ai_models) AND ai_model_id IS NOT NULL",
+        "DELETE FROM departments WHERE owner_user_id NOT IN (SELECT id FROM users) AND owner_user_id IS NOT NULL",
+        "DELETE FROM ai_models WHERE data_source_id NOT IN (SELECT id FROM data_sources) AND data_source_id IS NOT NULL",
+        "DELETE FROM user_roles WHERE user_id NOT IN (SELECT id FROM users) AND user_id IS NOT NULL",
+        "DELETE FROM policies WHERE created_by NOT IN (SELECT id FROM users) AND created_by IS NOT NULL",
+        "DELETE FROM user_roles WHERE role_id NOT IN (SELECT id FROM roles) AND role_id IS NOT NULL",
+        "DELETE FROM role_permissions WHERE role_id NOT IN (SELECT id FROM roles) AND role_id IS NOT NULL",
+        "DELETE FROM recommendations WHERE agent_id NOT IN (SELECT id FROM agents) AND agent_id IS NOT NULL",
+        "DELETE FROM recommendations WHERE policy_id NOT IN (SELECT id FROM policies) AND policy_id IS NOT NULL",
+    ]
+    for _ in range(10):  # Maximum dependency depth
+        for query in orphan_queries:
+            try:
+                with conn.begin_nested():
+                    conn.execute(sa.text(query))
+            except Exception:
+                pass
+    # ----------------------------------------------
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'owner_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'agents', 'users', ['owner_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'agents', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'agents', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'agents', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'agents', 'departments', ['department_id'], ['id'])
-    op.add_column('ai_models', sa.Column('model_code', sa.String(length=80), nullable=False))
-    op.add_column('ai_models', sa.Column('provider_id', sa.UUID(), nullable=True))
-    op.add_column('ai_models', sa.Column('purpose', sa.Text(), nullable=False))
-    op.add_column('ai_models', sa.Column('owner_user_id', sa.UUID(), nullable=True))
-    op.add_column('ai_models', sa.Column('department_id', sa.UUID(), nullable=True))
-    op.add_column('ai_models', sa.Column('deployment_environment', sa.String(length=50), nullable=True))
-    op.add_column('ai_models', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
-    op.add_column('ai_models', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
-    op.add_column('ai_models', sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True))
-    op.add_column('ai_models', sa.Column('tenant_id', sa.UUID(), nullable=False))
-    op.add_column('ai_models', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('ai_models', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('ai_models', sa.Column('created_by', sa.UUID(), nullable=True))
-    op.add_column('ai_models', sa.Column('updated_by', sa.UUID(), nullable=True))
-    op.alter_column('ai_models', 'version',
-               existing_type=sa.VARCHAR(),
-               nullable=True)
-    op.alter_column('ai_models', 'data_source_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('ai_models', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.drop_index(op.f('ix_ai_models_id'), table_name='ai_models')
-    op.create_unique_constraint(None, 'ai_models', ['model_code'])
-    op.drop_constraint(op.f('ai_models_owner_department_id_fkey'), 'ai_models', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'ai_models', 'departments', ['department_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'ai_models', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'ai_models', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'owner_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'ai_models', 'users', ['owner_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'ai_models', 'users', ['updated_by'], ['id'])
-    op.create_foreign_key(None, 'ai_models', 'ai_model_providers', ['provider_id'], ['id'])
-    op.drop_column('ai_models', 'owner_department_id')
-    op.drop_constraint(op.f('approval_group_members_user_id_fkey'), 'approval_group_members', type_='foreignkey')
+    # [Safe Migrations] Skipped FK to dropped table ai_model_providers: op.create_foreign_key(None, 'ai_models', 'ai_model_providers', ['provider_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'approval_group_members' AND column_name = 'user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE approval_group_members DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'approval_group_members', 'users', ['user_id'], ['id'], ondelete='CASCADE')
-    op.alter_column('approval_groups', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(op.f('approval_groups_tenant_id_fkey'), 'approval_groups', type_='foreignkey')
-    op.drop_constraint(op.f('approval_groups_updated_by_fkey'), 'approval_groups', type_='foreignkey')
-    op.drop_constraint(op.f('approval_groups_created_by_fkey'), 'approval_groups', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'approval_groups' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE approval_groups DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'approval_groups', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'approval_groups' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE approval_groups DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'approval_groups', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'approval_groups' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE approval_groups DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'approval_groups', 'users', ['updated_by'], ['id'])
-    op.alter_column('approvals', 'reviewer_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.add_column('data_sources', sa.Column('source_code', sa.String(length=80), nullable=False))
-    op.add_column('data_sources', sa.Column('owner_user_id', sa.UUID(), nullable=True))
-    op.add_column('data_sources', sa.Column('department_id', sa.UUID(), nullable=True))
-    op.add_column('data_sources', sa.Column('classification', sa.String(length=80), nullable=False))
-    op.add_column('data_sources', sa.Column('sensitivity_level', sa.String(length=50), nullable=False))
-    op.add_column('data_sources', sa.Column('region', sa.String(length=80), nullable=True))
-    op.add_column('data_sources', sa.Column('contains_pii', sa.Boolean(), nullable=True))
-    op.add_column('data_sources', sa.Column('retention_policy', sa.String(length=200), nullable=True))
-    op.add_column('data_sources', sa.Column('connection_reference', sa.String(length=500), nullable=True))
-    op.add_column('data_sources', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
-    op.add_column('data_sources', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
-    op.add_column('data_sources', sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True))
-    op.add_column('data_sources', sa.Column('tenant_id', sa.UUID(), nullable=False))
-    op.add_column('data_sources', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('data_sources', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('data_sources', sa.Column('created_by', sa.UUID(), nullable=True))
-    op.add_column('data_sources', sa.Column('updated_by', sa.UUID(), nullable=True))
-    op.alter_column('data_sources', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.drop_index(op.f('ix_data_sources_id'), table_name='data_sources')
-    op.create_unique_constraint(None, 'data_sources', ['source_code'])
-    op.drop_constraint(op.f('data_sources_owner_department_id_fkey'), 'data_sources', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'data_sources' AND column_name = 'department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE data_sources DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'data_sources', 'departments', ['department_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'data_sources' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE data_sources DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'data_sources', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'data_sources' AND column_name = 'owner_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE data_sources DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'data_sources', 'users', ['owner_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'data_sources' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE data_sources DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'data_sources', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'data_sources' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE data_sources DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'data_sources', 'users', ['updated_by'], ['id'])
-    op.drop_column('data_sources', 'owner_department_id')
-    op.drop_column('data_sources', 'description')
-    op.add_column('departments', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
-    op.add_column('departments', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
-    op.add_column('departments', sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True))
-    op.add_column('departments', sa.Column('tenant_id', sa.UUID(), nullable=False))
-    op.add_column('departments', sa.Column('created_by', sa.UUID(), nullable=True))
-    op.add_column('departments', sa.Column('updated_by', sa.UUID(), nullable=True))
-    op.alter_column('departments', 'parent_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('departments', 'owner_user_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('departments', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.alter_column('departments', 'created_at',
-               existing_type=postgresql.TIMESTAMP(timezone=True),
-               nullable=True,
-               existing_server_default=sa.text('now()'))
-    op.alter_column('departments', 'updated_at',
-               existing_type=postgresql.TIMESTAMP(timezone=True),
-               nullable=True,
-               existing_server_default=sa.text('now()'))
-    op.drop_index(op.f('ix_departments_id'), table_name='departments')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'departments' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE departments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'departments', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'departments' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE departments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'departments', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'departments' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE departments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'departments', 'users', ['created_by'], ['id'])
-    op.drop_constraint(op.f('orchestration_workflow_executions_workflow_id_fkey'), 'orchestration_workflow_executions', type_='foreignkey')
-    op.create_foreign_key(None, 'orchestration_workflow_executions', 'workflows', ['workflow_id'], ['id'])
-    op.drop_constraint(op.f('orchestration_workflow_schedules_workflow_id_fkey'), 'orchestration_workflow_schedules', type_='foreignkey')
-    op.create_foreign_key(None, 'orchestration_workflow_schedules', 'workflows', ['workflow_id'], ['id'])
-    op.add_column('policies', sa.Column('version_no', sa.Integer(), server_default='1', nullable=True))
-    op.add_column('policies', sa.Column('is_deleted', sa.Boolean(), server_default='FALSE', nullable=True))
-    op.add_column('policies', sa.Column('metadata_json', sa.JSON(), server_default='{}', nullable=True))
-    op.add_column('policies', sa.Column('tenant_id', sa.UUID(), nullable=False))
-    op.add_column('policies', sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('policies', sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=True))
-    op.add_column('policies', sa.Column('updated_by', sa.UUID(), nullable=True))
-    op.alter_column('policies', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.alter_column('policies', 'created_by',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.drop_index(op.f('ix_policies_id'), table_name='policies')
+    # [Safe Migrations] Skipped FK to dropped table workflows: op.create_foreign_key(None, 'orchestration_workflow_executions', 'workflows', ['workflow_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table workflows: op.create_foreign_key(None, 'orchestration_workflow_schedules', 'workflows', ['workflow_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'policies' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE policies DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'policies', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'policies' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE policies DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'policies', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'policies' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE policies DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'policies', 'users', ['tenant_id'], ['id'])
-    op.alter_column('recommendations', 'agent_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('recommendations', 'policy_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('role_permissions', 'role_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('roles', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.drop_index(op.f('ix_roles_id'), table_name='roles')
-    op.alter_column('user_roles', 'user_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.alter_column('user_roles', 'role_id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=True)
-    op.add_column('users', sa.Column('department_id', sa.UUID(), nullable=True))
-    op.add_column('users', sa.Column('approval_limit_level', sa.String(length=50), nullable=True))
-    op.alter_column('users', 'id',
-               existing_type=sa.INTEGER(),
-               type_=sa.UUID(),
-               existing_nullable=False)
-    op.drop_index(op.f('ix_users_id'), table_name='users')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'users' AND column_name = 'department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE users DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'users', 'departments', ['department_id'], ['id'])
-    op.alter_column('workflow_authorization_decisions', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(op.f('workflow_authorization_decisions_updated_by_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_authorization_decisions_created_by_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_authorization_decisions_subject_user_id_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_authorization_decisions_tenant_id_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_authorization_decisions_subject_agent_id_fkey'), 'workflow_authorization_decisions', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_authorization_decisions' AND column_name = 'subject_agent_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_authorization_decisions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_authorization_decisions', 'agents', ['subject_agent_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_authorization_decisions' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_authorization_decisions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_authorization_decisions', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_authorization_decisions' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_authorization_decisions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_authorization_decisions', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_authorization_decisions' AND column_name = 'subject_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_authorization_decisions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_authorization_decisions', 'users', ['subject_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_authorization_decisions' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_authorization_decisions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_authorization_decisions', 'users', ['created_by'], ['id'])
-    op.alter_column('workflow_delegations', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(op.f('workflow_delegations_delegatee_user_id_fkey'), 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_delegations_tenant_id_fkey'), 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_delegations_created_by_fkey'), 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_delegations_delegator_user_id_fkey'), 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_delegations_updated_by_fkey'), 'workflow_delegations', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_delegations' AND column_name = 'delegatee_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_delegations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_delegations', 'users', ['delegatee_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_delegations' AND column_name = 'delegator_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_delegations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_delegations', 'users', ['delegator_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_delegations' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_delegations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_delegations', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_delegations' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_delegations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_delegations', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_delegations' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_delegations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_delegations', 'users', ['updated_by'], ['id'])
-    op.add_column('workflow_notifications', sa.Column('related_entity_type', sa.String(length=100), nullable=True))
-    op.add_column('workflow_notifications', sa.Column('related_entity_id', sa.UUID(), nullable=True))
-    op.alter_column('workflow_notifications', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_notifications_recipient_status'), table_name='workflow_notifications')
-    op.drop_constraint(op.f('workflow_notifications_updated_by_fkey'), 'workflow_notifications', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_notifications_recipient_user_id_fkey'), 'workflow_notifications', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_notifications_tenant_id_fkey'), 'workflow_notifications', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_notifications_created_by_fkey'), 'workflow_notifications', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_notifications' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_notifications DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_notifications', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_notifications' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_notifications DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_notifications', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_notifications' AND column_name = 'recipient_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_notifications DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_notifications', 'users', ['recipient_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_notifications' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_notifications DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_notifications', 'users', ['created_by'], ['id'])
-    op.drop_column('workflow_notifications', 'entity_id')
-    op.drop_column('workflow_notifications', 'entity_type')
-    op.add_column('workflow_run_failures', sa.Column('next_retry_at', sa.TIMESTAMP(timezone=True), nullable=True))
-    op.alter_column('workflow_run_failures', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(op.f('workflow_run_failures_updated_by_fkey'), 'workflow_run_failures', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_run_failures_created_by_fkey'), 'workflow_run_failures', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_run_failures_tenant_id_fkey'), 'workflow_run_failures', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_failures' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_failures DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_failures', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_failures' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_failures DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_failures', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_failures' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_failures DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_failures', 'users', ['updated_by'], ['id'])
-    op.add_column('workflow_run_outputs', sa.Column('raw_output', sa.Text(), nullable=True))
-    op.alter_column('workflow_run_outputs', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_run_outputs_findings_json'), table_name='workflow_run_outputs', postgresql_using='gin')
-    op.drop_constraint(op.f('workflow_run_outputs_updated_by_fkey'), 'workflow_run_outputs', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_run_outputs_created_by_fkey'), 'workflow_run_outputs', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_run_outputs_tenant_id_fkey'), 'workflow_run_outputs', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_outputs' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_outputs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_outputs', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_outputs' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_outputs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_outputs', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_outputs' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_outputs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_outputs', 'users', ['created_by'], ['id'])
-    op.add_column('workflow_run_steps', sa.Column('error_detail', sa.Text(), nullable=True))
-    op.alter_column('workflow_run_steps', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_run_steps_run_id'), table_name='workflow_run_steps')
-    op.drop_constraint(op.f('workflow_run_steps_created_by_fkey'), 'workflow_run_steps', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_run_steps_tenant_id_fkey'), 'workflow_run_steps', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_run_steps_updated_by_fkey'), 'workflow_run_steps', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_steps' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_steps DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_steps', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_steps' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_steps DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_steps', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_run_steps' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_run_steps DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_run_steps', 'users', ['updated_by'], ['id'])
-    op.alter_column('workflow_runs', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_runs_created_at_desc'), table_name='workflow_runs')
-    op.drop_index(op.f('ix_workflow_runs_result_json'), table_name='workflow_runs', postgresql_using='gin')
-    op.drop_index(op.f('ix_workflow_runs_run_status'), table_name='workflow_runs')
-    op.drop_index(op.f('ix_workflow_runs_schedule_id'), table_name='workflow_runs')
-    op.drop_constraint(op.f('uq_workflow_runs_tenant_run_code'), 'workflow_runs', type_='unique')
-    op.drop_constraint(op.f('workflow_runs_workflow_id_fkey'), 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_runs_created_by_fkey'), 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_runs_triggered_by_user_id_fkey'), 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_runs_tenant_id_fkey'), 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_runs_updated_by_fkey'), 'workflow_runs', type_='foreignkey')
-    op.create_foreign_key(None, 'workflow_runs', 'workflows', ['workflow_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table workflows: op.create_foreign_key(None, 'workflow_runs', 'workflows', ['workflow_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_runs' AND column_name = 'triggered_by_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_runs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_runs', 'users', ['triggered_by_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_runs' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_runs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_runs', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_runs' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_runs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_runs', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_runs' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_runs DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_runs', 'users', ['created_by'], ['id'])
-    op.alter_column('workflow_schedule_agent_assignments', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(op.f('uq_wf_sch_agent_assg_tenant_sch_agent_role'), 'workflow_schedule_agent_assignments', type_='unique')
-    op.drop_constraint(op.f('workflow_schedule_agent_assignments_agent_id_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_agent_assignments_model_id_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_agent_assignments_tenant_id_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_agent_assignments_updated_by_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_agent_assignments_created_by_fkey'), 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_agent_assignments' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_agent_assignments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_agent_assignments', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_agent_assignments' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_agent_assignments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_agent_assignments', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_agent_assignments' AND column_name = 'agent_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_agent_assignments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_agent_assignments', 'agents', ['agent_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_agent_assignments' AND column_name = 'model_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_agent_assignments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_agent_assignments', 'ai_models', ['model_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_agent_assignments' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_agent_assignments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_agent_assignments', 'users', ['tenant_id'], ['id'])
-    op.alter_column('workflow_schedule_approvals', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_schedule_approvals_sched_status'), table_name='workflow_schedule_approvals')
-    op.drop_constraint(op.f('workflow_schedule_approvals_submitted_by_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_approvals_tenant_id_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_approvals_created_by_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_approvals_approver_user_id_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_approvals_updated_by_fkey'), 'workflow_schedule_approvals', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_approvals' AND column_name = 'submitted_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_approvals DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_approvals', 'users', ['submitted_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_approvals' AND column_name = 'approver_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_approvals DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_approvals', 'users', ['approver_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_approvals' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_approvals DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_approvals', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_approvals' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_approvals DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_approvals', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_approvals' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_approvals DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_approvals', 'users', ['updated_by'], ['id'])
-    op.alter_column('workflow_schedule_history', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_schedule_history_schedule_id'), table_name='workflow_schedule_history')
-    op.drop_constraint(op.f('workflow_schedule_history_created_by_fkey'), 'workflow_schedule_history', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_history_tenant_id_fkey'), 'workflow_schedule_history', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_history_updated_by_fkey'), 'workflow_schedule_history', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedule_history_changed_by_fkey'), 'workflow_schedule_history', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_history' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_history DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_history', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_history' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_history DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_history', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_history' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_history DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_history', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedule_history' AND column_name = 'changed_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedule_history DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedule_history', 'users', ['changed_by'], ['id'])
-    op.alter_column('workflow_schedules', 'metadata_json',
-               existing_type=postgresql.JSONB(astext_type=sa.Text()),
-               type_=sa.JSON(),
-               existing_nullable=True,
-               existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_index(op.f('ix_workflow_schedules_metadata_json'), table_name='workflow_schedules', postgresql_using='gin')
-    op.drop_index(op.f('ix_workflow_schedules_next_run_at'), table_name='workflow_schedules')
-    op.drop_index(op.f('ix_workflow_schedules_owner_user_id'), table_name='workflow_schedules')
-    op.drop_index(op.f('ix_workflow_schedules_schedule_status'), table_name='workflow_schedules')
-    op.drop_index(op.f('ix_workflow_schedules_tenant_id'), table_name='workflow_schedules')
-    op.drop_index(op.f('ix_workflow_schedules_workflow_id'), table_name='workflow_schedules')
-    op.drop_constraint(op.f('uq_workflow_schedules_tenant_code'), 'workflow_schedules', type_='unique')
-    op.create_unique_constraint('uix_tenant_schedule_code', 'workflow_schedules', ['tenant_id', 'schedule_code'])
-    op.create_unique_constraint('uix_tenant_schedule_name', 'workflow_schedules', ['tenant_id', 'schedule_name'])
-    op.drop_constraint(op.f('workflow_schedules_created_by_fkey'), 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedules_updated_by_fkey'), 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedules_owner_department_id_fkey'), 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedules_owner_user_id_fkey'), 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedules_tenant_id_fkey'), 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(op.f('workflow_schedules_workflow_id_fkey'), 'workflow_schedules', type_='foreignkey')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedules' AND column_name = 'tenant_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedules DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedules', 'users', ['tenant_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedules' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedules DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedules', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedules' AND column_name = 'updated_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedules DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedules', 'users', ['updated_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedules' AND column_name = 'owner_department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedules DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedules', 'departments', ['owner_department_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'workflow_schedules' AND column_name = 'owner_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE workflow_schedules DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
     op.create_foreign_key(None, 'workflow_schedules', 'users', ['owner_user_id'], ['id'])
-    op.create_foreign_key(None, 'workflow_schedules', 'workflows', ['workflow_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table workflows: op.create_foreign_key(None, 'workflow_schedules', 'workflows', ['workflow_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'ai_model_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('agents_ai_model_id_fkey', 'agents', 'ai_models', ['ai_model_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'departments' AND column_name = 'owner_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE departments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('departments_owner_user_id_fkey', 'departments', 'users', ['owner_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'data_source_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('ai_models_data_source_id_fkey', 'ai_models', 'data_sources', ['data_source_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'user_roles' AND column_name = 'user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('user_roles_user_id_fkey', 'user_roles', 'users', ['user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'policies' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE policies DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('policies_created_by_fkey', 'policies', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'user_roles' AND column_name = 'role_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('user_roles_role_id_fkey', 'user_roles', 'roles', ['role_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'role_permissions' AND column_name = 'role_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('role_permissions_role_id_fkey', 'role_permissions', 'roles', ['role_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'recommendations' AND column_name = 'agent_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('recommendations_agent_id_fkey', 'recommendations', 'agents', ['agent_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'recommendations' AND column_name = 'policy_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('recommendations_policy_id_fkey', 'recommendations', 'policies', ['policy_id'], ['id'])
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+
+    op.execute('''
+DO $$
+DECLARE r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT c.conname, c.conrelid::regclass::text as tablename
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_attribute a ON a.attnum = ANY(c.conkey) AND a.attrelid = c.conrelid
+        JOIN pg_class t2 ON t2.oid = c.confrelid
+        JOIN pg_attribute a2 ON a2.attnum = ANY(c.confkey) AND a2.attrelid = c.confrelid
+        WHERE c.contype = 'f'
+          AND (
+             (t.relname = 'agents' AND a.attname = 'ai_model_id')
+             OR (t.relname = 'agents' AND a.attname = 'id')
+             OR (t.relname = 'ai_models' AND a.attname = 'data_source_id')
+             OR (t.relname = 'ai_models' AND a.attname = 'id')
+             OR (t.relname = 'approvals' AND a.attname = 'reviewer_id')
+             OR (t.relname = 'data_sources' AND a.attname = 'id')
+             OR (t.relname = 'departments' AND a.attname = 'parent_id')
+             OR (t.relname = 'departments' AND a.attname = 'owner_user_id')
+             OR (t.relname = 'departments' AND a.attname = 'id')
+             OR (t.relname = 'policies' AND a.attname = 'id')
+             OR (t.relname = 'policies' AND a.attname = 'created_by')
+             OR (t.relname = 'recommendations' AND a.attname = 'agent_id')
+             OR (t.relname = 'recommendations' AND a.attname = 'policy_id')
+             OR (t.relname = 'role_permissions' AND a.attname = 'role_id')
+             OR (t.relname = 'roles' AND a.attname = 'id')
+             OR (t.relname = 'user_roles' AND a.attname = 'user_id')
+             OR (t.relname = 'user_roles' AND a.attname = 'role_id')
+             OR (t.relname = 'users' AND a.attname = 'id')
+             OR (t2.relname = 'agents' AND a2.attname = 'ai_model_id')
+             OR (t2.relname = 'agents' AND a2.attname = 'id')
+             OR (t2.relname = 'ai_models' AND a2.attname = 'data_source_id')
+             OR (t2.relname = 'ai_models' AND a2.attname = 'id')
+             OR (t2.relname = 'approvals' AND a2.attname = 'reviewer_id')
+             OR (t2.relname = 'data_sources' AND a2.attname = 'id')
+             OR (t2.relname = 'departments' AND a2.attname = 'parent_id')
+             OR (t2.relname = 'departments' AND a2.attname = 'owner_user_id')
+             OR (t2.relname = 'departments' AND a2.attname = 'id')
+             OR (t2.relname = 'policies' AND a2.attname = 'id')
+             OR (t2.relname = 'policies' AND a2.attname = 'created_by')
+             OR (t2.relname = 'recommendations' AND a2.attname = 'agent_id')
+             OR (t2.relname = 'recommendations' AND a2.attname = 'policy_id')
+             OR (t2.relname = 'role_permissions' AND a2.attname = 'role_id')
+             OR (t2.relname = 'roles' AND a2.attname = 'id')
+             OR (t2.relname = 'user_roles' AND a2.attname = 'user_id')
+             OR (t2.relname = 'user_roles' AND a2.attname = 'role_id')
+             OR (t2.relname = 'users' AND a2.attname = 'id')
+          )
+    )
+    LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.tablename) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname);
+    END LOOP;
+END $$;
+    ''')
+    op.execute('ALTER TABLE departments DROP CONSTRAINT IF EXISTS fk_departments_parent_id')
+    op.execute('ALTER TABLE approvals DROP CONSTRAINT IF EXISTS approvals_reviewer_id_fkey')
+    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_steps', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_steps', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_steps', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_outputs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_outputs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_outputs', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_failures', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_failures', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_run_failures', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
+    op.drop_constraint(None, 'users', type_='foreignkey')
+    op.drop_constraint(None, 'policies', type_='foreignkey')
+    op.drop_constraint(None, 'policies', type_='foreignkey')
+    op.drop_constraint(None, 'policies', type_='foreignkey')
+    op.drop_constraint(None, 'orchestration_workflow_schedules', type_='foreignkey')
+    op.drop_constraint(None, 'orchestration_workflow_executions', type_='foreignkey')
+    op.drop_constraint(None, 'departments', type_='foreignkey')
+    op.drop_constraint(None, 'departments', type_='foreignkey')
+    op.drop_constraint(None, 'departments', type_='foreignkey')
+    op.drop_constraint(None, 'data_sources', type_='foreignkey')
+    op.drop_constraint(None, 'data_sources', type_='foreignkey')
+    op.drop_constraint(None, 'data_sources', type_='foreignkey')
+    op.drop_constraint(None, 'data_sources', type_='foreignkey')
+    op.drop_constraint(None, 'data_sources', type_='foreignkey')
+    op.drop_constraint(None, 'approval_groups', type_='foreignkey')
+    op.drop_constraint(None, 'approval_groups', type_='foreignkey')
+    op.drop_constraint(None, 'approval_groups', type_='foreignkey')
+    op.drop_constraint(None, 'approval_group_members', type_='foreignkey')
+    op.drop_constraint(None, 'ai_models', type_='foreignkey')
+    op.drop_constraint(None, 'ai_models', type_='foreignkey')
+    op.drop_constraint(None, 'ai_models', type_='foreignkey')
+    op.drop_constraint(None, 'ai_models', type_='foreignkey')
+    op.drop_constraint(None, 'ai_models', type_='foreignkey')
+    op.drop_constraint(None, 'ai_models', type_='foreignkey')
+    op.drop_constraint(None, 'agents', type_='foreignkey')
+    op.drop_constraint(None, 'agents', type_='foreignkey')
+    op.drop_constraint(None, 'agents', type_='foreignkey')
+    op.drop_constraint(None, 'agents', type_='foreignkey')
+    op.drop_constraint(None, 'agents', type_='foreignkey')
+    op.execute('ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_user_id_fkey')
+    op.execute('ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ai_models_data_source_id_fkey')
+    op.execute('ALTER TABLE policies DROP CONSTRAINT IF EXISTS policies_created_by_fkey')
+    op.execute('ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS recommendations_agent_id_fkey')
+    op.execute('ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_role_id_fkey')
+    op.execute('ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS role_permissions_role_id_fkey')
+    op.execute('ALTER TABLE departments DROP CONSTRAINT IF EXISTS departments_owner_user_id_fkey')
+    op.execute('ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS recommendations_policy_id_fkey')
+    op.execute('ALTER TABLE agents DROP CONSTRAINT IF EXISTS agents_ai_model_id_fkey')
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedules', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_schedules_workflow_id_fkey'), 'workflow_schedules', 'registry_workflows', ['workflow_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedules_tenant_id_fkey'), 'workflow_schedules', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedules_owner_user_id_fkey'), 'workflow_schedules', 'guardian_users', ['owner_user_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedules_owner_department_id_fkey'), 'workflow_schedules', 'registry_departments', ['owner_department_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedules_updated_by_fkey'), 'workflow_schedules', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedules_created_by_fkey'), 'workflow_schedules', 'guardian_users', ['created_by'], ['id'])
+    op.execute('DROP TABLE IF EXISTS \"register_all\" CASCADE')
+    op.drop_index(op.f('ix_policy_bindings_target_type'), table_name='policy_bindings')
+    op.drop_index(op.f('ix_policy_bindings_target_id'), table_name='policy_bindings')
+    op.execute('DROP TABLE IF EXISTS \"policy_bindings\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"workflows\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"tools\" CASCADE')
+    op.drop_index(op.f('ix_relationship_validation_results_request_id'), table_name='relationship_validation_results')
+    op.execute('DROP TABLE IF EXISTS \"relationship_validation_results\" CASCADE')
+    op.drop_index(op.f('ix_relationship_graph_snapshots_root_object_type'), table_name='relationship_graph_snapshots')
+    op.drop_index(op.f('ix_relationship_graph_snapshots_root_object_id'), table_name='relationship_graph_snapshots')
+    op.execute('DROP TABLE IF EXISTS \"relationship_graph_snapshots\" CASCADE')
+    op.drop_index(op.f('ix_object_responsibilities_object_type'), table_name='object_responsibilities')
+    op.drop_index(op.f('ix_object_responsibilities_object_id'), table_name='object_responsibilities')
+    op.drop_index(op.f('ix_object_responsibilities_actor_id'), table_name='object_responsibilities')
+    op.execute('DROP TABLE IF EXISTS \"object_responsibilities\" CASCADE')
+    op.drop_index(op.f('ix_generic_relationships_target_type'), table_name='generic_relationships')
+    op.drop_index(op.f('ix_generic_relationships_target_id'), table_name='generic_relationships')
+    op.drop_index(op.f('ix_generic_relationships_source_type'), table_name='generic_relationships')
+    op.drop_index(op.f('ix_generic_relationships_source_id'), table_name='generic_relationships')
+    op.drop_index(op.f('ix_generic_relationships_relationship_type'), table_name='generic_relationships')
+    op.execute('DROP TABLE IF EXISTS \"generic_relationships\" CASCADE')
+    op.drop_index(op.f('ix_evidence_links_target_type'), table_name='evidence_links')
+    op.drop_index(op.f('ix_evidence_links_target_id'), table_name='evidence_links')
+    op.drop_index(op.f('ix_evidence_links_evidence_id'), table_name='evidence_links')
+    op.execute('DROP TABLE IF EXISTS \"evidence_links\" CASCADE')
+    op.execute('DROP TABLE IF EXISTS \"ai_model_providers\" CASCADE')
     op.drop_constraint('uix_tenant_schedule_name', 'workflow_schedules', type_='unique')
     op.drop_constraint('uix_tenant_schedule_code', 'workflow_schedules', type_='unique')
     op.create_unique_constraint(op.f('uq_workflow_schedules_tenant_code'), 'workflow_schedules', ['tenant_id', 'schedule_code'], postgresql_nulls_not_distinct=False)
@@ -704,62 +2200,24 @@ def downgrade() -> None:
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_history', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_schedule_history_changed_by_fkey'), 'workflow_schedule_history', 'guardian_users', ['changed_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_history_updated_by_fkey'), 'workflow_schedule_history', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_history_tenant_id_fkey'), 'workflow_schedule_history', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_history_created_by_fkey'), 'workflow_schedule_history', 'guardian_users', ['created_by'], ['id'])
     op.create_index(op.f('ix_workflow_schedule_history_schedule_id'), 'workflow_schedule_history', ['schedule_id'], unique=False)
     op.alter_column('workflow_schedule_history', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_approvals', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_schedule_approvals_updated_by_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_approvals_approver_user_id_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['approver_user_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_approvals_created_by_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_approvals_tenant_id_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_approvals_submitted_by_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['submitted_by'], ['id'])
     op.create_index(op.f('ix_workflow_schedule_approvals_sched_status'), 'workflow_schedule_approvals', ['schedule_id', 'approval_status'], unique=False)
     op.alter_column('workflow_schedule_approvals', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_schedule_agent_assignments', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_schedule_agent_assignments_created_by_fkey'), 'workflow_schedule_agent_assignments', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_agent_assignments_updated_by_fkey'), 'workflow_schedule_agent_assignments', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_agent_assignments_tenant_id_fkey'), 'workflow_schedule_agent_assignments', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_agent_assignments_model_id_fkey'), 'workflow_schedule_agent_assignments', 'registry_ai_models', ['model_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_schedule_agent_assignments_agent_id_fkey'), 'workflow_schedule_agent_assignments', 'registry_ai_agents', ['agent_id'], ['id'])
     op.create_unique_constraint(op.f('uq_wf_sch_agent_assg_tenant_sch_agent_role'), 'workflow_schedule_agent_assignments', ['tenant_id', 'schedule_id', 'agent_id', 'assignment_role'], postgresql_nulls_not_distinct=False)
     op.alter_column('workflow_schedule_agent_assignments', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_runs', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_runs_updated_by_fkey'), 'workflow_runs', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_runs_tenant_id_fkey'), 'workflow_runs', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_runs_triggered_by_user_id_fkey'), 'workflow_runs', 'guardian_users', ['triggered_by_user_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_runs_created_by_fkey'), 'workflow_runs', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_runs_workflow_id_fkey'), 'workflow_runs', 'registry_workflows', ['workflow_id'], ['id'])
     op.create_unique_constraint(op.f('uq_workflow_runs_tenant_run_code'), 'workflow_runs', ['tenant_id', 'run_code'], postgresql_nulls_not_distinct=False)
     op.create_index(op.f('ix_workflow_runs_schedule_id'), 'workflow_runs', ['schedule_id'], unique=False)
     op.create_index(op.f('ix_workflow_runs_run_status'), 'workflow_runs', ['run_status'], unique=False)
@@ -770,12 +2228,6 @@ def downgrade() -> None:
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'workflow_run_steps', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_run_steps', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_run_steps', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_run_steps_updated_by_fkey'), 'workflow_run_steps', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_run_steps_tenant_id_fkey'), 'workflow_run_steps', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_run_steps_created_by_fkey'), 'workflow_run_steps', 'guardian_users', ['created_by'], ['id'])
     op.create_index(op.f('ix_workflow_run_steps_run_id'), 'workflow_run_steps', ['run_id'], unique=False)
     op.alter_column('workflow_run_steps', 'metadata_json',
                existing_type=sa.JSON(),
@@ -783,12 +2235,6 @@ def downgrade() -> None:
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
     op.drop_column('workflow_run_steps', 'error_detail')
-    op.drop_constraint(None, 'workflow_run_outputs', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_run_outputs', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_run_outputs', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_run_outputs_tenant_id_fkey'), 'workflow_run_outputs', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_run_outputs_created_by_fkey'), 'workflow_run_outputs', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_run_outputs_updated_by_fkey'), 'workflow_run_outputs', 'guardian_users', ['updated_by'], ['id'])
     op.create_index(op.f('ix_workflow_run_outputs_findings_json'), 'workflow_run_outputs', ['findings_json'], unique=False, postgresql_using='gin')
     op.alter_column('workflow_run_outputs', 'metadata_json',
                existing_type=sa.JSON(),
@@ -796,28 +2242,14 @@ def downgrade() -> None:
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
     op.drop_column('workflow_run_outputs', 'raw_output')
-    op.drop_constraint(None, 'workflow_run_failures', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_run_failures', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_run_failures', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_run_failures_tenant_id_fkey'), 'workflow_run_failures', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_run_failures_created_by_fkey'), 'workflow_run_failures', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_run_failures_updated_by_fkey'), 'workflow_run_failures', 'guardian_users', ['updated_by'], ['id'])
     op.alter_column('workflow_run_failures', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
     op.drop_column('workflow_run_failures', 'next_retry_at')
-    op.add_column('workflow_notifications', sa.Column('entity_type', sa.VARCHAR(length=100), autoincrement=False, nullable=True))
-    op.add_column('workflow_notifications', sa.Column('entity_id', sa.UUID(), autoincrement=False, nullable=True))
-    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_notifications', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_notifications_created_by_fkey'), 'workflow_notifications', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_notifications_tenant_id_fkey'), 'workflow_notifications', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_notifications_recipient_user_id_fkey'), 'workflow_notifications', 'guardian_users', ['recipient_user_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_notifications_updated_by_fkey'), 'workflow_notifications', 'guardian_users', ['updated_by'], ['id'])
+    add_col_if_not_exists('workflow_notifications', sa.Column('entity_type', sa.VARCHAR(length=100), autoincrement=False, nullable=True))
+    add_col_if_not_exists('workflow_notifications', sa.Column('entity_id', sa.UUID(), autoincrement=False, nullable=True))
     op.create_index(op.f('ix_workflow_notifications_recipient_status'), 'workflow_notifications', ['recipient_user_id', 'status'], unique=False)
     op.alter_column('workflow_notifications', 'metadata_json',
                existing_type=sa.JSON(),
@@ -826,80 +2258,65 @@ def downgrade() -> None:
                existing_server_default=sa.text("'{}'::jsonb"))
     op.drop_column('workflow_notifications', 'related_entity_id')
     op.drop_column('workflow_notifications', 'related_entity_type')
-    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_delegations', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_delegations_updated_by_fkey'), 'workflow_delegations', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_delegations_delegator_user_id_fkey'), 'workflow_delegations', 'guardian_users', ['delegator_user_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_delegations_created_by_fkey'), 'workflow_delegations', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_delegations_tenant_id_fkey'), 'workflow_delegations', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_delegations_delegatee_user_id_fkey'), 'workflow_delegations', 'guardian_users', ['delegatee_user_id'], ['id'])
     op.alter_column('workflow_delegations', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
-    op.drop_constraint(None, 'workflow_authorization_decisions', type_='foreignkey')
-    op.create_foreign_key(op.f('workflow_authorization_decisions_subject_agent_id_fkey'), 'workflow_authorization_decisions', 'registry_ai_agents', ['subject_agent_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_authorization_decisions_tenant_id_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['tenant_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_authorization_decisions_subject_user_id_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['subject_user_id'], ['id'])
-    op.create_foreign_key(op.f('workflow_authorization_decisions_created_by_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('workflow_authorization_decisions_updated_by_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['updated_by'], ['id'])
     op.alter_column('workflow_authorization_decisions', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'users', type_='foreignkey')
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.alter_column('users', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.drop_column('users', 'approval_limit_level')
     op.drop_column('users', 'department_id')
     op.alter_column('user_roles', 'role_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('user_roles', 'user_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.create_index(op.f('ix_roles_id'), 'roles', ['id'], unique=False)
     op.alter_column('roles', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.alter_column('role_permissions', 'role_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('recommendations', 'policy_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('recommendations', 'agent_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
-    op.drop_constraint(None, 'policies', type_='foreignkey')
-    op.drop_constraint(None, 'policies', type_='foreignkey')
-    op.drop_constraint(None, 'policies', type_='foreignkey')
     op.create_index(op.f('ix_policies_id'), 'policies', ['id'], unique=False)
     op.alter_column('policies', 'created_by',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('policies', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.drop_column('policies', 'updated_by')
     op.drop_column('policies', 'updated_at')
@@ -908,13 +2325,6 @@ def downgrade() -> None:
     op.drop_column('policies', 'metadata_json')
     op.drop_column('policies', 'is_deleted')
     op.drop_column('policies', 'version_no')
-    op.drop_constraint(None, 'orchestration_workflow_schedules', type_='foreignkey')
-    op.create_foreign_key(op.f('orchestration_workflow_schedules_workflow_id_fkey'), 'orchestration_workflow_schedules', 'registry_workflows', ['workflow_id'], ['id'])
-    op.drop_constraint(None, 'orchestration_workflow_executions', type_='foreignkey')
-    op.create_foreign_key(op.f('orchestration_workflow_executions_workflow_id_fkey'), 'orchestration_workflow_executions', 'registry_workflows', ['workflow_id'], ['id'])
-    op.drop_constraint(None, 'departments', type_='foreignkey')
-    op.drop_constraint(None, 'departments', type_='foreignkey')
-    op.drop_constraint(None, 'departments', type_='foreignkey')
     op.create_index(op.f('ix_departments_id'), 'departments', ['id'], unique=False)
     op.alter_column('departments', 'updated_at',
                existing_type=postgresql.TIMESTAMP(timezone=True),
@@ -927,14 +2337,17 @@ def downgrade() -> None:
     op.alter_column('departments', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.alter_column('departments', 'owner_user_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('departments', 'parent_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.drop_column('departments', 'updated_by')
     op.drop_column('departments', 'created_by')
@@ -942,19 +2355,14 @@ def downgrade() -> None:
     op.drop_column('departments', 'metadata_json')
     op.drop_column('departments', 'is_deleted')
     op.drop_column('departments', 'version_no')
-    op.add_column('data_sources', sa.Column('description', sa.VARCHAR(), autoincrement=False, nullable=True))
-    op.add_column('data_sources', sa.Column('owner_department_id', sa.INTEGER(), autoincrement=False, nullable=True))
-    op.drop_constraint(None, 'data_sources', type_='foreignkey')
-    op.drop_constraint(None, 'data_sources', type_='foreignkey')
-    op.drop_constraint(None, 'data_sources', type_='foreignkey')
-    op.drop_constraint(None, 'data_sources', type_='foreignkey')
-    op.drop_constraint(None, 'data_sources', type_='foreignkey')
-    op.create_foreign_key(op.f('data_sources_owner_department_id_fkey'), 'data_sources', 'departments', ['owner_department_id'], ['id'])
+    add_col_if_not_exists('data_sources', sa.Column('description', sa.VARCHAR(), autoincrement=False, nullable=True))
+    add_col_if_not_exists('data_sources', sa.Column('owner_department_id', sa.INTEGER(), autoincrement=False, nullable=True))
     op.drop_constraint(None, 'data_sources', type_='unique')
     op.create_index(op.f('ix_data_sources_id'), 'data_sources', ['id'], unique=False)
     op.alter_column('data_sources', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.drop_column('data_sources', 'updated_by')
     op.drop_column('data_sources', 'created_by')
@@ -976,37 +2384,25 @@ def downgrade() -> None:
     op.alter_column('approvals', 'reviewer_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
-    op.drop_constraint(None, 'approval_groups', type_='foreignkey')
-    op.drop_constraint(None, 'approval_groups', type_='foreignkey')
-    op.drop_constraint(None, 'approval_groups', type_='foreignkey')
-    op.create_foreign_key(op.f('approval_groups_created_by_fkey'), 'approval_groups', 'guardian_users', ['created_by'], ['id'])
-    op.create_foreign_key(op.f('approval_groups_updated_by_fkey'), 'approval_groups', 'guardian_users', ['updated_by'], ['id'])
-    op.create_foreign_key(op.f('approval_groups_tenant_id_fkey'), 'approval_groups', 'guardian_users', ['tenant_id'], ['id'])
     op.alter_column('approval_groups', 'metadata_json',
                existing_type=sa.JSON(),
                type_=postgresql.JSONB(astext_type=sa.Text()),
                existing_nullable=True,
                existing_server_default=sa.text("'{}'::jsonb"))
-    op.drop_constraint(None, 'approval_group_members', type_='foreignkey')
-    op.create_foreign_key(op.f('approval_group_members_user_id_fkey'), 'approval_group_members', 'guardian_users', ['user_id'], ['id'], ondelete='CASCADE')
-    op.add_column('ai_models', sa.Column('owner_department_id', sa.INTEGER(), autoincrement=False, nullable=True))
-    op.drop_constraint(None, 'ai_models', type_='foreignkey')
-    op.drop_constraint(None, 'ai_models', type_='foreignkey')
-    op.drop_constraint(None, 'ai_models', type_='foreignkey')
-    op.drop_constraint(None, 'ai_models', type_='foreignkey')
-    op.drop_constraint(None, 'ai_models', type_='foreignkey')
-    op.drop_constraint(None, 'ai_models', type_='foreignkey')
-    op.create_foreign_key(op.f('ai_models_owner_department_id_fkey'), 'ai_models', 'departments', ['owner_department_id'], ['id'])
+    add_col_if_not_exists('ai_models', sa.Column('owner_department_id', sa.INTEGER(), autoincrement=False, nullable=True))
     op.drop_constraint(None, 'ai_models', type_='unique')
     op.create_index(op.f('ix_ai_models_id'), 'ai_models', ['id'], unique=False)
     op.alter_column('ai_models', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.alter_column('ai_models', 'data_source_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('ai_models', 'version',
                existing_type=sa.VARCHAR(),
@@ -1025,20 +2421,17 @@ def downgrade() -> None:
     op.drop_column('ai_models', 'purpose')
     op.drop_column('ai_models', 'provider_id')
     op.drop_column('ai_models', 'model_code')
-    op.drop_constraint(None, 'agents', type_='foreignkey')
-    op.drop_constraint(None, 'agents', type_='foreignkey')
-    op.drop_constraint(None, 'agents', type_='foreignkey')
-    op.drop_constraint(None, 'agents', type_='foreignkey')
-    op.drop_constraint(None, 'agents', type_='foreignkey')
     op.drop_constraint(None, 'agents', type_='unique')
     op.create_index(op.f('ix_agents_id'), 'agents', ['id'], unique=False)
     op.alter_column('agents', 'id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=False)
     op.alter_column('agents', 'ai_model_id',
                existing_type=sa.UUID(),
                type_=sa.INTEGER(),
+               postgresql_using='0',
                existing_nullable=True)
     op.alter_column('agents', 'execution_mode',
                existing_type=sa.String(length=80),
@@ -1285,30 +2678,212 @@ def downgrade() -> None:
     sa.Column('created_by', sa.UUID(), autoincrement=False, nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('registry_relationships_pkey'))
     )
-    op.drop_table('register_all')
-    op.drop_index(op.f('ix_policy_bindings_target_type'), table_name='policy_bindings')
-    op.drop_index(op.f('ix_policy_bindings_target_id'), table_name='policy_bindings')
-    op.drop_table('policy_bindings')
-    op.drop_table('workflows')
-    op.drop_table('tools')
-    op.drop_index(op.f('ix_relationship_validation_results_request_id'), table_name='relationship_validation_results')
-    op.drop_table('relationship_validation_results')
-    op.drop_index(op.f('ix_relationship_graph_snapshots_root_object_type'), table_name='relationship_graph_snapshots')
-    op.drop_index(op.f('ix_relationship_graph_snapshots_root_object_id'), table_name='relationship_graph_snapshots')
-    op.drop_table('relationship_graph_snapshots')
-    op.drop_index(op.f('ix_object_responsibilities_object_type'), table_name='object_responsibilities')
-    op.drop_index(op.f('ix_object_responsibilities_object_id'), table_name='object_responsibilities')
-    op.drop_index(op.f('ix_object_responsibilities_actor_id'), table_name='object_responsibilities')
-    op.drop_table('object_responsibilities')
-    op.drop_index(op.f('ix_generic_relationships_target_type'), table_name='generic_relationships')
-    op.drop_index(op.f('ix_generic_relationships_target_id'), table_name='generic_relationships')
-    op.drop_index(op.f('ix_generic_relationships_source_type'), table_name='generic_relationships')
-    op.drop_index(op.f('ix_generic_relationships_source_id'), table_name='generic_relationships')
-    op.drop_index(op.f('ix_generic_relationships_relationship_type'), table_name='generic_relationships')
-    op.drop_table('generic_relationships')
-    op.drop_index(op.f('ix_evidence_links_target_type'), table_name='evidence_links')
-    op.drop_index(op.f('ix_evidence_links_target_id'), table_name='evidence_links')
-    op.drop_index(op.f('ix_evidence_links_evidence_id'), table_name='evidence_links')
-    op.drop_table('evidence_links')
-    op.drop_table('ai_model_providers')
+    # [Safe Migrations] Skipped FK to dropped table registry_workflows: op.create_foreign_key(op.f('workflow_schedules_workflow_id_fkey'), 'workflow_schedules', 'registry_workflows', ['workflow_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedules_tenant_id_fkey'), 'workflow_schedules', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedules_owner_user_id_fkey'), 'workflow_schedules', 'guardian_users', ['owner_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_departments: op.create_foreign_key(op.f('workflow_schedules_owner_department_id_fkey'), 'workflow_schedules', 'registry_departments', ['owner_department_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedules_updated_by_fkey'), 'workflow_schedules', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedules_created_by_fkey'), 'workflow_schedules', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_history_changed_by_fkey'), 'workflow_schedule_history', 'guardian_users', ['changed_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_history_updated_by_fkey'), 'workflow_schedule_history', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_history_tenant_id_fkey'), 'workflow_schedule_history', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_history_created_by_fkey'), 'workflow_schedule_history', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_approvals_updated_by_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_approvals_approver_user_id_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['approver_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_approvals_created_by_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_approvals_tenant_id_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_approvals_submitted_by_fkey'), 'workflow_schedule_approvals', 'guardian_users', ['submitted_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_agent_assignments_created_by_fkey'), 'workflow_schedule_agent_assignments', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_agent_assignments_updated_by_fkey'), 'workflow_schedule_agent_assignments', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_schedule_agent_assignments_tenant_id_fkey'), 'workflow_schedule_agent_assignments', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_ai_models: op.create_foreign_key(op.f('workflow_schedule_agent_assignments_model_id_fkey'), 'workflow_schedule_agent_assignments', 'registry_ai_models', ['model_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_ai_agents: op.create_foreign_key(op.f('workflow_schedule_agent_assignments_agent_id_fkey'), 'workflow_schedule_agent_assignments', 'registry_ai_agents', ['agent_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_runs_updated_by_fkey'), 'workflow_runs', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_runs_tenant_id_fkey'), 'workflow_runs', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_runs_triggered_by_user_id_fkey'), 'workflow_runs', 'guardian_users', ['triggered_by_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_runs_created_by_fkey'), 'workflow_runs', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_workflows: op.create_foreign_key(op.f('workflow_runs_workflow_id_fkey'), 'workflow_runs', 'registry_workflows', ['workflow_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_steps_updated_by_fkey'), 'workflow_run_steps', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_steps_tenant_id_fkey'), 'workflow_run_steps', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_steps_created_by_fkey'), 'workflow_run_steps', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_outputs_tenant_id_fkey'), 'workflow_run_outputs', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_outputs_created_by_fkey'), 'workflow_run_outputs', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_outputs_updated_by_fkey'), 'workflow_run_outputs', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_failures_tenant_id_fkey'), 'workflow_run_failures', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_failures_created_by_fkey'), 'workflow_run_failures', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_run_failures_updated_by_fkey'), 'workflow_run_failures', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_notifications_created_by_fkey'), 'workflow_notifications', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_notifications_tenant_id_fkey'), 'workflow_notifications', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_notifications_recipient_user_id_fkey'), 'workflow_notifications', 'guardian_users', ['recipient_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_notifications_updated_by_fkey'), 'workflow_notifications', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_delegations_updated_by_fkey'), 'workflow_delegations', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_delegations_delegator_user_id_fkey'), 'workflow_delegations', 'guardian_users', ['delegator_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_delegations_created_by_fkey'), 'workflow_delegations', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_delegations_tenant_id_fkey'), 'workflow_delegations', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_delegations_delegatee_user_id_fkey'), 'workflow_delegations', 'guardian_users', ['delegatee_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_ai_agents: op.create_foreign_key(op.f('workflow_authorization_decisions_subject_agent_id_fkey'), 'workflow_authorization_decisions', 'registry_ai_agents', ['subject_agent_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_authorization_decisions_tenant_id_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_authorization_decisions_subject_user_id_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['subject_user_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_authorization_decisions_created_by_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('workflow_authorization_decisions_updated_by_fkey'), 'workflow_authorization_decisions', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_workflows: op.create_foreign_key(op.f('orchestration_workflow_schedules_workflow_id_fkey'), 'orchestration_workflow_schedules', 'registry_workflows', ['workflow_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table registry_workflows: op.create_foreign_key(op.f('orchestration_workflow_executions_workflow_id_fkey'), 'orchestration_workflow_executions', 'registry_workflows', ['workflow_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'data_sources' AND column_name = 'owner_department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE data_sources DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key(op.f('data_sources_owner_department_id_fkey'), 'data_sources', 'departments', ['owner_department_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('approval_groups_created_by_fkey'), 'approval_groups', 'guardian_users', ['created_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('approval_groups_updated_by_fkey'), 'approval_groups', 'guardian_users', ['updated_by'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('approval_groups_tenant_id_fkey'), 'approval_groups', 'guardian_users', ['tenant_id'], ['id'])
+    # [Safe Migrations] Skipped FK to dropped table guardian_users: op.create_foreign_key(op.f('approval_group_members_user_id_fkey'), 'approval_group_members', 'guardian_users', ['user_id'], ['id'], ondelete='CASCADE')
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'owner_department_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key(op.f('ai_models_owner_department_id_fkey'), 'ai_models', 'departments', ['owner_department_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'agents' AND column_name = 'ai_model_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE agents DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('agents_ai_model_id_fkey', 'agents', 'ai_models', ['ai_model_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'departments' AND column_name = 'owner_user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE departments DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('departments_owner_user_id_fkey', 'departments', 'users', ['owner_user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'ai_models' AND column_name = 'data_source_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE ai_models DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('ai_models_data_source_id_fkey', 'ai_models', 'data_sources', ['data_source_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'user_roles' AND column_name = 'user_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('user_roles_user_id_fkey', 'user_roles', 'users', ['user_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'policies' AND column_name = 'created_by'
+        ) LOOP
+            EXECUTE 'ALTER TABLE policies DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('policies_created_by_fkey', 'policies', 'users', ['created_by'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'user_roles' AND column_name = 'role_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('user_roles_role_id_fkey', 'user_roles', 'roles', ['role_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'role_permissions' AND column_name = 'role_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('role_permissions_role_id_fkey', 'role_permissions', 'roles', ['role_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'recommendations' AND column_name = 'agent_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('recommendations_agent_id_fkey', 'recommendations', 'agents', ['agent_id'], ['id'])
+    op.execute('''
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT constraint_name
+            FROM information_schema.key_column_usage
+            WHERE table_name = 'recommendations' AND column_name = 'policy_id'
+        ) LOOP
+            EXECUTE 'ALTER TABLE recommendations DROP CONSTRAINT IF EXISTS ' || r.constraint_name || ' CASCADE';
+        END LOOP;
+    END $$;
+    ''')
+    op.create_foreign_key('recommendations_policy_id_fkey', 'recommendations', 'policies', ['policy_id'], ['id'])
     # ### end Alembic commands ###

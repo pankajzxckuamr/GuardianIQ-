@@ -19,6 +19,29 @@ def create_approval(approval_in: ApprovalCreate, db: Session = Depends(get_db), 
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
+    
+    try:
+        from app.modules.events.service import EventPublisherService
+        from app.modules.events.schemas import GovernanceEventCreate
+        
+        publisher = EventPublisherService()
+        gov_event = GovernanceEventCreate(
+            event_type="APPROVAL_REQUESTED",
+            event_category="Approval",
+            event_version="1.0",
+            occurred_at=datetime.now(timezone.utc),
+            source_service="approval_service",
+            actor_json={"user_id": str(current_user.id)},
+            subject_json={"entity_type": "approvals", "entity_id": str(db_obj.id)},
+            payload_json={"status": db_obj.status},
+            classification="INTERNAL",
+            retention_class="STANDARD_90_DAYS"
+        )
+        publisher.publish_event(db, gov_event, tenant_id=current_user.id)
+        db.commit()
+    except Exception as e:
+        print(f"Error emitting APPROVAL_REQUESTED event: {e}")
+        
     return ResponseHelper.success(
         message="Approval created successfully",
         data=ApprovalResponse.model_validate(db_obj).model_dump()

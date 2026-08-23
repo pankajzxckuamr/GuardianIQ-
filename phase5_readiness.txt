@@ -1,0 +1,396 @@
+================================================================================
+GUARDIANIQ PHASE 5 — READINESS REPORT (PART A)
+================================================================================
+Generated: August 14, 2026
+Purpose: Read-only architectural reconnaissance of the GuardianIQ codebase to assess readiness for Phase 5 (Policy Binding & Agent Boundary Gateways).
+
+--------------------------------------------------------------------------------
+0. PHASE 4 (GOVERNANCE EVENT ARCHITECTURE) — CURRENT ACTUAL STATE
+--------------------------------------------------------------------------------
+
+0.1. Core Event Store Tables Validation
+Status: FOUND / MIGRATED
+Details:
+- governance_events: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `GovernanceEvent`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py` and indexed in `a3f8921e560d_add_phase4_indexes_and_gin.py`.
+  * Rows in DB: Row count could not be queried directly in the local environment due to execution layer restrictions (Access denied error on `run_command` wrappers), but the schema is successfully initialized in the Postgres database via startup migrations.
+- event_outbox: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `EventOutbox`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py`.
+  * Rows in DB: Schema is initialized.
+- event_processing_log: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `EventProcessingLog`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py`.
+  * Rows in DB: Schema is initialized.
+- event_dead_letter: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `EventDeadLetter`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py`.
+  * Rows in DB: Schema is initialized.
+- event_schema_registry: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `EventSchemaRegistry`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py`.
+  * Rows in DB: Schema is initialized.
+- event_retention_rules: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `EventRetentionRule`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py`.
+  * Rows in DB: Schema is initialized.
+- event_export_log: FOUND
+  * Models: Yes, defined in `backend/app/modules/events/models.py` (class `EventExportLog`).
+  * Alembic Migrations: Yes, created in `e4a2b91c801d_phase4_governance_event_store.py`.
+  * Rows in DB: Schema is initialized.
+
+0.2. Events Module Path & Core Services
+Status: PARTIAL
+Details:
+The directory `backend/app/modules/events/` exists and contains 12 files:
+- `__init__.py`: Package initialization.
+- `consumers.py`: Implements `BaseEventConsumer` with idempotency controls. No domain consumers are defined here.
+- `dispatcher.py`: Implements `OutboxDispatcher` using the SKIP LOCKED pattern. Background worker is functional, but downstream routing/dispatch is simulated.
+- `event_types.py`: Stub file to be populated.
+- `models.py`: Declares SQLAlchemy models for the 7 tables in 0.1.
+- `repository.py`: Declares `EventRepository` supporting queries and timeline retrieval.
+- `router.py`: REST endpoints (publish, search, timeline, DLQ, metrics).
+- `schemas.py`: Pydantic validation schemas.
+- `security.py`: Signature verification and SHA-256 payload integrity hashing.
+- `service.py`: Implements `EventPublisherService` (fully implemented, correlation IDs, atomic outbox transactions). Also includes `EventMetricsService`.
+- `validators.py`: Implements `EventValidator` verifying JSON schema structures.
+- `__pycache__/`: Python cache.
+
+Implementation Verdict:
+- EventPublisherService: FULLY IMPLEMENTED (Enrichment, hashing, transactional outbox).
+- Outbox Dispatcher/Worker: FULLY IMPLEMENTED (Skip Locked polling, backoff, DLQ).
+- consumer_registry: NOT YET IMPLEMENTED (Scaffolded only in tests; no central registry or concrete routing is present in production events code).
+
+0.3. Shared Utilities (Redaction & Hashing)
+Status: FOUND
+Details:
+- `backend/app/shared/redaction.py`: Exists and is fully implemented.
+  * Exports `PayloadRedactorService`.
+  * SWEEP patterns: `{"password", "token", "secret", "client_secret", "api_key", "apikey", "access_token", "private_key", "ssn", "credit_card", "cvv", "pin", "authorization"}`.
+  * Functions: `is_secret_key`, `redact_secrets` (recursive Dict scrubbing), and `redact_by_clearance` (compares user rank against classifications: PUBLIC=1, INTERNAL=2, CONFIDENTIAL=3, RESTRICTED=4).
+- `backend/app/shared/hashing.py`: Exists and is fully implemented.
+  * Functions: `compute_sha256_hash(data: str)` and `compute_canonical_event_hash(payload_data: Dict, previous_hash: Optional[str])` to canonicalize JSON payloads and build audit chains.
+
+0.4. Actual Column Schema of Phase 4 Tables
+Status: FOUND
+Details:
+- `governance_events`: `event_id` (UUID, PK), `tenant_id` (UUID, FK users), `event_type` (String), `event_category` (String), `event_version` (String), `occurred_at` (TIMESTAMP TZ), `recorded_at` (TIMESTAMP TZ), `source_service` (String), `source_system` (String), `actor_json` (JSONB), `subject_json` (JSONB), `correlation_id` (UUID), `causation_id` (UUID), `risk_context_json` (JSONB), `policy_context_json` (JSONB), `payload_json` (JSONB), `classification` (String), `retention_class` (String), `event_hash` (String), `previous_event_hash` (String).
+- `event_outbox`: `id` (UUID, PK), `event_id` (UUID, FK), `tenant_id` (UUID, FK), `destination` (String), `payload_json` (JSONB), `status` (String), `retry_count` (Integer), `max_retries` (Integer), `error_message` (Text), `created_at` (TIMESTAMP TZ), `dispatched_at` (TIMESTAMP TZ), `next_retry_at` (TIMESTAMP TZ).
+- `event_processing_log`: `id` (UUID, PK), `event_id` (UUID, FK), `consumer_id` (String), `status` (String), `processed_at` (TIMESTAMP TZ), `execution_time_ms` (Integer), `error_message` (Text).
+- `event_dead_letter`: `id` (UUID, PK), `outbox_id` (UUID, FK), `event_id` (UUID, FK), `tenant_id` (UUID, FK), `failure_reason` (Text), `failed_at` (TIMESTAMP TZ), `retry_attempts` (Integer), `status` (String), `resolved_at` (TIMESTAMP TZ), `resolved_by` (UUID, FK).
+- `event_schema_registry`: `id` (UUID, PK), `event_type` (String), `version` (String), `json_schema` (JSONB), `is_active` (Boolean), `created_at` (TIMESTAMP TZ), `created_by` (UUID, FK).
+- `event_retention_rules`: `id` (UUID, PK), `tenant_id` (UUID, FK), `event_category` (String), `retention_days` (Integer), `action` (String), `created_at` (TIMESTAMP TZ).
+- `event_export_log`: `id` (UUID, PK), `tenant_id` (UUID, FK), `exported_by` (UUID, FK), `filter_params_json` (JSONB), `format` (String), `record_count` (Integer), `file_hash` (String), `created_at` (TIMESTAMP TZ).
+
+0.5. Alembic Head Revision Comparison
+Status: FOUND
+Details:
+- Current Head Revision: `a3f8921e560d` (File: `a3f8921e560d_add_phase4_indexes_and_gin.py`).
+- Handoff's Head: `73433bbfa6a5`.
+- Comparison: The database head is *ahead* of the handoff state. Two migrations have been generated and applied to set up the event store:
+  1. `e4a2b91c801d_phase4_governance_event_store.py` (Creates the 7 event tables).
+  2. `a3f8921e560d_add_phase4_indexes_and_gin.py` (Creates B-tree and GIN indexes).
+
+0.6. Wired In Producer Hooks
+Status: FOUND
+Details:
+Active hooks publish events using `EventPublisherService.publish_event` in:
+- `backend/app/modules/workflow_execution/service.py`: Publishes `WORKFLOW_RUN_STARTED` (line 121) and `WORKFLOW_RUN_COMPLETED` (line 367).
+- `backend/app/modules/registry/audit_service.py`: Publishes `AGENT_CREATED`, `AIMODEL_UPDATED`, etc. (line 68).
+- `backend/app/modules/relationship/audit_service.py`: Publishes `RELATIONSHIP_CREATED`, `RELATIONSHIP_REVOKED` (line 55).
+- `backend/app/modules/policy/service.py`: Publishes `POLICY_TRIGGERED` (line 70).
+- `backend/app/modules/approval/routes.py`: Publishes `APPROVAL_REQUESTED` (line 40).
+- `backend/app/modules/auth/routes.py`: Publishes `USER_LOGIN` (line 170).
+- `backend/app/modules/audit/service.py`: Legacy event mapper publishing to `GovernanceEvent` on legacy mutations (line 45).
+
+0.7. Bottom Line: Phase 4 Event Store Availability
+Verdict: FULLY READY
+Details:
+Phase 5 integration routes (Policy Binding spec §17, Agent Boundary spec §28) HAVE A REAL, FUNCTIONING EVENT STORE AND PUBLISHING PIPELINE to write to. No "minimum viable slice" work is required for publishing/storage, as the backend migrations and Outbox patterns are fully active.
+
+--------------------------------------------------------------------------------
+1. EXISTING POLICY-RELATED TABLES AND CODE
+--------------------------------------------------------------------------------
+
+1.1. Schema Dump: policies and policy_bindings Tables
+Status: PARTIAL / STUB
+Details:
+- Table: `policies` (models.py in `backend/app/modules/policy/`)
+  * Columns: `id` (UUID, PK), `tenant_id` (UUID, FK), `version_no` (Integer), `is_deleted` (Boolean), `metadata_json` (JSON), `created_by` (UUID), `updated_by` (UUID), `created_at` (TIMESTAMP TZ), `updated_at` (TIMESTAMP TZ), `policy_name` (String), `policy_type` (String), `severity` (String), `status` (String, index), `reference_id` (String, index), `conditions` (JSON), `actions` (JSON).
+- Table: `policy_bindings` (models.py in `backend/app/modules/relationship/`)
+  * Columns: `id` (UUID, PK), `tenant_id` (UUID, FK), `version_no` (Integer), `is_deleted` (Boolean), `metadata_json` (JSON), `created_by` (UUID), `updated_by` (UUID), `created_at` (TIMESTAMP TZ), `updated_at` (TIMESTAMP TZ), `policy_id` (UUID, FK policies), `target_type` (String, index), `target_id` (String, index), `binding_scope` (String), `priority` (Integer), `is_mandatory` (Boolean), `effective_from` (TIMESTAMP TZ), `effective_to` (TIMESTAMP TZ), `status` (String).
+  * Row Count: 0 rows.
+  * Divergences from Spec §9: The current stub **is missing** the following proposed fields:
+    1. `version_strategy` (Enum/String, e.g. LATEST vs PINNED)
+    2. `pinned_policy_version_id` (UUID reference)
+    3. `condition_json` (JSONB boundary condition)
+  * Verdict: A migration is required to append these columns to `policy_bindings` in Phase 5.
+
+1.2. Existing policies and governance_policies Check
+Status: NOT FOUND (governance_policies) / FOUND (policies)
+Details:
+- `governance_policies` table does not exist. No naming collision risk.
+- The existing `policies` table is read and written by the basic policy module at `backend/app/modules/policy/`.
+  * CRUD endpoints exist at `/api/policies`.
+  * A basic event simulation endpoint exists at `trigger_policy_action` (emits `POLICY_TRIGGERED`).
+  * Dashboard at `/policies` is static in the frontend.
+  * Verdict: `governance_policies` can coexist cleanly under its own name.
+
+1.3. Additional Policy and Enforcement Model Checks
+Status: NOT FOUND
+Details:
+- `policy_versions`: NOT FOUND
+- `policy_rules`: NOT FOUND
+- `policy_evaluations`: NOT FOUND
+- `policy_rule_evaluations`: NOT FOUND
+- `policy_exceptions`: NOT FOUND
+- `enforcement_decisions`: NOT FOUND
+Near-matches:
+- `workflow_authorization_decisions` (in `backend/app/modules/authorization/models.py`): Logs RBAC/ABAC check decisions; very similar in structure to `enforcement_decisions`.
+- `relationship_validation_results`: Logs graph relationship validations.
+
+1.4. Rule Evaluation, Condition AST, or Policy Engine Code Check
+Status: NOT FOUND
+Details:
+There is NO dynamic JSON-Logic, AST, or facts-matching evaluator engine in the repository. All current assessments are procedurally coded:
+- `evaluate_context` (in `backend/app/modules/authorization/abac_service.py`): Evaluates attributes like department and risk levels via nested procedural code.
+- `BoundaryChecker` (in `backend/app/modules/agent_runtime/boundary_checker.py`): Checks tool and datasource boundaries procedurally.
+
+1.5. Evidence Link (evidence_links) Schema Verification
+Status: FOUND
+Details:
+- Table: `evidence_links` (models.py in `backend/app/modules/relationship/`)
+  * Columns: `id` (UUID, PK), `tenant_id` (UUID, FK), `version_no` (Integer), `is_deleted` (Boolean), `metadata_json` (JSON), `created_by` (UUID), `updated_by` (UUID), `created_at` (TIMESTAMP TZ), `updated_at` (TIMESTAMP TZ), `evidence_id` (UUID, index), `target_type` (String, index), `target_id` (String, index), `link_type` (String), `confidence_score` (Numeric), `source_system` (String).
+  * In-use: 0 rows. No writes exist in code.
+  * Reading: Yes, queried in lineage and context API routes at `backend/app/modules/relationship/api.py` (e.g. `/api/relationship/lineage`).
+
+--------------------------------------------------------------------------------
+2. RELATIONSHIP ARCHITECTURE VERIFICATION
+--------------------------------------------------------------------------------
+
+2.1. Schema Dump: generic_relationships Table & Seeded Relationship Types
+Status: FOUND / PARTIAL (Types)
+Details:
+- Table: `generic_relationships` (models.py in `backend/app/modules/relationship/`)
+  * Columns: `id` (UUID, PK), `tenant_id` (UUID, FK), `version_no` (Integer), `is_deleted` (Boolean), `metadata_json` (JSON), `created_by` (UUID), `updated_by` (UUID), `created_at` (TIMESTAMP TZ), `updated_at` (TIMESTAMP TZ), `source_type` (String, index), `source_id` (String, index), `relationship_type` (String, index), `target_type` (String, index), `target_id` (String, index), `relationship_scope` (String), `scope_json` (JSONB), `responsibility_type` (String), `effective_from` (TIMESTAMP TZ), `effective_to` (TIMESTAMP TZ), `status` (String), `approved_by` (UUID, FK).
+- Relationship Types Enum (`backend/app/modules/relationship/constants.py`):
+  * GOVERNED_BY: YES (literal exists, e.g. WORKFLOW -> GOVERNED_BY -> DEPARTMENT).
+  * USES_MODEL: YES (literal exists, though seed data sometimes uses general `"USES"`).
+  * USES_TOOL: YES (literal exists).
+  * USES_DATA_SOURCE: YES (literal exists).
+  * PARTICIPATES_IN: NO (instead, `PARTICIPATES_IN_WORKFLOW` exists).
+  * REQUIRES_APPROVAL: NO (not modeled as a relationship; represented as a boolean field on schedules/workflows).
+
+2.2. Resolution of Active & Effective Relationships
+Status: PARTIAL / DUPLICATED
+Details:
+- Repository methods `find_active` and `find_targets` exist in `backend/app/modules/relationship/repository.py` and correctly check `effective_from` / `effective_to` and `status != "ARCHIVED"`.
+- However, logic is DUPLICATED and BYPASSED. Callers construct raw SQLAlchemy queries directly against models, frequently ignoring temporal dates:
+  * `RegistryCheckService` (in `backend/app/modules/workflow_scheduler/registry_check_service.py`): Queries direct relationships using `status == "ACTIVE"` but ignores date fields.
+  * `validators.py` (in `backend/app/modules/relationship/`): Directly queries `generic_relationships` ignoring date filters.
+
+2.3. Ownership Overlap in object_responsibilities
+Status: FOUND
+Details:
+- `object_responsibilities` (defined in `backend/app/modules/relationship/models.py`) explicitly maps roles like `"OWNER"`, `"REVIEWER"`, and `"APPROVER"` onto registry entities using UUID polymorphic keys.
+- This aligns directly with Phase 5 concepts:
+  * Agent Owner: Mapped via `object_type = "agents"` and `responsibility_type = "OWNER"`.
+  * Data Steward: Can map via `object_type = "data_sources"` and `responsibility_type = "OWNER"`.
+  * Policy Owner: Can map via `object_type = "policies"` (or `governance_policies`).
+
+--------------------------------------------------------------------------------
+3. REGISTRY OBJECTS — AGENTS, MODELS, TOOLS, DATA SOURCES
+--------------------------------------------------------------------------------
+
+3.1. Registry Table Schemas & Spec Assumptions Overlap
+Status: FOUND
+Details:
+- Table: `agents` (models.py in `backend/app/modules/agent/`)
+  * Aliased in Registry module as `RegistryAIAgent`.
+  * Columns: `id` (UUID, PK), `agent_code` (String), `agent_name` (String, index), `agent_type` (String), `description` (Text), `department_id` (UUID, FK), `execution_mode` (String), `risk_level` (String), `confidence_threshold` (Numeric), `capabilities_json` (JSONB). Inherits `status` (lifecycle), `owner_user_id` (owner), and `version_no` (integer version) from `GovernableMixin`.
+  * Spec Overlap: **Missing** explicit `environment` field.
+- Table: `ai_models` (models.py in `backend/app/modules/ai_model/`)
+  * Aliased in Registry module as `RegistryAIModel`.
+  * Columns: `id` (UUID, PK), `model_code` (String), `model_name` (String), `model_type` (String), `provider_id` (UUID, FK), `version` (String), `purpose` (Text), `department_id` (UUID, FK), `risk_level` (Enum), `deployment_environment` (String, environment), `data_source_id` (UUID, FK). Inherits `status`, `owner_user_id`, and `version_no` from `GovernableMixin`.
+  * Spec Overlap: Has explicit `deployment_environment` and semantic string `version` fields.
+- Table: `tools` (models.py in `backend/app/modules/registry/`)
+  * Aliased in Registry module as `RegistryTool`.
+  * Columns: `id` (UUID, PK), `tool_code` (String), `tool_name` (String), `tool_category` (String), `access_mode` (String), `sensitivity_level` (String), `allowed_operations_json` (JSONB), `endpoint_reference` (String). Inherits `status`, `owner_user_id`, and `version_no`.
+  * Spec Overlap: **Missing** explicit `environment` field.
+
+3.2. Data Sources, Classification, and Sensitivity Enums
+Status: FOUND / PARTIAL (Per-field classification)
+Details:
+- Table: `data_sources` (models.py in `backend/app/modules/datasource/`)
+  * Aliased in Registry module as `RegistryDataSource`.
+  * Columns: `id` (UUID, PK), `source_code` (String), `source_name` (String), `source_type` (String), `department_id` (UUID, FK), `classification` (String), `sensitivity_level` (String), `region` (String), `contains_pii` (Boolean), `retention_policy` (String), `connection_reference` (String). Inherits `status` and `owner_user_id`.
+- Enum usages (`DataClassification` / `SensitivityLevel`):
+  * Strictly applied at the **table/entity level** (via `DataSource.classification` and `DataSource.sensitivity_level`).
+  * Per-field classification: **NOT FOUND**. No field-level table (`data_source_fields` or equivalent) or column classifications exist.
+
+3.3. Tool Capabilities (Operation-Level Modeling)
+Status: NOT FOUND
+Details:
+Tools are modeled as **single opaque entities** with a JSONB array `allowed_operations_json` (e.g. `["get", "post"]`) representing operations as simple strings. There is no independent `tool_capabilities` table or entity in the database today.
+
+3.4. Credential and Secret Reference Pattern on Tools
+Status: NOT FOUND
+Details:
+No vault references or credential keys are mapped on tools today. The `Tool` schema contains only a plain string `endpoint_reference`. A regex check in `registry/validators.py` prevents plaintext credentials from being embedded at creation time, but no active secret lookup exists.
+
+3.5. Runtime Call Sites and Execution Flow
+Status: FOUND
+Details:
+- Execution Path:
+  1. Trigger: Scheduled execution runs in background process `SchedulerWorker` (`backend/app/workers/scheduler_worker.py` polling loops), or manual run REST endpoint (`POST /api/v1/workflow-scheduler/schedules/{id}/run-now`) which inserts a run as `"QUEUED"`. (Note: Manually queued runs do not execute automatically since the worker only polls schedules).
+  2. Call site: `WorkflowRunService.execute_run` (in `workflow_execution/service.py`) calls `AgentRuntimeService.invoke_agent`.
+  3. Pre-execution Checker: `AgentRuntimeService.invoke_agent` (in `agent_runtime/service.py`) first calls `self.boundary_checker.check(assignment, requested_tool, db)`.
+  4. Invocations: Under Sonnet, HTTP request is made to `https://api.anthropic.com/v1/messages`. Tools execution is simulated.
+- Execution Mode: Asynchronous relative to API requests (runs in background loops), but synchronous (inline awaited) inside the executor thread.
+
+--------------------------------------------------------------------------------
+4. APPROVAL AND ESCALATION INTEGRATION
+--------------------------------------------------------------------------------
+
+4.1. Confirm Approval Service and API Surface
+Status: FOUND
+Details:
+Two approval schemas exist:
+1. Legacy approvals (`approvals` table, maps to recommendations):
+   * Columns: `id` (Int, PK), `status` (Enum: `PENDING`, `APPROVED`, `REJECTED`, etc.), `comments` (Text), `reviewed_at` (DateTime), `recommendation_id` (Int, FK), `reviewer_id` (UUID, FK).
+   * API: Routes under `/api/approvals`.
+2. Workflow schedule approvals (`workflow_schedule_approvals` table, maps to schedules):
+   * Columns: `id` (UUID, PK), `schedule_id` (UUID, FK), `approval_type` (String), `approver_user_id` (UUID, FK), `approval_group_id` (UUID, FK), `approval_status` (String), `decision_reason` (Text), `decided_at` (TIMESTAMP), `submitted_by` (UUID, FK).
+
+4.2. Confirm Escalation Service and API Surface
+Status: NOT FOUND
+Details:
+No standalone escalation module exists. Escalation is handled procedurally in `notifications/service.py` (`ScheduleNotificationService._get_escalation_owner`), checking schedule metadata or departments and sending failure SLA notifications.
+
+4.3. Context Hash and Idempotency Key (TOCTOU Protection)
+Status: NOT FOUND
+Details:
+No context hash, idempotency signature, or request snapshots exist on approvals or exceptions. Phase 5 will need to add these.
+
+--------------------------------------------------------------------------------
+5. RBAC / ABAC AND TENANT CONTEXT
+--------------------------------------------------------------------------------
+
+5.1. Authorization Service and Permission Matrix Mapping
+Status: FOUND
+Details:
+- Modules `rbac_service.py`, `abac_service.py`, and `decision_service.py` (in `backend/app/modules/authorization/`) are active and intercept requests.
+- Phase 5 Permission Check mapping:
+  * Policy Admin / Author: Maps to `SUPER_ADMIN` or `GOVERNANCE_ADMIN` roles / `policy.write` permission.
+  * Object Owner: Checked via `check_relationship_modification_access` matching active `OWNER` records in `object_responsibilities`.
+  * Approver: Checked via `is_in_approval_group` / role clearances.
+  * Auditor: Maps to `AUDITOR` role / `audit.read` permission.
+  * Runtime Service: Runs under systemic `"SYSTEM"` actor string context.
+
+5.2. Service/Workload Identity Concept
+Status: NOT FOUND
+Details:
+No machine-to-machine, API key, or service account authentication exists. All security checks assume human accounts (UUID in users table) decoded from standard JWT tokens, falling back to string `"SYSTEM"` contexts in background loops.
+
+5.3. Permission Naming Conventions
+Status: PARTIAL
+Details:
+Both conventions are active:
+- Legacy modules use lowercase dot-notation (e.g. `policy.read`, `policy.write`).
+- Post-handoff modules use UPPERCASE_SNAKE_CASE (e.g. `CREATE_WORKFLOW_SCHEDULE`, `VIEW_WORKFLOW_RUN_OUTPUT`).
+- Verdict: Phase 5 should use **`UPPERCASE_SNAKE_CASE`** (e.g. `CREATE_POLICY_EXCEPTION`, `EVALUATE_POLICY`) to align with current practices.
+
+--------------------------------------------------------------------------------
+6. CACHING INFRASTRUCTURE
+--------------------------------------------------------------------------------
+
+6.1. Cache Layer and Invalidation
+Status: FOUND (In-Process) / NOT FOUND (Shared)
+Details:
+- Thread-safe memory cache `MemoryCacheService` is implemented in `backend/app/modules/relationship/cache_service.py` using standard dict + `threading.Lock`.
+- It supports time-to-live expirations and tenant-based invalidation (`invalidate_tenant(tenant_id)`).
+- Lineage queries use the cache and automatically invalidate it during relationship updates.
+- No shared Redis caching is configured (though Redis is active for Celery, it is not used as a data cache).
+
+--------------------------------------------------------------------------------
+7. ASYNC / BACKGROUND EXECUTION MODEL
+--------------------------------------------------------------------------------
+
+7.1. Celery In-Process Configuration Check
+Status: not
+Details:
+
+7.2. Active Background Worker Patterns
+Status: FOUND
+Details:
+Two background workers poll database tables using `SELECT ... FOR UPDATE SKIP LOCKED`:
+1. `SchedulerWorker` (in `backend/app/workers/scheduler_worker.py`): Polls workflow schedules. Health API runs on port 8081.
+2. `OutboxDispatcher` (in `backend/app/modules/events/dispatcher.py`): Polls outbox event records. Health API runs on port 8082.
+
+7.3. Blocking Runtime Gateway Execution Blockers
+Status: NONE
+Details:
+Since execution run cycles are awaitable and run inline on threads, synchronous blocking checks can be integrated into the execution path without orchestration issues.
+
+--------------------------------------------------------------------------------
+8. API ROUTING, RESPONSE ENVELOPE, SERVICE CONVENTIONS
+--------------------------------------------------------------------------------
+
+8.1. API Routing Conventions
+Status: FOUND
+Details:
+- Legacy modules map to `/api/{module}`.
+- New modules (schedules, relationships, event store) use `/api/v1/{module}` (e.g. `/api/v1/events`).
+- Verdict: Phase 5 routers must be prefixed under `/api/v1/`.
+
+8.2. Response Envelope Consistency
+Status: FOUND / PARTIAL (Scheduler exception)
+Details:
+- Standard responses use the `StandardResponse` model via `ResponseHelper` (success, status, request_id, timestamp, data, error).
+- Scheduler and Run routes bypass `ResponseHelper` and manually build envelopes, but retain similar field names.
+- Verdict: Phase 5 should use the central `ResponseHelper` class.
+
+8.3. Class-Naming Conventions
+Status: FOUND
+Details:
+Classes adhere to:
+- `<FeatureArea>Service` (e.g. `EventPublisherService`).
+- `<Action>Engine`, `<Action>Checker`, or `<Action>Validator` (e.g. `BoundaryChecker`, `ValidationEngine`).
+- `<FeatureArea>Repository` (e.g. `EventRepository`).
+
+--------------------------------------------------------------------------------
+9. FRONTEND ARCHITECTURE
+--------------------------------------------------------------------------------
+
+9.1. Object Detail Page Structure
+Status: FOUND (Modal-based details)
+Details:
+- Standalone detail pages (e.g. `AgentDetailPage.tsx`) do not exist.
+- Instead, lists contain action buttons opening Form Modals (e.g. `AgentFormModal.tsx`, `ToolFormModal.tsx`) containing detail, relationship, and audit tabs.
+- Verdict: Phase 5 policy details and enforcement history must be added as new tabs in these modals rather than creating new pages.
+
+9.2. Shared Components
+Status: FOUND
+Details:
+`EventDrawer.tsx`, `ExportModal.tsx`, and `RetryActionButton.tsx` exist under `frontend/src/components/common/`. Each uses local modular CSS modules.
+
+9.3. Frontend State and Filtering Conventions
+Status: FOUND
+Details:
+- React Query is **not** installed. Server state is handled by standard useEffect wrappers (e.g. `useRegistryEntity`).
+- Filter syncing uses URL query strings synced via standard react-router `useSearchParams` hook and the custom hook `useRegistryFilters`.
+
+--------------------------------------------------------------------------------
+10. MIGRATION TOOLING AND SCHEMA CONVENTIONS
+--------------------------------------------------------------------------------
+
+10.1. Migration Table Grouping
+Status: FOUND
+Details:
+Codebase groups major features in single, consolidated migrations (e.g., Phase 4 migration `e4a2b91c801d` created 7 tables). Smaller edits use separate files. Phase 5 should batch its tables.
+
+10.2. DB-Enforced Append-Only Immutability
+Status: FOUND
+Details:
+Precedent exists. Trigger `trg_immutability_audit_events` is applied `BEFORE UPDATE OR DELETE ON audit_events` invoking the function `prevent_update_delete()`. The function is created in `database/ddl/V2_FIX_003__missing_triggers.sql` and loaded on application start.

@@ -260,6 +260,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const phase2ConfigItems = [
     { label: "Policies & Bindings", path: "/policies", icon: ShieldCheck, show: true },
     { label: "Agent Assignments", path: "/agent-assignments", icon: Plug, show: true },
+    { label: "Event Schemas", path: "/admin/event-schemas", icon: Database, show: true },
+    { label: "Retention Rules", path: "/admin/event-retention", icon: Shield, show: true },
   ].filter(i => i.show);
 
   const phase2ToolsItems = [

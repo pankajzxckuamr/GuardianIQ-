@@ -909,9 +909,10 @@ async def run_now(
 
 
 @router.get("/api/v1/workflow-scheduler/schedules/{id}/approvals")
-async def get_approvals(
+async def get_schedule_approvals(
     request: Request,
     id: UUID,
+    include_prior_cycles: bool = Query(False, description="If true, includes history from previous rejected/re-submitted cycles"),
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
@@ -919,28 +920,43 @@ async def get_approvals(
     try:
         stmt = (
             sa.select(WorkflowScheduleApproval)
-            .options(sa.orm.selectinload(WorkflowScheduleApproval.approver_user))
             .where(WorkflowScheduleApproval.schedule_id == id)
             .order_by(WorkflowScheduleApproval.created_at.desc())
         )
         res = await execute_statement(db, stmt)
-        approvals = res.scalars().all()
+        all_approvals = res.scalars().all()
+        
+        # Determine the latest cycle_id
+        latest_cycle_id = None
+        if all_approvals:
+            # Assuming the first one is the most recent because of order_by created_at.desc()
+            latest_cycle_id = all_approvals[0].approval_cycle_id
+            
+        approvals = []
+        if include_prior_cycles:
+            approvals = all_approvals
+        else:
+            approvals = [app for app in all_approvals if app.approval_cycle_id == latest_cycle_id]
+            
+        # Re-sort to show the natural progression order
+        approvals = sorted(approvals, key=lambda a: (a.created_at or datetime.min, a.approval_layer or 0))
+
         data = [
             {
                 "id": str(app.id),
-                "schedule_id": str(app.schedule_id),
-                "approval_type": app.approval_type,
-                "approval_status": app.approval_status,
-                "decision_reason": app.decision_reason,
-                "decided_at": app.decided_at.isoformat() if app.decided_at else None,
-                "submitted_by": str(app.submitted_by) if app.submitted_by else None,
+                "approval_cycle_id": str(app.approval_cycle_id) if app.approval_cycle_id else None,
+                "approval_layer": app.approval_layer,
+                "department_code": app.department_code,
                 "approver_user_id": str(app.approver_user_id) if app.approver_user_id else None,
-                "approver_name": app.approver_user.full_name if app.approver_user else None,
-                "created_at": app.created_at.isoformat()
+                "approval_group_id": str(app.approval_group_id) if app.approval_group_id else None,
+                "decided_by": str(app.decided_by) if app.decided_by else None,
+                "approval_status": app.approval_status,
+                "skip_reason": app.skip_reason,
+                "decided_at": app.decided_at.isoformat() if app.decided_at else None
             }
             for app in approvals
         ]
-        return make_envelope(True, data, None, request_id)
+        return make_envelope(True, {"items": data}, None, request_id)
     except Exception as e:
         return make_envelope(False, None, str(e), request_id)
 
@@ -1018,8 +1034,8 @@ class ApprovalDecisionRequest(BaseModel):
     decision: str
     reason: str
 
-@router.post("/api/v1/schedule-approvals/{approval_id}/decide")
-async def decide_approval(
+@router.post("/api/v1/workflow-scheduler/schedule-approvals/{approval_id}/decide")
+async def decide_schedule_approval(
     request: Request,
     approval_id: UUID,
     payload: ApprovalDecisionRequest,
@@ -1028,6 +1044,22 @@ async def decide_approval(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
+        # Fetch the approval record before to know the schedule_id
+        from app.modules.workflow_scheduler.models import WorkflowScheduleApproval
+        stmt_app = sa.select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.id == approval_id)
+        res_app = await execute_statement(db, stmt_app)
+        app_record = res_app.scalar()
+        if not app_record:
+            raise HTTPException(404, detail="Approval not found")
+            
+        # Also snapshot how many SKIPPED rows exist before we decide
+        stmt_skipped_before = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
+            WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
+            WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
+            WorkflowScheduleApproval.approval_status == 'SKIPPED'
+        )
+        skipped_before = (await execute_statement(db, stmt_skipped_before)).scalar()
+        
         schedule = await schedule_service.decide_approval(
             approval_id,
             payload.decision,
@@ -1036,7 +1068,31 @@ async def decide_approval(
             db
         )
         db.commit()
-        return make_envelope(True, format_schedule_response(schedule), None, request_id)
+        
+        # Calculate pending layers
+        stmt_pending = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
+            WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
+            WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
+            WorkflowScheduleApproval.approval_status == 'PENDING'
+        )
+        layers_remaining = (await execute_statement(db, stmt_pending)).scalar()
+        
+        # Find which departments were auto-skipped in this exact transaction
+        stmt_skipped_after = sa.select(WorkflowScheduleApproval.department_code).where(
+            WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
+            WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
+            WorkflowScheduleApproval.approval_status == 'SKIPPED'
+        ).order_by(WorkflowScheduleApproval.created_at.asc()).offset(skipped_before)
+        skipped_after = (await execute_statement(db, stmt_skipped_after)).scalars().all()
+        
+        schedule_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
+        
+        return make_envelope(True, {
+            "schedule_id": str(schedule.id),
+            "schedule_status": schedule_status_str,
+            "layers_remaining": layers_remaining,
+            "auto_skipped_departments": skipped_after
+        }, None, request_id)
     except HTTPException as e:
         db.rollback()
         raise e

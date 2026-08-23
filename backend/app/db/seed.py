@@ -9,7 +9,9 @@ Usage:
 """
 
 from app.db.session import SessionLocal
+import app.db.base  # Ensure all models are loaded to resolve relationships
 from app.modules.auth.models import Role, Permission, User, user_roles, role_permissions
+from app.modules.department.models import Department
 from app.core.security import hash_password
 
 

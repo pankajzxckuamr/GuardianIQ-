@@ -45,4 +45,29 @@ def write_registry_audit(
     )
     
     db.add(audit_event)
+
+    try:
+        from app.modules.events.service import EventPublisherService
+        from app.modules.events.schemas import GovernanceEventCreate
+        from datetime import datetime, timezone
+        
+        publisher = EventPublisherService()
+        if changed_by:
+            gov_event = GovernanceEventCreate(
+                event_type=f"{entity_type}_{event_type}".upper(),
+                event_category="Registry",
+                event_version="1.0",
+                occurred_at=datetime.now(timezone.utc),
+                source_service="registry_service",
+                actor_json={"user_id": str(changed_by)},
+                subject_json={"entity_type": entity_type, "entity_id": str(entity_id)},
+                payload_json=meta,
+                classification="INTERNAL",
+                retention_class="STANDARD_90_DAYS"
+            )
+            publisher.publish_event(db, gov_event, changed_by)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to publish Phase 4 Governance event from registry: {e}")
+
     # Note: We do NOT commit here. This should be committed by the caller in the same transaction.

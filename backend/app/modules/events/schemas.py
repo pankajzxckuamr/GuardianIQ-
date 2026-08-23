@@ -119,5 +119,46 @@ class EventDeadLetterResponse(BaseModel):
     failed_at: datetime
     retry_attempts: int
     status: str
-    resolved_at: Optional[datetime] = None
     resolved_by: Optional[UUID] = None
+
+# 8. Event Schema Registry Models
+class EventSchemaRegistryCreate(BaseModel):
+    event_type: str = Field(..., max_length=100)
+    version: str = Field(default="1.0", max_length=20)
+    json_schema: Dict[str, Any]
+    is_active: bool = True
+
+class EventSchemaRegistryUpdate(BaseModel):
+    json_schema: Optional[Dict[str, Any]] = None
+    is_active: Optional[bool] = None
+
+class EventSchemaRegistryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    event_type: str
+    version: str
+    json_schema: Dict[str, Any]
+    is_active: bool
+    created_at: datetime
+    created_by: Optional[UUID] = None
+
+# 9. Event Retention Rule Models
+class EventRetentionRuleCreate(BaseModel):
+    event_category: str = Field(..., max_length=50)
+    retention_days: int = Field(default=90)
+    action: str = Field(default="PURGE", max_length=30)
+
+class EventRetentionRuleUpdate(BaseModel):
+    retention_days: Optional[int] = None
+    action: Optional[str] = None
+
+class EventRetentionRuleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    event_category: str
+    retention_days: int
+    action: str
+    created_at: datetime

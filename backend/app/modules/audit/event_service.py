@@ -139,11 +139,34 @@ class GovernanceEventService:
     async def publish_schedule_updated(self, schedule_id: UUID, actor_id: UUID, before_json: dict, after_json: dict, db) -> None:
         await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_UPDATED, "workflow_schedules", schedule_id, "USER", actor_id, "UPDATE", "Schedule updated", {"before": before_json, "after": after_json}, db)
 
-    async def publish_schedule_submitted(self, schedule_id: UUID, actor_id: UUID, db) -> None:
-        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_SUBMITTED, "workflow_schedules", schedule_id, "USER", actor_id, "SUBMIT", "Schedule submitted for approval", {}, db)
+    async def publish_schedule_submitted(self, schedule_id: UUID, actor_id: UUID, approval_cycle_id: UUID, correlation_id: str, db) -> None:
+        payload = {
+            "schedule_id": str(schedule_id),
+            "approval_cycle_id": str(approval_cycle_id),
+            "correlation_id": correlation_id
+        }
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_SUBMITTED, "workflow_schedules", schedule_id, "USER", actor_id, "SUBMIT", "Schedule submitted for approval", payload, db)
 
-    async def publish_schedule_activated(self, schedule_id: UUID, actor_id: UUID, db) -> None:
-        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_ACTIVATED, "workflow_schedules", schedule_id, "USER", actor_id, "ACTIVATE", "Schedule activated", {}, db)
+    async def publish_schedule_activated(self, schedule_id: UUID, actor_id: UUID, approval_cycle_id: UUID, correlation_id: str, db) -> None:
+        payload = {
+            "schedule_id": str(schedule_id),
+            "approval_cycle_id": str(approval_cycle_id),
+            "correlation_id": correlation_id
+        }
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_ACTIVATED, "workflow_schedules", schedule_id, "USER", actor_id, "ACTIVATE", "Schedule activated", payload, db)
+
+    async def publish_layer_skipped(self, schedule_id: UUID, actor_id: UUID, approval_cycle_id: UUID, correlation_id: str, approval_layer: int, department_code: str, parent_approval_id: UUID, approval_id: UUID, skip_reason: str, db) -> None:
+        payload = {
+            "schedule_id": str(schedule_id),
+            "approval_cycle_id": str(approval_cycle_id),
+            "correlation_id": correlation_id,
+            "approval_layer": approval_layer,
+            "department_code": department_code,
+            "parent_approval_id": str(parent_approval_id) if parent_approval_id else None,
+            "approval_id": str(approval_id),
+            "skip_reason": skip_reason
+        }
+        await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_LAYER_SKIPPED, "workflow_schedules", schedule_id, "SYSTEM", actor_id, "SKIP_LAYER", "Approval layer auto-skipped", payload, db)
 
     async def publish_schedule_paused(self, schedule_id: UUID, actor_id: UUID, db) -> None:
         await self.publish_event(WorkflowEventCode.WORKFLOW_SCHEDULE_PAUSED, "workflow_schedules", schedule_id, "USER", actor_id, "PAUSE", "Schedule paused", {}, db)

@@ -146,6 +146,33 @@ def login(
         )
     )
 
+    try:
+        from app.modules.events.service import EventPublisherService
+        from app.modules.events.schemas import GovernanceEventCreate
+        from datetime import datetime, timezone
+        
+        publisher = EventPublisherService()
+        gov_event = GovernanceEventCreate(
+            event_type="USER_LOGIN",
+            event_category="Identity",
+            event_version="1.0",
+            occurred_at=datetime.now(timezone.utc),
+            source_service="auth_service",
+            actor_json={"user_id": str(user.id)},
+            subject_json={"entity_type": "user", "entity_id": str(user.id)},
+            payload_json={
+                "ip_address": request.client.host if request.client else "127.0.0.1",
+                "user_agent": request.headers.get("user-agent") or "Unknown"
+            },
+            classification="CONFIDENTIAL",
+            risk_context_json={"risk_level": "LOW"}
+        )
+        publisher.publish_event(db, gov_event, user.id)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to publish Phase 4 USER_LOGIN event: {e}")
+
+
     # ── OAuth2 spec: access_token MUST be at root level so Swagger UI ──
     # ── (and any OAuth2 client) can extract it from the response.     ──
     # We also include StandardResponse fields so the frontend client   ──
