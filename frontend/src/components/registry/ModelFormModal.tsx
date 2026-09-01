@@ -823,7 +823,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
                                 value={formData.model_name}
                                 onChange={handleChange}
                                 disabled={loading}
-                                placeholder="e.g. gpt-4o"
+                                placeholder="Enter model name or tag..."
                                 className={`${styles.input} ${fieldErrors.model_name ? styles.inputError : ""}`}
                                 required
                               />
@@ -889,7 +889,7 @@ export const ModelFormModal: React.FC<ModelFormModalProps> = ({
                                 value={formData.version}
                                 onChange={handleChange}
                                 disabled={loading}
-                                placeholder="e.g. 1.0.0"
+                                placeholder="Enter model version..."
                                 className={styles.input}
                               />
                             </div>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Shield, Eye, PlusCircle, Search, Filter, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Shield, Eye, PlusCircle, Search, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import type { Policy, PolicyCategory, PolicyStatus } from "../../types/policy";
 import styles from "../../pages/PoliciesPage.module.css";
 
@@ -21,6 +21,23 @@ export const PolicyListTable: React.FC<PolicyListTableProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [page, setPage] = useState<number>(1);
+  const pageSize = 10;
+
+  const handleSearchChange = (val: string) => {
+    setSearchTerm(val);
+    setPage(1);
+  };
+
+  const handleCategoryChange = (val: string) => {
+    setCategoryFilter(val);
+    setPage(1);
+  };
+
+  const handleStatusChange = (val: string) => {
+    setStatusFilter(val);
+    setPage(1);
+  };
 
   const filtered = policies.filter((p) => {
     const matchesSearch =
@@ -31,6 +48,12 @@ export const PolicyListTable: React.FC<PolicyListTableProps> = ({
     const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
   });
+
+  const totalCount = filtered.length;
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+  const startRecord = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRecord = Math.min(page * pageSize, totalCount);
+  const paginatedPolicies = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const getStatusBadge = (status: PolicyStatus) => {
     switch (status) {
@@ -136,14 +159,14 @@ export const PolicyListTable: React.FC<PolicyListTableProps> = ({
               type="text"
               placeholder="Search policies by name, code, or description..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className={styles.searchInput}
             />
           </div>
 
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className={styles.filterSelect}
           >
             <option value="ALL">All Categories</option>
@@ -157,7 +180,7 @@ export const PolicyListTable: React.FC<PolicyListTableProps> = ({
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => handleStatusChange(e.target.value)}
             className={styles.filterSelect}
           >
             <option value="ALL">All Statuses</option>
@@ -201,7 +224,7 @@ export const PolicyListTable: React.FC<PolicyListTableProps> = ({
                 </td>
               </tr>
             ) : (
-              filtered.map((policy) => (
+              paginatedPolicies.map((policy) => (
                 <tr
                   key={policy.id}
                   className={styles.row}
@@ -273,6 +296,64 @@ export const PolicyListTable: React.FC<PolicyListTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalCount > 0 && (
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "12px 16px",
+          background: "rgba(15, 23, 42, 0.6)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "8px",
+          fontSize: "0.85rem",
+          color: "var(--text-secondary, #94a3b8)"
+        }}>
+          <div>
+            Showing <strong style={{ color: "#fff" }}>{startRecord}-{endRecord}</strong> of <strong style={{ color: "#fff" }}>{totalCount}</strong> policies
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span>Page <strong style={{ color: "#fff" }}>{page}</strong> of <strong style={{ color: "#fff" }}>{totalPages}</strong></span>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  background: page <= 1 ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.08)",
+                  color: page <= 1 ? "#475569" : "#fff",
+                  cursor: page <= 1 ? "not-allowed" : "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 600
+                }}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  background: page >= totalPages ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.08)",
+                  color: page >= totalPages ? "#475569" : "#fff",
+                  cursor: page >= totalPages ? "not-allowed" : "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 600
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

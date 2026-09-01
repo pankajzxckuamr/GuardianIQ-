@@ -418,7 +418,7 @@ export const AgentAssignmentMatrix: React.FC = () => {
             {drawerMode === 'CREATE' && (
               <div>
                 <label className={styles.fieldLabel}>Schedule ID</label>
-                <input className={styles.formControl} type="text" value={formData.schedule_id} onChange={e => handleFormChange('schedule_id', e.target.value)} placeholder="Provide schedule UUID" />
+                <input className={styles.formControl} type="text" value={formData.schedule_id} onChange={e => handleFormChange('schedule_id', e.target.value)} placeholder="Enter schedule UUID..." />
               </div>
             )}
 

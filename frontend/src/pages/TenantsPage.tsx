@@ -37,7 +37,7 @@ export const TenantsPage: React.FC = () => {
     try {
       const token = JSON.parse(sessionStorage.getItem("guardianiq_access_token") || "null");
       if (token) {
-        const response = await fetchTenants(token, 1, 20);
+        const response = await fetchTenants(token, 1, 10);
         setTenants(response.items || []);
       } else {
         setTenants(mockTenants);
@@ -159,7 +159,7 @@ export const TenantsPage: React.FC = () => {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <FormField 
                   label="Tenant Name" 
-                  placeholder="e.g. Acme Corp" 
+                  placeholder="Enter organization name..." 
                   value={name} 
                   onChange={(e) => setName(e.target.value)}
                   disabled={submitting}
@@ -167,7 +167,7 @@ export const TenantsPage: React.FC = () => {
                 />
                 <FormField 
                   label="Domain Slug" 
-                  placeholder="e.g. acme" 
+                  placeholder="Enter organization domain slug..." 
                   value={slug} 
                   onChange={(e) => setSlug(e.target.value)}
                   disabled={submitting}

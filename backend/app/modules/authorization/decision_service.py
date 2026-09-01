@@ -21,11 +21,18 @@ class GovernanceEventService:
             "before_json": payload.get("before_json"),
             "after_json": payload.get("after_json") or payload
         }
+        sub_id = payload.get("subject_user_id")
+        if sub_id and isinstance(sub_id, str):
+            try:
+                sub_id = UUID(sub_id)
+            except Exception:
+                sub_id = None
+
         stmt = sa.insert(RegistryAuditEvent).values(
             event_type=event_type,
             entity_type=payload.get("entity_type", "authorization_decision"),
             entity_id=str(payload.get("entity_id")) if payload.get("entity_id") else None,
-            actor_user_id=payload.get("subject_user_id"),
+            actor_user_id=sub_id,
             action=payload.get("action") or "EVALUATE",
             event_metadata=meta,
             created_at=datetime.now(timezone.utc)

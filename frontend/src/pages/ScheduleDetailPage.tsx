@@ -66,16 +66,18 @@ export const ScheduleDetailPage: React.FC = () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [schedRes, appRes, histRes, runsRes] = await Promise.all([
+      const [schedRes, appRes, histRes, runsRes]: any = await Promise.all([
         scheduleApi.getById(id),
         scheduleApi.getApprovals(id).catch(() => []),
         scheduleApi.getHistory(id).catch(() => []),
         runApi.list({ schedule_id: id, per_page: 5 }).catch(() => ({ items: [] })),
       ]);
-      setSchedule(((schedRes as any).schedule || schedRes) as WorkflowScheduleResponse);
-      setApprovals(appRes as any);
-      setHistory(histRes as any);
-      setRuns((runsRes as any).items || []);
+      setSchedule(((schedRes as any)?.schedule || (schedRes as any)?.data?.schedule || schedRes) as WorkflowScheduleResponse);
+      const appList = Array.isArray(appRes) ? appRes : (appRes?.items || appRes?.data?.items || appRes?.data || []);
+      setApprovals(Array.isArray(appList) ? appList : []);
+      const histList = Array.isArray(histRes) ? histRes : (histRes?.items || histRes?.data?.items || histRes?.data || []);
+      setHistory(Array.isArray(histList) ? histList : []);
+      setRuns(runsRes?.items || runsRes?.data?.items || (Array.isArray(runsRes) ? runsRes : []));
     } catch (e: any) {
       setError(e.message || 'Failed to load schedule');
     } finally {
@@ -290,18 +292,45 @@ export const ScheduleDetailPage: React.FC = () => {
             <div className={styles.miniTableWrap}>
               <table className={styles.miniTable}>
                 <thead>
-                  <tr><th>Type</th><th>Status</th><th>Approver</th><th>Reason</th><th>Date</th></tr>
+                  <tr>
+                    <th>Stage & Department</th>
+                    <th>Status</th>
+                    <th>Approver / Decider</th>
+                    <th>Decision Note / Reason</th>
+                    <th>Date</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {approvals.map(a => (
-                    <tr key={a.id}>
-                      <td>{a.approval_type}</td>
-                      <td>{a.approval_status}</td>
-                      <td>{a.approver_name || a.approver_user_id || '-'}</td>
-                      <td>{a.decision_reason || '-'}</td>
-                      <td>{a.decided_at ? new Date(a.decided_at).toLocaleString() : '-'}</td>
-                    </tr>
-                  ))}
+                  {approvals.map(a => {
+                    const deptLabel = a.department_name || (a.department_code ? a.department_code.replace(/_/g, ' ') : `Layer ${a.approval_layer || 1}`);
+                    const approver = a.decided_by_name 
+                      ? `${a.decided_by_name} (${a.decided_by_email || ''})`
+                      : a.approver_name 
+                      ? `${a.approver_name} (${a.approver_email || ''})`
+                      : (a.decided_by || a.approver_user_id || '-');
+                    const isApproved = a.approval_status === 'APPROVED';
+                    const isPending = a.approval_status === 'PENDING';
+                    const isRejected = a.approval_status === 'REJECTED';
+                    const isWaiting = a.approval_status === 'WAITING';
+                    
+                    return (
+                      <tr key={a.id}>
+                        <td>
+                          <span style={{ fontWeight: 600, color: '#f8fafc' }}>
+                            Stage {a.approval_layer || 1}: {deptLabel}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`${styles.pill} ${isApproved ? styles.pillSuccess : isPending ? styles.pillWarning : isRejected ? styles.pillDanger : styles.pillMuted}`}>
+                            {isWaiting ? 'AWAITING PRIOR STAGE' : a.approval_status}
+                          </span>
+                        </td>
+                        <td>{approver}</td>
+                        <td style={{ maxWidth: '280px' }}>{a.decision_reason || a.skip_reason || (isWaiting ? 'Awaiting prior stage approval' : '-')}</td>
+                        <td>{a.decided_at ? new Date(a.decided_at).toLocaleString() : a.created_at ? new Date(a.created_at).toLocaleString() : '-'}</td>
+                      </tr>
+                    );
+                  })}
                   {approvals.length === 0 && <tr><td colSpan={5} className={styles.miniEmpty}>No approval records found</td></tr>}
                 </tbody>
               </table>

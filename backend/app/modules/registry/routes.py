@@ -45,7 +45,7 @@ def require_write_roles(current_user, request_id: str):
 def list_models(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     model_type: Optional[str] = None,
@@ -64,7 +64,8 @@ def list_models(
         "status": status,
         "model_type": model_type,
         "risk_level": risk_level,
-        "department_id": department_id
+        "department_id": department_id,
+        "tenant_id": getattr(current_user, "tenant_id", current_user.id),
     }
     
     items, total = repo.list_models(db, filters, page, page_size, sort_by, sort_dir)
@@ -172,7 +173,7 @@ def change_model_status(
 def list_agents(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     agent_type: Optional[str] = None,
@@ -191,7 +192,8 @@ def list_agents(
         "status": status,
         "agent_type": agent_type,
         "risk_level": risk_level,
-        "department_id": department_id
+        "department_id": department_id,
+        "tenant_id": getattr(current_user, "tenant_id", current_user.id),
     }
     
     items, total = repo.list_agents(db, filters, page, page_size, sort_by, sort_dir)
@@ -299,7 +301,7 @@ def change_agent_status(
 def list_tools(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     tool_category: Optional[str] = None,
@@ -318,7 +320,8 @@ def list_tools(
         "status": status,
         "tool_category": tool_category,
         "access_mode": access_mode,
-        "sensitivity_level": sensitivity_level
+        "sensitivity_level": sensitivity_level,
+        "tenant_id": getattr(current_user, "tenant_id", current_user.id),
     }
     
     items, total = repo.list_tools(db, filters, page, page_size, sort_by, sort_dir)
@@ -426,7 +429,7 @@ def change_tool_status(
 def list_workflows(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     status: Optional[str] = None,
     workflow_type: Optional[str] = None,
@@ -445,7 +448,8 @@ def list_workflows(
         "status": status,
         "workflow_type": workflow_type,
         "business_criticality": business_criticality,
-        "approval_required": approval_required
+        "approval_required": approval_required,
+        "tenant_id": getattr(current_user, "tenant_id", current_user.id),
     }
     
     items, total = repo.list_workflows(db, filters, page, page_size, sort_by, sort_dir)
@@ -621,7 +625,7 @@ def lookup_departments(request: Request, db: Session = Depends(get_db), current_
 
 @departments_router.get("/departments", summary="List Departments")
 def list_departments(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -690,7 +694,7 @@ def lookup_roles(request: Request, db: Session = Depends(get_db), current_user =
 
 @roles_router.get("/roles", summary="List Roles")
 def list_roles(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -716,15 +720,15 @@ def create_role(request: Request, payload: schemas.RoleCreate, db: Session = Dep
     require_write_roles(current_user, request_id)
     role = services.create_role(db, payload, current_user)
     db.commit()
-    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Created", request_id=request_id)
+    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Role created successfully", request_id=request_id)
 
 @roles_router.get("/roles/{id}", summary="Get Role")
 def get_role(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     role = repo.get_role_by_id(db, id)
-    if not role: raise HTTPException(404, detail=ResponseHelper.error(message="Not found", error_code="NOT_FOUND", request_id=request_id).model_dump())
-    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Retrieved", request_id=request_id)
+    if not role: raise HTTPException(404, detail=ResponseHelper.error(message="Role not found", error_code="NOT_FOUND", request_id=request_id).model_dump())
+    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Role retrieved successfully", request_id=request_id)
 
 @roles_router.put("/roles/{id}", summary="Update Role")
 def update_role(request: Request, id: UUID, payload: schemas.RoleUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -732,7 +736,7 @@ def update_role(request: Request, id: UUID, payload: schemas.RoleUpdate, db: Ses
     require_write_roles(current_user, request_id)
     role = services.update_role(db, id, payload, current_user)
     db.commit()
-    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Updated", request_id=request_id)
+    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Role updated successfully", request_id=request_id)
 
 @roles_router.patch("/roles/{id}/status", summary="Change Role Status")
 def change_role_status(request: Request, id: UUID, payload: schemas.StatusChangeRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -740,7 +744,7 @@ def change_role_status(request: Request, id: UUID, payload: schemas.StatusChange
     require_write_roles(current_user, request_id)
     role = services.change_role_status(db, id, payload, current_user)
     db.commit()
-    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Status updated", request_id=request_id)
+    return ResponseHelper.success(data=schemas.RoleResponse.model_validate(role).model_dump(), message="Role status updated", request_id=request_id)
 
 # ---------------------------------------------------------
 # Users Endpoints
@@ -759,7 +763,7 @@ def lookup_users(request: Request, db: Session = Depends(get_db), current_user =
 
 @users_router.get("/users", summary="List Users")
 def list_users(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
@@ -785,15 +789,15 @@ def create_user(request: Request, payload: schemas.GuardianUserCreate, db: Sessi
     require_write_roles(current_user, request_id)
     user = services.create_user(db, payload, current_user)
     db.commit()
-    return ResponseHelper.success(data=schemas.GuardianUserResponse.model_validate(user).model_dump(), message="Created", request_id=request_id)
+    return ResponseHelper.success(data=schemas.GuardianUserResponse.model_validate(user).model_dump(), message="User created", request_id=request_id)
 
 @users_router.get("/users/{id}", summary="Get User")
 def get_user(request: Request, id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
     user = repo.get_user_by_id(db, id)
-    if not user: raise HTTPException(404, detail=ResponseHelper.error(message="Not found", error_code="NOT_FOUND", request_id=request_id).model_dump())
-    return ResponseHelper.success(data=schemas.GuardianUserResponse.model_validate(user).model_dump(), message="Retrieved", request_id=request_id)
+    if not user: raise HTTPException(404, detail=ResponseHelper.error(message="User not found", error_code="NOT_FOUND", request_id=request_id).model_dump())
+    return ResponseHelper.success(data=schemas.GuardianUserResponse.model_validate(user).model_dump(), message="User retrieved", request_id=request_id)
 
 @users_router.put("/users/{id}", summary="Update User")
 def update_user(request: Request, id: UUID, payload: schemas.GuardianUserUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -817,14 +821,19 @@ def change_user_status(request: Request, id: UUID, payload: schemas.StatusChange
 
 @data_sources_router.get("/data-sources", summary="List Data Sources")
 def list_data_sources(
-    request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    request: Request, page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None, status: Optional[str] = None,
     sort_by: str = Query("created_at"), sort_dir: str = Query("desc"),
     db: Session = Depends(get_db), current_user = Depends(get_current_user)
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     require_read_roles(current_user, request_id)
-    items, total = repo.list_data_sources(db, {"search": search, "status": status}, page, page_size, sort_by, sort_dir)
+    filters = {
+        "search": search,
+        "status": status,
+        "tenant_id": getattr(current_user, "tenant_id", current_user.id),
+    }
+    items, total = repo.list_data_sources(db, filters, page, page_size, sort_by, sort_dir)
     total_pages = math.ceil(total / page_size) if total > 0 else 0
     return ResponseHelper.success(
         data=schemas.DataSourceListResponse(
@@ -899,7 +908,7 @@ def get_relationships(
     entity_type: Optional[str] = Query(None),
     entity_id: Optional[UUID] = Query(None),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(10, ge=1, le=100),
     source_type: Optional[str] = Query(None),
     source_id: Optional[str] = Query(None),
     target_type: Optional[str] = Query(None),
@@ -1074,7 +1083,7 @@ def global_search(request: Request, q: str = Query(..., min_length=2), db: Sessi
 def list_register_all_sessions(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     search: Optional[str] = None,
     workflow_id: Optional[UUID] = None,
     sort_by: str = Query("created_at"),
@@ -1175,7 +1184,7 @@ def get_governance_entity_audit_trail(
     entity_id: str,
     event_type: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):

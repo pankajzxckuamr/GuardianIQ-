@@ -38,14 +38,19 @@ class GovernanceEventService:
     ) -> None:
         int_actor_id = None
         if actor_id:
-            guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == str(actor_id))
-            guardian_res = await execute_statement(db, guardian_stmt)
-            email = guardian_res.scalar()
-            
-            if email:
-                user_stmt = select(User.id).where(User.email == email)
-                user_res = await execute_statement(db, user_stmt)
-                int_actor_id = user_res.scalar()
+            try:
+                target_uuid = actor_id if isinstance(actor_id, UUID) else UUID(str(actor_id))
+            except Exception:
+                target_uuid = None
+            if target_uuid:
+                guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == target_uuid)
+                guardian_res = await execute_statement(db, guardian_stmt)
+                email = guardian_res.scalar()
+                
+                if email:
+                    user_stmt = select(User.id).where(User.email == email)
+                    user_res = await execute_statement(db, user_stmt)
+                    int_actor_id = user_res.scalar()
 
         meta = {
             "entity_id": str(entity_id) if entity_id else None,
@@ -84,14 +89,19 @@ class GovernanceEventService:
 
             int_actor_id = None
             if actor_id:
-                guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == str(actor_id))
-                guardian_res = await execute_statement(db, guardian_stmt)
-                email = guardian_res.scalar()
-                
-                if email:
-                    user_stmt = select(User.id).where(User.email == email)
-                    user_res = await execute_statement(db, user_stmt)
-                    int_actor_id = user_res.scalar()
+                try:
+                    target_uuid = actor_id if isinstance(actor_id, UUID) else UUID(str(actor_id))
+                except Exception:
+                    target_uuid = None
+                if target_uuid:
+                    guardian_stmt = select(GuardianUser.email).where(GuardianUser.id == target_uuid)
+                    guardian_res = await execute_statement(db, guardian_stmt)
+                    email = guardian_res.scalar()
+                    
+                    if email:
+                        user_stmt = select(User.id).where(User.email == email)
+                        user_res = await execute_statement(db, user_stmt)
+                        int_actor_id = user_res.scalar()
 
             meta = {
                 "entity_id": str(entity_id) if entity_id else None,

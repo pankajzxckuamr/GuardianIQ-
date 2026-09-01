@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AlertCircle, HelpCircle, X } from 'lucide-react';
 
 interface Props {
   open?: boolean;
@@ -27,51 +28,170 @@ export const ConfirmActionModal: React.FC<Props> = ({
 
   if (!open) return null;
 
+  const isDanger = confirmVariant === 'danger';
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={onCancel}></div>
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-          <div>
-            <div className="mt-3 text-center sm:mt-5">
-              <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">{title}</h3>
-              <div className="mt-2">
-                <p className="text-sm text-gray-500">{message}</p>
-              </div>
-              {requireReason && (
-                <div className="mt-4">
-                  <textarea
-                    rows={3}
-                    className="shadow-sm block w-full focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border border-gray-300 rounded-md"
-                    placeholder="Please provide a reason..."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
+    <div 
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1050,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        backgroundColor: 'rgba(5, 9, 20, 0.82)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
+      onClick={onCancel}
+    >
+      <div 
+        style={{
+          width: '100%',
+          maxWidth: '480px',
+          background: 'linear-gradient(180deg, #131b2e 0%, #0d1322 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: '24px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px rgba(99, 102, 241, 0.12)',
+          color: '#f8fafc',
+          position: 'relative'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button 
+          onClick={onCancel}
+          style={{
+            position: 'absolute',
+            top: '18px',
+            right: '18px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '8px',
+            color: '#94a3b8',
+            cursor: 'pointer',
+            padding: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+            e.currentTarget.style.color = '#f8fafc';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+            e.currentTarget.style.color = '#94a3b8';
+          }}
+        >
+          <X size={16} />
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            background: isDanger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+            border: `1px solid ${isDanger ? 'rgba(239, 68, 68, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            color: isDanger ? '#ef4444' : '#818cf8'
+          }}>
+            {isDanger ? <AlertCircle size={22} /> : <HelpCircle size={22} />}
           </div>
-          <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-            <button
-              type="button"
-              disabled={isLoading || (requireReason && !reason.trim())}
-              className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:col-start-2 sm:text-sm disabled:bg-gray-400 disabled:cursor-not-allowed ${
-                confirmVariant === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
-              }`}
-              onClick={() => onConfirm(reason)}
-            >
-              {isLoading ? 'Processing...' : confirmLabel}
-            </button>
-            <button
-              type="button"
-              disabled={isLoading}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
-              onClick={onCancel}
-            >
-              Cancel
-            </button>
+          <div style={{ flex: 1, paddingRight: '24px' }}>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '1.15rem', fontWeight: 600, color: '#f8fafc' }}>
+              {title}
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#94a3b8', lineHeight: 1.5 }}>
+              {message}
+            </p>
           </div>
+        </div>
+
+        {requireReason && (
+          <div style={{ marginTop: '16px', marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+              Reason <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <textarea
+              rows={3}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'rgba(10, 15, 29, 0.7)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                color: '#f8fafc',
+                fontSize: '0.875rem',
+                outline: 'none',
+                resize: 'vertical',
+                fontFamily: 'inherit'
+              }}
+              placeholder="Please provide a reason..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#6366f1'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)'}
+            />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={onCancel}
+            style={{
+              padding: '9px 18px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#cbd5e1',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading) e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={isLoading || (requireReason && !reason.trim())}
+            onClick={() => onConfirm(reason)}
+            style={{
+              padding: '9px 22px',
+              borderRadius: '8px',
+              border: 'none',
+              background: isDanger 
+                ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' 
+                : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              color: '#ffffff',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: (isLoading || (requireReason && !reason.trim())) ? 'not-allowed' : 'pointer',
+              opacity: (isLoading || (requireReason && !reason.trim())) ? 0.6 : 1,
+              boxShadow: isDanger 
+                ? '0 4px 14px rgba(239, 68, 68, 0.35)' 
+                : '0 4px 14px rgba(99, 102, 241, 0.35)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {isLoading ? 'Processing...' : confirmLabel}
+          </button>
         </div>
       </div>
     </div>

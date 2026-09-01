@@ -1,8 +1,7 @@
-/* src/components/phase2/AuditTimelinePanel.tsx */
 import React, { useEffect, useState } from 'react';
 import styles from '../../pages/phase2Shared.module.css';
 import { auditApi } from '../../api/phase2Client';
-import { Check, X, Play, Pause, Plus, FileText, Archive, Clock, ShieldAlert, ArrowRight, Eye } from 'lucide-react';
+import { Check, Play, Pause, Plus, FileText, Clock, ShieldAlert, Eye } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
 interface Props {

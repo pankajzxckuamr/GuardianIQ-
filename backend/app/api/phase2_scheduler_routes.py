@@ -122,7 +122,7 @@ def validate_uniqueness(
 async def list_schedules(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     sort_by: str | None = None,
     sort_dir: str | None = None,
     status: str | None = None,
@@ -130,6 +130,8 @@ async def list_schedules(
     owner_user_id: UUID | None = None,
     workflow_id: UUID | None = None,
     schedule_type: str | None = None,
+    approver_user_id: UUID | None = None,
+    my_approvals: bool | None = None,
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
@@ -150,6 +152,12 @@ async def list_schedules(
             filters["workflow_id"] = workflow_id
         if schedule_type:
             filters["schedule_type"] = schedule_type
+
+        user_uuid = resolve_user_uuid(db, current_user.id)
+        if my_approvals:
+            filters["approver_user_id"] = user_uuid
+        elif approver_user_id:
+            filters["approver_user_id"] = approver_user_id
 
         items, total = await schedule_service.repo.list_with_filters(db, page, page_size, filters)
         formatted_items = [format_schedule_list_item(item) for item in items]
@@ -920,6 +928,7 @@ async def get_schedule_approvals(
     try:
         stmt = (
             sa.select(WorkflowScheduleApproval)
+            .options(selectinload(WorkflowScheduleApproval.department))
             .where(WorkflowScheduleApproval.schedule_id == id)
             .order_by(WorkflowScheduleApproval.created_at.desc())
         )
@@ -941,21 +950,130 @@ async def get_schedule_approvals(
         # Re-sort to show the natural progression order
         approvals = sorted(approvals, key=lambda a: (a.created_at or datetime.min, a.approval_layer or 0))
 
-        data = [
-            {
-                "id": str(app.id),
-                "approval_cycle_id": str(app.approval_cycle_id) if app.approval_cycle_id else None,
-                "approval_layer": app.approval_layer,
-                "department_code": app.department_code,
-                "approver_user_id": str(app.approver_user_id) if app.approver_user_id else None,
-                "approval_group_id": str(app.approval_group_id) if app.approval_group_id else None,
-                "decided_by": str(app.decided_by) if app.decided_by else None,
-                "approval_status": app.approval_status,
-                "skip_reason": app.skip_reason,
-                "decided_at": app.decided_at.isoformat() if app.decided_at else None
-            }
-            for app in approvals
-        ]
+        # Fetch configured layers
+        from app.modules.workflow_scheduler.models import ScheduleApprovalLayerSelection
+        layer_stmt = (
+            sa.select(ScheduleApprovalLayerSelection)
+            .options(selectinload(ScheduleApprovalLayerSelection.department))
+            .where(ScheduleApprovalLayerSelection.schedule_id == id)
+            .order_by(ScheduleApprovalLayerSelection.layer_order)
+        )
+        layer_res = await execute_statement(db, layer_stmt)
+        configured_layers = layer_res.scalars().all()
+
+        # Resolve all user IDs for human-readable names and emails
+        user_ids = set()
+        for app in approvals:
+            if app.approver_user_id:
+                user_ids.add(app.approver_user_id)
+            if app.decided_by:
+                user_ids.add(app.decided_by)
+
+        for l in configured_layers:
+            for uid_str in (l.approver_user_ids or []):
+                try:
+                    user_ids.add(UUID(str(uid_str)))
+                except Exception:
+                    pass
+
+        user_map = {}
+        if user_ids:
+            from app.modules.registry.models import GuardianUser
+            u_stmt = sa.select(GuardianUser.id, GuardianUser.full_name, GuardianUser.email).where(GuardianUser.id.in_(user_ids))
+            u_res = await execute_statement(db, u_stmt)
+            for row in u_res.fetchall():
+                user_map[row[0]] = {"name": row[1], "email": row[2]}
+
+        data = []
+        if configured_layers:
+            # Map approvals by approval_layer
+            apprs_by_layer = {}
+            for app in approvals:
+                layer_num = app.approval_layer or 1
+                apprs_by_layer.setdefault(layer_num, []).append(app)
+
+            for l in configured_layers:
+                layer_apprs = apprs_by_layer.get(l.layer_order, [])
+                if layer_apprs:
+                    for app in layer_apprs:
+                        data.append({
+                            "id": str(app.id),
+                            "approval_cycle_id": str(app.approval_cycle_id) if app.approval_cycle_id else None,
+                            "approval_layer": app.approval_layer,
+                            "department_code": app.department.department_code if app.department else (l.department.department_code if l.department else None),
+                            "department_name": app.department.department_name if app.department else (l.department.department_name if l.department else None),
+                            "approver_user_id": str(app.approver_user_id) if app.approver_user_id else None,
+                            "approver_name": user_map.get(app.approver_user_id, {}).get("name") if app.approver_user_id else None,
+                            "approver_email": user_map.get(app.approver_user_id, {}).get("email") if app.approver_user_id else None,
+                            "approval_group_id": str(app.approval_group_id) if app.approval_group_id else None,
+                            "decided_by": str(app.decided_by) if app.decided_by else None,
+                            "decided_by_name": user_map.get(app.decided_by, {}).get("name") if app.decided_by else None,
+                            "decided_by_email": user_map.get(app.decided_by, {}).get("email") if app.decided_by else None,
+                            "decision_reason": app.decision_reason,
+                            "approval_status": app.approval_status,
+                            "skip_reason": app.skip_reason,
+                            "require_all_approvers": l.require_all_approvers,
+                            "decided_at": app.decided_at.isoformat() if app.decided_at else None,
+                            "created_at": app.created_at.isoformat() if app.created_at else None
+                        })
+                else:
+                    # Upcoming layer not reached yet
+                    assigned_names = []
+                    assigned_emails = []
+                    for uid_str in (l.approver_user_ids or []):
+                        try:
+                            uid = UUID(str(uid_str))
+                            if uid in user_map:
+                                assigned_names.append(user_map[uid]["name"])
+                                assigned_emails.append(user_map[uid]["email"])
+                        except Exception:
+                            pass
+                    primary_name = ", ".join(assigned_names) if assigned_names else None
+                    primary_email = ", ".join(assigned_emails) if assigned_emails else None
+
+                    data.append({
+                        "id": str(l.id),
+                        "approval_cycle_id": str(latest_cycle_id) if latest_cycle_id else None,
+                        "approval_layer": l.layer_order,
+                        "department_code": l.department.department_code if l.department else None,
+                        "department_name": l.department.department_name if l.department else None,
+                        "approver_user_id": (l.approver_user_ids[0] if l.approver_user_ids else None),
+                        "approver_name": primary_name,
+                        "approver_email": primary_email,
+                        "approval_group_id": None,
+                        "decided_by": None,
+                        "decided_by_name": None,
+                        "decided_by_email": None,
+                        "decision_reason": None,
+                        "approval_status": "WAITING",
+                        "skip_reason": None,
+                        "require_all_approvers": l.require_all_approvers,
+                        "decided_at": None,
+                        "created_at": None
+                    })
+        else:
+            data = [
+                {
+                    "id": str(app.id),
+                    "approval_cycle_id": str(app.approval_cycle_id) if app.approval_cycle_id else None,
+                    "approval_layer": app.approval_layer,
+                    "department_code": app.department.department_code if app.department else None,
+                    "department_name": app.department.department_name if app.department else None,
+                    "approver_user_id": str(app.approver_user_id) if app.approver_user_id else None,
+                    "approver_name": user_map.get(app.approver_user_id, {}).get("name") if app.approver_user_id else None,
+                    "approver_email": user_map.get(app.approver_user_id, {}).get("email") if app.approver_user_id else None,
+                    "approval_group_id": str(app.approval_group_id) if app.approval_group_id else None,
+                    "decided_by": str(app.decided_by) if app.decided_by else None,
+                    "decided_by_name": user_map.get(app.decided_by, {}).get("name") if app.decided_by else None,
+                    "decided_by_email": user_map.get(app.decided_by, {}).get("email") if app.decided_by else None,
+                    "decision_reason": app.decision_reason,
+                    "approval_status": app.approval_status,
+                    "skip_reason": app.skip_reason,
+                    "decided_at": app.decided_at.isoformat() if app.decided_at else None,
+                    "created_at": app.created_at.isoformat() if app.created_at else None
+                }
+                for app in approvals
+            ]
         return make_envelope(True, {"items": data}, None, request_id)
     except Exception as e:
         return make_envelope(False, None, str(e), request_id)
@@ -1004,27 +1122,61 @@ async def get_approval_metrics_today(
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
-        from app.modules.workflow_scheduler.models import WorkflowScheduleApproval
+        from app.modules.workflow_scheduler.models import WorkflowScheduleApproval, Phase2WorkflowSchedule
         from datetime import datetime, timezone
         
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         
-        stmt = sa.select(
+        # 1. Total pending schedules
+        stmt_pending = sa.select(sa.func.count(Phase2WorkflowSchedule.id)).where(
+            Phase2WorkflowSchedule.schedule_status == 'PENDING_APPROVAL',
+            Phase2WorkflowSchedule.is_deleted == False
+        )
+        res_pending = await execute_statement(db, stmt_pending)
+        pending_count = res_pending.scalar() or 0
+        
+        # 2. Decisions made today
+        user_uuid = resolve_user_uuid(db, current_user.id)
+        role_code = getattr(current_user, "role_code", None)
+        is_admin = getattr(current_user, "is_superuser", False) or getattr(current_user, "is_admin", False) or role_code in ["ADMIN", "GOVERNANCE_MANAGER", "SUPER_ADMIN"]
+
+        stmt_decisions = sa.select(
             WorkflowScheduleApproval.approval_status,
             sa.func.count(WorkflowScheduleApproval.id)
         ).where(
-            WorkflowScheduleApproval.decided_at >= today,
-            WorkflowScheduleApproval.approver_user_id == resolve_user_uuid(db, current_user.id)
-        ).group_by(WorkflowScheduleApproval.approval_status)
-        
-        res = await execute_statement(db, stmt)
+            WorkflowScheduleApproval.decided_at >= today
+        )
+        if not is_admin:
+            stmt_decisions = stmt_decisions.where(
+                sa.or_(
+                    WorkflowScheduleApproval.decided_by == user_uuid,
+                    WorkflowScheduleApproval.approver_user_id == user_uuid
+                )
+            )
+        stmt_decisions = stmt_decisions.group_by(WorkflowScheduleApproval.approval_status)
+        res = await execute_statement(db, stmt_decisions)
         counts = dict(res.all())
-        
+
+        # Also count currently open/active ESCALATED approvals
+        stmt_open_escalated = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
+            WorkflowScheduleApproval.approval_status == 'ESCALATED'
+        )
+        res_open_escalated = await execute_statement(db, stmt_open_escalated)
+        open_escalated_count = res_open_escalated.scalar() or 0
+
+        # Also count currently open/active CHANGES_REQUESTED approvals
+        stmt_changes = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
+            WorkflowScheduleApproval.approval_status == 'CHANGES_REQUESTED'
+        )
+        res_changes = await execute_statement(db, stmt_changes)
+        changes_count = res_changes.scalar() or 0
+
         metrics = {
+            "PENDING": pending_count,
             "APPROVED": counts.get("APPROVED", 0),
             "REJECTED": counts.get("REJECTED", 0),
-            "ESCALATED": counts.get("ESCALATED", 0),
-            "CHANGES_REQUESTED": counts.get("CHANGES_REQUESTED", 0)
+            "ESCALATED": max(counts.get("ESCALATED", 0), open_escalated_count),
+            "CHANGES_REQUESTED": max(counts.get("CHANGES_REQUESTED", 0), changes_count)
         }
         return make_envelope(True, metrics, None, request_id)
     except Exception as e:
@@ -1035,12 +1187,13 @@ class ApprovalDecisionRequest(BaseModel):
     reason: str
 
 @router.post("/api/v1/workflow-scheduler/schedule-approvals/{approval_id}/decide")
+@router.post("/api/v1/schedule-approvals/{approval_id}/decide")
 async def decide_schedule_approval(
     request: Request,
     approval_id: UUID,
     payload: ApprovalDecisionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("UPDATE_WORKFLOW_SCHEDULE"))
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
 ):
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
     try:
@@ -1050,15 +1203,21 @@ async def decide_schedule_approval(
         res_app = await execute_statement(db, stmt_app)
         app_record = res_app.scalar()
         if not app_record:
-            raise HTTPException(404, detail="Approval not found")
+            # Fallback: check if the approval_id matches a schedule_id
+            stmt_sched = sa.select(WorkflowScheduleApproval).where(
+                WorkflowScheduleApproval.schedule_id == approval_id
+            ).order_by(WorkflowScheduleApproval.created_at.desc()).limit(1)
+            app_record = (await execute_statement(db, stmt_sched)).scalar()
             
         # Also snapshot how many SKIPPED rows exist before we decide
-        stmt_skipped_before = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
-            WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
-            WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
-            WorkflowScheduleApproval.approval_status == 'SKIPPED'
-        )
-        skipped_before = (await execute_statement(db, stmt_skipped_before)).scalar()
+        skipped_before = 0
+        if app_record and app_record.approval_cycle_id:
+            stmt_skipped_before = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
+                WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
+                WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
+                WorkflowScheduleApproval.approval_status == 'SKIPPED'
+            )
+            skipped_before = (await execute_statement(db, stmt_skipped_before)).scalar() or 0
         
         schedule = await schedule_service.decide_approval(
             approval_id,
@@ -1069,21 +1228,27 @@ async def decide_schedule_approval(
         )
         db.commit()
         
-        # Calculate pending layers
-        stmt_pending = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
-            WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
-            WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
-            WorkflowScheduleApproval.approval_status == 'PENDING'
-        )
-        layers_remaining = (await execute_statement(db, stmt_pending)).scalar()
-        
-        # Find which departments were auto-skipped in this exact transaction
-        stmt_skipped_after = sa.select(WorkflowScheduleApproval.department_code).where(
-            WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
-            WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
-            WorkflowScheduleApproval.approval_status == 'SKIPPED'
-        ).order_by(WorkflowScheduleApproval.created_at.asc()).offset(skipped_before)
-        skipped_after = (await execute_statement(db, stmt_skipped_after)).scalars().all()
+        layers_remaining = 0
+        skipped_after = []
+        if app_record and app_record.approval_cycle_id:
+            # Calculate pending layers
+            stmt_pending = sa.select(sa.func.count(WorkflowScheduleApproval.id)).where(
+                WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
+                WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
+                WorkflowScheduleApproval.approval_status == 'PENDING'
+            )
+            layers_remaining = (await execute_statement(db, stmt_pending)).scalar() or 0
+            
+            # Find which departments were auto-skipped in this exact transaction
+            from app.modules.department.models import Department
+            stmt_skipped_after = sa.select(Department.department_code).join(
+                WorkflowScheduleApproval, Department.id == WorkflowScheduleApproval.department_id
+            ).where(
+                WorkflowScheduleApproval.schedule_id == app_record.schedule_id,
+                WorkflowScheduleApproval.approval_cycle_id == app_record.approval_cycle_id,
+                WorkflowScheduleApproval.approval_status == 'SKIPPED'
+            ).order_by(WorkflowScheduleApproval.created_at.asc()).offset(skipped_before)
+            skipped_after = (await execute_statement(db, stmt_skipped_after)).scalars().all()
         
         schedule_status_str = schedule.schedule_status.value if hasattr(schedule.schedule_status, "value") else str(schedule.schedule_status)
         
@@ -1104,6 +1269,91 @@ async def decide_schedule_approval(
         )
     except Exception as e:
         db.rollback()
+        return make_envelope(False, None, str(e), request_id)
+
+
+class ReassignApproverRequest(BaseModel):
+    schedule_id: UUID
+    old_user_id: UUID
+    new_user_id: UUID
+
+@router.post("/api/v1/schedule-approvals/reassign")
+async def reassign_schedule_approver(
+    request: Request,
+    payload: ReassignApproverRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        approval = await schedule_service.reassign_approver(
+            payload.schedule_id,
+            payload.old_user_id,
+            payload.new_user_id,
+            current_user,
+            db
+        )
+        db.commit()
+        return make_envelope(True, {"message": "Approver reassigned successfully", "approval_id": str(approval.id)}, None, request_id)
+    except HTTPException as e:
+        db.rollback()
+        raise e
+    except Exception as e:
+        db.rollback()
+        return make_envelope(False, None, str(e), request_id)
+
+
+@router.get("/api/v1/departments/{department_id}/users")
+async def list_department_users(
+    department_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("VIEW_WORKFLOW_SCHEDULE"))
+):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    try:
+        from app.modules.department.models import Department, DepartmentOwnerAssignment
+        from app.modules.auth.models import User
+        from app.shared.db_compat import db_get
+        
+        dept = None
+        try:
+            dept_uuid = UUID(department_id)
+            dept = await db_get(db, Department, dept_uuid)
+        except ValueError:
+            dept_stmt = sa.select(Department).where(Department.department_code == department_id)
+            res_dept = await execute_statement(db, dept_stmt)
+            dept = res_dept.scalar()
+            
+        if not dept:
+            dept_stmt = sa.select(Department).where(Department.department_code == department_id)
+            res_dept = await execute_statement(db, dept_stmt)
+            dept = res_dept.scalar()
+
+        if not dept:
+            return make_envelope(True, [], None, request_id)
+
+        # 1. Users directly assigned to department
+        user_stmt = sa.select(User).where(User.department_id == dept.id)
+        users_direct = (await execute_statement(db, user_stmt)).scalars().all()
+        
+        # 2. Users assigned via department_owner_assignments
+        owner_stmt = sa.select(User).join(DepartmentOwnerAssignment, DepartmentOwnerAssignment.owner_user_id == User.id).where(DepartmentOwnerAssignment.department_id == dept.id)
+        users_assigned = (await execute_statement(db, owner_stmt)).scalars().all()
+        
+        all_users_dict = {u.id: u for u in (list(users_direct) + list(users_assigned))}
+        
+        data = [
+            {
+                "id": str(u.id),
+                "name": u.name or u.email,
+                "email": u.email,
+                "role_name": u.user_roles[0].role.role_name if hasattr(u, "user_roles") and u.user_roles and u.user_roles[0].role else None
+            }
+            for u in all_users_dict.values()
+        ]
+        return make_envelope(True, data, None, request_id)
+    except Exception as e:
         return make_envelope(False, None, str(e), request_id)
 
 

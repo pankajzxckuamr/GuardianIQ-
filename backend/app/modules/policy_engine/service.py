@@ -306,7 +306,7 @@ class PolicyService:
         self.publisher.publish_event(self.db, evt, tenant_id=tenant_id)
         self.db.commit()
 
-        # Optionally create initial draft version
+        # Create initial draft version if initial_rules were provided
         if initial_rules is not None:
             self.version_service.create_draft_version(
                 tenant_id=tenant_id,

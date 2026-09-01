@@ -28,6 +28,7 @@ class AgentContext(BaseModel):
     name: Optional[str] = None
     agent_name: Optional[str] = None
     agent_type: Optional[str] = None
+    risk_level: Optional[str] = None
     autonomy_level: Optional[Union[AutonomyLevel, str]] = None
     owner_user_id: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)

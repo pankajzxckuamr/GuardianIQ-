@@ -33,7 +33,7 @@ interface GovernanceEventRow {
 
 export const AuditPage: React.FC = () => {
   const navigate = useNavigate();
-  const { filters, setFilter, resetFilters, paginationProps } = useRegistryFilters("occurred_at", 20);
+  const { filters, setFilter, resetFilters, paginationProps } = useRegistryFilters("occurred_at");
 
   const [events, setEvents] = useState<GovernanceEventRow[]>([]);
   const [loading, setLoading] = useState(true);

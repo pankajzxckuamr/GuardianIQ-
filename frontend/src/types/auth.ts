@@ -8,6 +8,8 @@ export interface User {
   full_name?: string;
   roles: string[];
   permissions: string[];
+  approval_groups?: string[];
+  department_id?: string;
   tenant_id?: string;
   is_active?: boolean;
   is_superuser?: boolean;

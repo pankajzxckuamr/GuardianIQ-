@@ -15,6 +15,7 @@ export interface SimulationPayload {
   data_source_id?: string;
   table_name?: string;
   columns?: string[];
+  requested_columns?: string[];
   data_operation?: string;
   environment?: string;
   facts?: Record<string, any>;
@@ -34,6 +35,8 @@ export interface SimulationTrace {
   boundary_check?: {
     evaluated: boolean;
     permitted?: boolean;
+    passed?: boolean;
+    decision?: string;
     reasons?: string[];
     max_autonomy?: string;
     kill_switch_active?: boolean;
@@ -41,6 +44,8 @@ export interface SimulationTrace {
   tool_guard?: {
     evaluated: boolean;
     permitted?: boolean;
+    passed?: boolean;
+    decision?: string;
     reason?: string;
     tool_id?: string;
     access_mode?: string;
@@ -48,6 +53,8 @@ export interface SimulationTrace {
   data_guard?: {
     evaluated: boolean;
     permitted?: boolean;
+    passed?: boolean;
+    decision?: string;
     reason?: string;
     data_source_id?: string;
     transformations?: Record<string, string>;
@@ -55,6 +62,8 @@ export interface SimulationTrace {
   model_guard?: {
     evaluated: boolean;
     permitted?: boolean;
+    passed?: boolean;
+    decision?: string;
     reason?: string;
     model_id?: string;
   };
@@ -78,7 +87,8 @@ export interface SimulationResult {
   reasons: string[];
   obligations: string[];
   violations: Array<{ code?: string; message?: string } | string>;
-  remediation_hints: string[];
+  remediation_hints?: string[];
+  remediation_hint?: string;
   trace: SimulationTrace;
 }
 
@@ -86,10 +96,11 @@ export async function simulateEnforcement(
   payload: SimulationPayload
 ): Promise<ApiResponse<SimulationResult>> {
   const res = await serverClient.post<any>("/api/v1/enforce/simulate", payload);
+  const data = res && typeof res === "object" && "data" in res && res.data !== undefined ? res.data : res;
   return {
     status: "success",
-    request_id: res.request_id || "",
-    data: res.data,
-    message: res.message || "Simulation evaluated successfully",
+    request_id: res?.request_id || "",
+    data: data,
+    message: res?.message || "Simulation evaluated successfully",
   };
 }

@@ -60,7 +60,7 @@ export const WorkflowSchedulerDashboard: React.FC = () => {
 
   // Read filters from URL
   const page = parseInt(searchParams.get('page') || '1', 10);
-  const perPage = parseInt(searchParams.get('per_page') || '20', 10);
+  const perPage = parseInt(searchParams.get('per_page') || '10', 10);
   const statuses = searchParams.getAll('status');
   const riskLevels = searchParams.getAll('risk_level');
   const scheduleType = searchParams.get('schedule_type') || '';

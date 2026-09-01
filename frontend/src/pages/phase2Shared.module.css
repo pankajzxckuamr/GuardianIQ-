@@ -577,8 +577,10 @@
 }
 
 .decisionBtn:hover { border-color: var(--accent-primary, #6366f1); color: var(--text-primary, #f8fafc); }
-.decisionBtn.selectedApprove { background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.4); color: var(--color-success, #10b981); }
-.decisionBtn.selectedOther { background: rgba(99, 102, 241, 0.12); border-color: rgba(99, 102, 241, 0.4); color: var(--accent-primary, #6366f1); }
+.decisionBtn.selectedApprove { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.5); color: var(--color-success, #10b981); }
+.decisionBtn.selectedReject { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.5); color: var(--color-danger, #ef4444); }
+.decisionBtn.selectedEscalate { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.5); color: var(--color-warning, #f59e0b); }
+.decisionBtn.selectedOther { background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.5); color: var(--accent-primary, #6366f1); }
 
 .fieldLabel {
   display: block;

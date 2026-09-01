@@ -23,6 +23,8 @@ import '@xyflow/react/dist/style.css';
 interface RelationshipViewerProps {
   entityType: string;
   entityId: string;
+  initialDepth?: number;
+  initialMode?: string;
 }
 
 interface RelationshipItem {

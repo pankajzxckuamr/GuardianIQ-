@@ -131,6 +131,12 @@ class RelationshipService:
             return True
         return False
 
+    async def submit_relationship(self, relationship_id: uuid.UUID) -> bool:
+        rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.PENDING_APPROVAL.value)
+        if rel:
+            return True
+        return False
+
     async def approve_relationship(self, relationship_id: uuid.UUID) -> bool:
         rel = self.repo.soft_transition_status(self.db, relationship_id, self.tenant_id, LifecycleState.ACTIVE.value)
         if rel:

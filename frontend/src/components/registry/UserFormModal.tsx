@@ -269,7 +269,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isEditMode || loading}
-                placeholder="e.g. employee@company.com"
+                placeholder="Enter corporate email address..."
                 className={`${styles.input} ${fieldErrors.email ? styles.inputError : ""}`}
                 required
               />

@@ -8,7 +8,7 @@ import { Badge } from "../components/common/Badge";
 import { AuditTimelinePanel } from "../components/phase2/AuditTimelinePanel";
 import { EventDrawer, GovernanceEventData } from "../components/common/EventDrawer";
 import { fetchCorrelationTimeline } from "../services/audit/auditService";
-import { ArrowLeft, RefreshCw, Activity, ShieldCheck, AlertTriangle, Layers, Server } from "lucide-react";
+import { ArrowLeft, RefreshCw, ShieldCheck, AlertTriangle } from "lucide-react";
 
 export const CorrelationTimelinePage: React.FC = () => {
   const { correlationId } = useParams<{ correlationId: string }>();

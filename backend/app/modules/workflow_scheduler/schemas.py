@@ -19,6 +19,14 @@ class DepartmentCode(str, Enum):
     HR = "HR"
     LEGAL = "LEGAL"
 
+class ApprovalLayerInput(BaseModel):
+    department_code: str
+    approver_user_ids: list[UUID | str] = Field(default_factory=list)
+    require_all_approvers: bool = True
+
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
+
+
 class BoundaryRules(BaseModel):
     max_records: int
     allow_write_tools: bool
@@ -105,6 +113,7 @@ class WorkflowScheduleCreate(BaseModel):
     metadata_json: dict | None = None
     agent_assignments: list[AgentAssignmentCreate] = Field(default_factory=list)
     approval_departments: list[DepartmentCode] = Field(default_factory=list)
+    approval_layers: list[ApprovalLayerInput] | None = None
 
     @field_validator('approval_departments')
     @classmethod
@@ -168,6 +177,7 @@ class WorkflowScheduleUpdate(BaseModel):
     metadata_json: dict | None = None
     agent_assignments: list[AgentAssignmentCreate] | None = None
     approval_departments: list[DepartmentCode] | None = None
+    approval_layers: list[ApprovalLayerInput] | None = None
 
     @field_validator('approval_departments')
     @classmethod

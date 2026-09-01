@@ -30,7 +30,7 @@ function mapTenant(raw: Record<string, unknown>): TenantRecord {
 export async function fetchTenants(
   token: string,
   page = 1,
-  perPage = 20
+  perPage = 10
 ): Promise<PaginatedResponse<TenantRecord>> {
   const res = await fetch(`${TENANT_BASE}?page=${page}&per_page=${perPage}`, {
     headers: tenantHeaders(token),

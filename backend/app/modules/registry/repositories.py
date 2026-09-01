@@ -92,6 +92,8 @@ def list_models(
         query = query.filter(RegistryAIModel.risk_level == filters["risk_level"])
     if filters.get("department_id"):
         query = query.filter(RegistryAIModel.department_id == filters["department_id"])
+    if filters.get("tenant_id") and hasattr(RegistryAIModel, "tenant_id"):
+        query = query.filter(RegistryAIModel.tenant_id == filters["tenant_id"])
 
     # Sorting
     order_column = getattr(RegistryAIModel, sort_by, RegistryAIModel.created_at)
@@ -184,6 +186,8 @@ def list_agents(
         query = query.filter(RegistryAIAgent.risk_level == filters["risk_level"])
     if filters.get("department_id"):
         query = query.filter(RegistryAIAgent.department_id == filters["department_id"])
+    if filters.get("tenant_id") and hasattr(RegistryAIAgent, "tenant_id"):
+        query = query.filter(RegistryAIAgent.tenant_id == filters["tenant_id"])
 
     # Sorting
     order_column = getattr(RegistryAIAgent, sort_by, RegistryAIAgent.created_at)
@@ -265,6 +269,8 @@ def list_tools(db: Session, filters: dict, page: int, page_size: int, sort_by: s
         query = query.filter(RegistryTool.access_mode == filters["access_mode"])
     if filters.get("sensitivity_level"):
         query = query.filter(RegistryTool.sensitivity_level == filters["sensitivity_level"])
+    if filters.get("tenant_id") and hasattr(RegistryTool, "tenant_id"):
+        query = query.filter(RegistryTool.tenant_id == filters["tenant_id"])
 
     order_column = getattr(RegistryTool, sort_by, RegistryTool.created_at)
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))
@@ -588,6 +594,8 @@ def list_data_sources(db: Session, filters: dict, page: int, page_size: int, sor
         query = query.filter(or_(RegistryDataSource.source_name.ilike(search_term), RegistryDataSource.source_code.ilike(search_term)))
     if filters.get("status"):
         query = query.filter(RegistryDataSource.status == filters["status"])
+    if filters.get("tenant_id") and hasattr(RegistryDataSource, "tenant_id"):
+        query = query.filter(RegistryDataSource.tenant_id == filters["tenant_id"])
 
     order_column = getattr(RegistryDataSource, sort_by, RegistryDataSource.created_at)
     query = query.order_by(desc(order_column) if sort_dir.lower() == "desc" else asc(order_column))

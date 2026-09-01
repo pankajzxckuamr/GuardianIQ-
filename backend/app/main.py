@@ -27,7 +27,20 @@ APP_VERSION = "0.1.0"
 
 from contextlib import asynccontextmanager
 
+import asyncio
 import os
+
+async def _outbox_dispatcher_loop():
+    """Background task to continuously dispatch outbox events and keep outbox lag near zero."""
+    from app.modules.events.dispatcher import OutboxDispatcher
+    dispatcher = OutboxDispatcher()
+    while True:
+        try:
+            await asyncio.to_thread(dispatcher.poll_and_dispatch)
+        except Exception as e:
+            pass
+        await asyncio.sleep(5)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Apply missing DB columns and triggers on startup
@@ -48,7 +61,15 @@ async def lifespan(app: FastAPI):
                     conn.execute(text(f.read()))
     except Exception as e:
         print(f"DB Patch Error: {e}")
+    
+    # Start Outbox Dispatcher in background
+    outbox_task = asyncio.create_task(_outbox_dispatcher_loop())
     yield
+    outbox_task.cancel()
+    try:
+        await outbox_task
+    except asyncio.CancelledError:
+        pass
 
 app = FastAPI(
     title="GuardianIQ",
@@ -59,16 +80,20 @@ app = FastAPI(
 from app.shared.audit_listeners import setup_audit_listeners
 setup_audit_listeners()
 
-# ── CORS ── Allow frontend dev server + any localhost port ────────────────────
+from app.core.config import settings
+
+# ── CORS ── Configure allowed origins (configurable via CORS_ORIGINS) ─────────
+_cors_origins_raw = getattr(settings, "CORS_ORIGINS", "*")
+if isinstance(_cors_origins_raw, str):
+    cors_allowed_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+elif isinstance(_cors_origins_raw, (list, tuple)):
+    cors_allowed_origins = list(_cors_origins_raw)
+else:
+    cors_allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=cors_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -111,6 +111,7 @@ def test_e2e_dead_letter_failure_dlq_transition_and_audited_retry_flow(db_sessio
     dispatcher = OutboxDispatcher()
     with patch.object(OutboxDispatcher, "dispatch_payload", side_effect=RuntimeError("Simulated Consumer Failure")):
         for attempt in range(5):
+            db_session.refresh(outbox_entry)
             outbox_entry.next_retry_at = None # Force ready
             db_session.commit()
             dispatcher.poll_and_dispatch()

@@ -589,7 +589,7 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({
                         value={formData.allowed_operations_json}
                         onChange={handleChange}
                         disabled={loading}
-                        placeholder="e.g. read_records, update_ticket, delete_record (comma separated)"
+                        placeholder="Enter comma-separated operations (e.g. read_records, execute)..."
                         className={styles.input}
                       />
                     </div>

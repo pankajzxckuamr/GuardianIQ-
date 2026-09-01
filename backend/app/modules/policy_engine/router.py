@@ -11,6 +11,7 @@ from app.shared.responses import StandardResponse
 from app.shared.response_utils import ResponseHelper
 from app.modules.policy_engine.service import PolicyService, PolicyVersionService
 from app.modules.policy_engine.enums import PolicyStatus, TargetType, VersionStrategy
+from app.modules.policy_engine.models import GovernancePolicy
 from app.modules.relationship.models import PolicyBinding
 
 router = APIRouter(prefix="/api/v1/policies", tags=["v1 Policy Engine"])
@@ -100,13 +101,25 @@ def create_policy(
     """Create a new draft governance policy."""
     service = PolicyService(db)
     tenant_id = getattr(current_user, "tenant_id", current_user.id)
+    
+    from app.modules.policy_engine.repository import PolicyRepository
+    existing = PolicyRepository.get_by_code(db, payload.policy_code, tenant_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Policy with code '{payload.policy_code}' already exists for this tenant."
+        )
+
     initial_rules_data = [r.model_dump() for r in payload.initial_rules] if payload.initial_rules else None
-    policy = service.create_policy(
-        tenant_id,
-        current_user.id,
-        payload.model_dump(exclude={"initial_rules"}),
-        initial_rules=initial_rules_data,
-    )
+    try:
+        policy = service.create_policy(
+            tenant_id,
+            current_user.id,
+            payload.model_dump(exclude={"initial_rules"}),
+            initial_rules=initial_rules_data,
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     return ResponseHelper.success(
         message="Policy created successfully",
         data={"id": str(policy.id), "policy_code": policy.policy_code, "status": policy.status},
@@ -158,6 +171,24 @@ def list_policy_versions(
             "changelog": v.changelog,
             "rules_count": v.rules_count,
             "activated_at": v.activated_at.isoformat() if v.activated_at else None,
+            "rules": [
+                {
+                    "id": str(r.id),
+                    "rule_code": r.rule_code,
+                    "name": r.name,
+                    "description": r.description,
+                    "rule_type": r.rule_type,
+                    "target_type": r.target_type,
+                    "target_id": r.target_id,
+                    "condition_expression": r.condition_expression,
+                    "condition_json": r.condition_json,
+                    "action": r.action,
+                    "severity": r.severity,
+                    "execution_order": r.execution_order,
+                    "is_active": r.is_active,
+                }
+                for r in (v.rules or [])
+            ],
         }
         for v in versions
     ]
@@ -376,10 +407,17 @@ def get_effective_bindings(
     binding_service = PolicyBindingService(db)
     tenant_id = getattr(current_user, "tenant_id", current_user.id)
     bindings = binding_service.resolve_effective_bindings(tenant_id, target_type.value, target_id)
-    data = [
-        {
+    
+    policies_map = {str(p.id): p for p in db.query(GovernancePolicy).filter_by(tenant_id=tenant_id).all()}
+    
+    data = []
+    for b in bindings:
+        pol = policies_map.get(str(b.policy_id))
+        data.append({
             "id": str(b.id),
             "policy_id": str(b.policy_id),
+            "policy_name": pol.name if pol else None,
+            "policy_code": pol.policy_code if pol else None,
             "target_type": b.target_type,
             "target_id": b.target_id,
             "priority": b.priority,
@@ -387,8 +425,6 @@ def get_effective_bindings(
             "version_strategy": b.version_strategy,
             "pinned_policy_version_id": str(b.pinned_policy_version_id) if b.pinned_policy_version_id else None,
             "status": b.status,
-        }
-        for b in bindings
-    ]
+        })
     return ResponseHelper.success(message="Effective bindings resolved successfully", data=data)
 

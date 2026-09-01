@@ -41,7 +41,7 @@ const cleanOwnerName = (name: string | undefined | null) => {
 
 export const RegistryModelsPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const { filters, setFilter, paginationProps } = useRegistryFilters("model_name");
+  const { filters, setFilter, paginationProps } = useRegistryFilters("created_at", 10, "desc");
   const [searchParams, setSearchParams] = useSearchParams();
   const viewId = searchParams.get("view");
 

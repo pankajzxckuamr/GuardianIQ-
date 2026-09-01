@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Database, ShieldCheck, Lock } from "lucide-react";
+import { Database, Lock } from "lucide-react";
 import serverClient from "../../services/shared/apiClient";
 import styles from "./DataAccessTab.module.css";
 

@@ -18,6 +18,8 @@ export const scheduleApi = {
   getHistory: (id: string) => apiClient.get(`/api/v1/workflow-scheduler/schedules/${id}/history`),
   decideApproval: (approvalId: string, body: { decision: string, reason: string }) => apiClient.post(`/api/v1/schedule-approvals/${approvalId}/decide`, body),
   getApprovalMetrics: () => apiClient.get('/api/v1/schedule-approvals/metrics/today'),
+  getDepartmentUsers: (departmentIdOrCode: string) => apiClient.get(`/api/v1/departments/${departmentIdOrCode}/users`),
+  reassignApproval: (body: { schedule_id: string, old_user_id: string, new_user_id: string }) => apiClient.post('/api/v1/schedule-approvals/reassign', body),
 };
 
 export const runApi = {

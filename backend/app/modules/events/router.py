@@ -22,6 +22,7 @@ from app.modules.events.schemas import (
 from app.modules.events.service import EventPublisherService, EventMetricsService
 from app.modules.events.repository import EventRepository
 from app.modules.audit.export_service import AuditExportService
+from app.modules.audit.timeline_service import AuditTimelineService
 
 router = APIRouter(prefix="/api/v1/events", tags=["Governance Events"])
 publisher_service = EventPublisherService()
@@ -341,7 +342,7 @@ def list_event_schemas(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("VIEW_REFERENCE_DATA"))
 ):
-    schemas = db.query(EventSchemaRegistry).all()
+    schemas = db.query(EventSchemaRegistry).order_by(EventSchemaRegistry.created_at.desc()).all()
     response_data = [EventSchemaRegistryResponse.model_validate(s).model_dump(mode="json") for s in schemas]
     return ResponseHelper.success(data=response_data, message="Event schemas retrieved successfully")
 
@@ -378,6 +379,19 @@ def update_event_schema(
     response_data = EventSchemaRegistryResponse.model_validate(schema_record).model_dump(mode="json")
     return ResponseHelper.success(data=response_data, message="Event schema updated successfully")
 
+@router.delete("/schemas/{schema_id}")
+def delete_event_schema(
+    schema_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("MANAGE_EVENT_SCHEMA"))
+):
+    schema_record = db.query(EventSchemaRegistry).filter(EventSchemaRegistry.id == schema_id).first()
+    if not schema_record:
+        raise HTTPException(status_code=404, detail="Event schema not found")
+    db.delete(schema_record)
+    db.commit()
+    return ResponseHelper.success(message="Event schema deleted successfully")
+
 
 @router.get("/retention-rules")
 def list_retention_rules(
@@ -385,7 +399,7 @@ def list_retention_rules(
     current_user: User = Depends(require_permission("VIEW_REFERENCE_DATA"))
 ):
     tenant_id = current_user.id
-    rules = db.query(EventRetentionRule).filter(EventRetentionRule.tenant_id == tenant_id).all()
+    rules = db.query(EventRetentionRule).filter(EventRetentionRule.tenant_id == tenant_id).order_by(EventRetentionRule.created_at.desc()).all()
     response_data = [EventRetentionRuleResponse.model_validate(r).model_dump(mode="json") for r in rules]
     return ResponseHelper.success(data=response_data, message="Retention rules retrieved successfully")
 
@@ -443,6 +457,23 @@ def update_retention_rule(
     db.refresh(rule_record)
     response_data = EventRetentionRuleResponse.model_validate(rule_record).model_dump(mode="json")
     return ResponseHelper.success(data=response_data, message="Retention rule updated successfully")
+
+@router.delete("/retention-rules/{rule_id}")
+def delete_retention_rule(
+    rule_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("MANAGE_RETENTION_RULES"))
+):
+    tenant_id = current_user.id
+    rule_record = db.query(EventRetentionRule).filter(
+        EventRetentionRule.id == rule_id, 
+        EventRetentionRule.tenant_id == tenant_id
+    ).first()
+    if not rule_record:
+        raise HTTPException(status_code=404, detail="Retention rule not found")
+    db.delete(rule_record)
+    db.commit()
+    return ResponseHelper.success(message="Retention rule deleted successfully")
 
 
 # -----------------------------------------------------------------------------

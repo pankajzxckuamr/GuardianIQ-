@@ -154,11 +154,22 @@ class AgentBoundaryResolver:
 
         # 4. Allowed Access Modes Check
         req_access_mode = request_context.get("access_mode")
-        if req_access_mode:
-            allowed_modes = [m.upper() for m in (boundary.allowed_access_modes_json or [])]
-            if req_access_mode.upper() not in allowed_modes and "*" not in allowed_modes:
+        if req_access_mode and boundary.allowed_access_modes_json:
+            allowed_modes = {m.upper() for m in (boundary.allowed_access_modes_json or [])}
+            req_mode_upper = req_access_mode.upper()
+            
+            mode_aliases = {
+                "READ": {"READ", "READ_ONLY", "READ_WRITE"},
+                "READ_ONLY": {"READ", "READ_ONLY", "READ_WRITE"},
+                "WRITE": {"WRITE", "READ_WRITE"},
+                "READ_WRITE": {"READ_WRITE", "WRITE", "READ", "READ_ONLY"},
+                "EXECUTE": {"EXECUTE", "READ_WRITE"},
+            }
+            compatible_req_modes = mode_aliases.get(req_mode_upper, {req_mode_upper})
+
+            if not ("*" in allowed_modes or any(m in allowed_modes for m in compatible_req_modes)):
                 violations.append(
-                    f"Access mode '{req_access_mode}' is not in allowed boundary modes: {allowed_modes}"
+                    f"Access mode '{req_access_mode}' is not in allowed boundary modes: {list(allowed_modes)}"
                 )
                 return BoundaryResolutionResult(
                     decision=Decision.DENY,

@@ -60,7 +60,7 @@ class PolicyRepository:
         if as_of:
             query = apply_effective_date_filter(query, GovernancePolicy, as_of)
 
-        query = query.order_by(GovernancePolicy.priority.asc(), GovernancePolicy.created_at.desc())
+        query = query.order_by(GovernancePolicy.created_at.desc())
         return apply_pagination(query, limit, offset).all()
 
     @staticmethod

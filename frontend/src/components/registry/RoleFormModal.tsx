@@ -262,7 +262,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
                 value={formData.role_code}
                 onChange={handleChange}
                 disabled={isEditMode || loading}
-                placeholder="e.g. AUDITOR"
+                placeholder="Enter unique role code..."
                 className={`${styles.input} ${fieldErrors.role_code ? styles.inputError : ""}`}
                 required
               />

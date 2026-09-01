@@ -66,8 +66,10 @@ export interface EffectiveBinding {
   id: string;
   policy_id: string;
   policy_name?: string;
+  policy_code?: string;
   target_type: TargetType;
   target_id: string;
+  target_name?: string;
   priority: number;
   is_mandatory: boolean;
   version_strategy: VersionStrategy;

@@ -3,6 +3,7 @@ from app.db.session import Base
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.shared.mixins import WorkflowBaseMixin, GovernableMixin
+from app.modules.workflow_scheduler.models import ApprovalGroup
 
 class Department(Base, GovernableMixin):
     __tablename__ = "departments"

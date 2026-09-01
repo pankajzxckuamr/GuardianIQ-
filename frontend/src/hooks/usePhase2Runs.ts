@@ -28,12 +28,11 @@ export const useWorkflowRuns = (params: any) => {
   // Auto-refresh logic for running status
   useEffect(() => {
     const hasRunning = runs.some(r => r.run_status === 'RUNNING' || r.run_status === 'QUEUED');
-    if (hasRunning) {
-      const interval = setInterval(() => {
-        fetchRuns();
-      }, 10000); // 10 seconds
-      return () => clearInterval(interval);
-    }
+    if (!hasRunning) return undefined;
+    const interval = setInterval(() => {
+      fetchRuns();
+    }, 10000); // 10 seconds
+    return () => clearInterval(interval);
   }, [runs, fetchRuns]);
 
   return { runs, total, loading, error, refetch: fetchRuns };
@@ -62,10 +61,9 @@ export const useWorkflowRunDetail = (runId: string | undefined, enabled: boolean
 
   // Auto refresh every 5s if QUEUED or RUNNING
   useEffect(() => {
-    if (run && (run.run_status === 'QUEUED' || run.run_status === 'RUNNING')) {
-      const interval = setInterval(() => fetchRun(), 5000);
-      return () => clearInterval(interval);
-    }
+    if (!run || (run.run_status !== 'QUEUED' && run.run_status !== 'RUNNING')) return undefined;
+    const interval = setInterval(() => fetchRun(), 5000);
+    return () => clearInterval(interval);
   }, [run, fetchRun]);
 
   return { run, loading, error, setRun, refetch: fetchRun };
@@ -90,10 +88,10 @@ export const useRunSteps = (runId: string | undefined, enabled: boolean) => {
 
   // Auto refresh steps every 5s if there is any RUNNING or QUEUED steps
   useEffect(() => {
-    if (steps.some(s => s.step_status === 'RUNNING' || s.step_status === 'QUEUED' || s.step_status === 'PENDING')) {
-      const interval = setInterval(() => fetchSteps(), 5000);
-      return () => clearInterval(interval);
-    }
+    const hasActiveSteps = steps.some(s => s.step_status === 'RUNNING' || s.step_status === 'QUEUED' || s.step_status === 'PENDING');
+    if (!hasActiveSteps) return undefined;
+    const interval = setInterval(() => fetchSteps(), 5000);
+    return () => clearInterval(interval);
   }, [steps, fetchSteps]);
 
   return { steps, refetch: fetchSteps };

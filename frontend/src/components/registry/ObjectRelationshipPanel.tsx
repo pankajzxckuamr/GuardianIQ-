@@ -37,7 +37,7 @@ export const ObjectRelationshipPanel: React.FC<ObjectRelationshipPanelProps> = (
     try {
       const backendType = mapToBackendType(objectType);
       const res = await registryService.listRelationships({ source_type: backendType, source_id: objectId, per_page: 100 });
-      setRelationships(res?.data?.items || res?.items || (Array.isArray(res?.data) ? res.data : []));
+      setRelationships(res?.data?.items || (Array.isArray(res?.data) ? res.data : []));
     } catch (err: any) {
       showToast(err.message || "Failed to load relationships", "error");
     } finally {

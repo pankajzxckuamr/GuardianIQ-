@@ -9,11 +9,72 @@ import { Button } from '../components/common/Button';
 import { ConfirmActionModal } from '../components/phase2/ConfirmActionModal';
 import { ApprovalRequirementBanner } from '../components/phase2/ApprovalRequirementBanner';
 import { ScreenGuide } from '../components/common/ScreenGuide';
-import { Clock, AlertCircle, XCircle } from 'lucide-react';
+import { Clock, XCircle, CheckCircle2, FastForward, UserCheck, ShieldCheck } from 'lucide-react';
 import styles from './phase2Shared.module.css';
 
 type Tab = 'PENDING_MY_APPROVAL' | 'GROUP_QUEUE' | 'COMPLETED';
 type Decision = 'APPROVED' | 'REJECTED' | 'ESCALATED' | 'CHANGES_REQUESTED';
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'APPROVED':
+      return {
+        bg: 'rgba(16, 185, 129, 0.14)',
+        border: 'rgba(16, 185, 129, 0.35)',
+        color: '#34d399',
+        icon: <CheckCircle2 size={13} style={{ marginRight: '5px' }} />,
+        label: 'APPROVED'
+      };
+    case 'PENDING':
+      return {
+        bg: 'rgba(59, 130, 246, 0.14)',
+        border: 'rgba(59, 130, 246, 0.35)',
+        color: '#60a5fa',
+        icon: <Clock size={13} style={{ marginRight: '5px' }} />,
+        label: 'PENDING'
+      };
+    case 'REJECTED':
+      return {
+        bg: 'rgba(239, 68, 68, 0.14)',
+        border: 'rgba(239, 68, 68, 0.35)',
+        color: '#f87171',
+        icon: <XCircle size={13} style={{ marginRight: '5px' }} />,
+        label: 'REJECTED'
+      };
+    case 'SUPERSEDED':
+      return {
+        bg: 'rgba(148, 163, 184, 0.08)',
+        border: 'rgba(148, 163, 184, 0.2)',
+        color: '#94a3b8',
+        icon: <FastForward size={13} style={{ marginRight: '5px' }} />,
+        label: 'SUPERSEDED'
+      };
+    case 'SKIPPED':
+      return {
+        bg: 'rgba(148, 163, 184, 0.08)',
+        border: 'rgba(148, 163, 184, 0.2)',
+        color: '#94a3b8',
+        icon: <FastForward size={13} style={{ marginRight: '5px' }} />,
+        label: 'SKIPPED'
+      };
+    case 'WAITING':
+      return {
+        bg: 'rgba(148, 163, 184, 0.08)',
+        border: 'rgba(148, 163, 184, 0.2)',
+        color: '#94a3b8',
+        icon: <Clock size={13} style={{ marginRight: '5px' }} />,
+        label: 'AWAITING PRIOR STAGE'
+      };
+    default:
+      return {
+        bg: 'rgba(148, 163, 184, 0.1)',
+        border: 'rgba(148, 163, 184, 0.2)',
+        color: '#cbd5e1',
+        icon: null,
+        label: status
+      };
+  }
+};
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'PENDING_MY_APPROVAL', label: 'My Approvals' },
@@ -41,27 +102,31 @@ export const ScheduleApprovalQueue: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const hasApprovalGroup = currentUser?.is_superuser || (currentUser?.approval_groups && currentUser.approval_groups.length > 0);
-
   useEffect(() => {
     document.title = 'Schedule Approvals — GuardianIQ';
   }, []);
 
   const fetchQueue = async () => {
-    if (!hasApprovalGroup) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
-      const statusFilter = activeTab === 'COMPLETED' ? 'ACTIVE,RETIRED' : 'PENDING_APPROVAL';
+      let params: any = {};
+      if (activeTab === 'PENDING_MY_APPROVAL') {
+        params = { my_approvals: true, status: 'PENDING_APPROVAL' };
+      } else if (activeTab === 'GROUP_QUEUE') {
+        params = { status: 'PENDING_APPROVAL' };
+      } else {
+        params = { status: 'ACTIVE,RETIRED' };
+      }
+
       const [res, metricsRes]: any = await Promise.all([
-        scheduleApi.list({ status: statusFilter }),
-        scheduleApi.getApprovalMetrics().catch(() => ({ data: null }))
+        scheduleApi.list(params),
+        scheduleApi.getApprovalMetrics().catch(() => null)
       ]);
-      setSchedules(res.items || []);
-      setMetrics(metricsRes.data || null);
+      const list = res?.items ?? (Array.isArray(res) ? res : (res?.data?.items ?? res?.data ?? []));
+      setSchedules(Array.isArray(list) ? list : []);
+      const metricsData = metricsRes?.data ?? metricsRes ?? {};
+      setMetrics(metricsData);
     } catch (e: any) {
       setError(e.message || 'Failed to fetch queue');
     } finally {
@@ -77,28 +142,47 @@ export const ScheduleApprovalQueue: React.FC = () => {
     setApprovalId(null);
     setDecision(null);
     setReason('');
-  }, [activeTab, hasApprovalGroup]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (selectedSchedule) {
       setScheduleDetails(null);
       setApprovalId(null);
       scheduleApi.getById(selectedSchedule.id)
-        .then((res: any) => setScheduleDetails(res.data || res))
+        .then((res: any) => {
+          const detail = res?.data?.schedule || res?.schedule || res?.data || res;
+          setScheduleDetails(detail);
+        })
         .catch(() => showToast('Failed to load full schedule details', 'error'));
       
       scheduleApi.getApprovals(selectedSchedule.id)
         .then((res: any) => {
-          const approvals = res.data || res;
+          const list = Array.isArray(res) 
+            ? res 
+            : (res?.items || res?.data?.items || res?.data || []);
+          const approvals = Array.isArray(list) ? list : [];
           setScheduleApprovals(approvals);
-          const pending = approvals.find((a: any) => a.approval_status === 'PENDING' || a.approval_status === 'ESCALATED');
-          if (pending) {
-            setApprovalId(pending.id);
+          
+          // Look for direct assignment for logged in user first, then fallback to any pending
+          const myPending = approvals.find((a: any) => 
+            (a.approval_status === 'PENDING' || a.approval_status === 'ESCALATED') && 
+            (String(a.approver_user_id) === String(currentUser?.id) || currentUser?.is_superuser)
+          );
+          const anyPending = approvals.find((a: any) => a.approval_status === 'PENDING' || a.approval_status === 'ESCALATED');
+          const target = myPending || anyPending;
+          
+          if (target) {
+            setApprovalId(target.id);
+          } else {
+            setApprovalId(selectedSchedule.id);
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setScheduleApprovals([]);
+          setApprovalId(selectedSchedule.id);
+        });
     }
-  }, [selectedSchedule]);
+  }, [selectedSchedule, currentUser]);
 
   const handleDecisionSubmit = async () => {
     const activeApprovalId = approvalId || selectedSchedule?.id;
@@ -132,22 +216,10 @@ export const ScheduleApprovalQueue: React.FC = () => {
     return assignments.find((a: any) => a.assignment_role === 'PRIMARY') || assignments[0];
   };
 
-  if (!hasApprovalGroup) {
-    return (
-      <div className={styles.page}>
-        <PageHeader title="Schedule Approvals" description="Review and authorize workflow schedule configurations" />
-        <div className={styles.stateCard} style={{ marginTop: '32px' }}>
-          <div className={styles.stateTitle}>Access Restricted</div>
-          <div className={styles.stateDesc}>You are not a member of any approval group.</div>
-        </div>
-      </div>
-    );
-  }
-
-  const assignment = scheduleDetails ? getPrimaryAssignment(scheduleDetails.assignments) : null;
-  const nonSkippedLayers = scheduleApprovals.filter(a => a.approval_status !== 'SKIPPED').length;
-  const activeApproval = scheduleApprovals.find(a => a.id === approvalId);
-  const currentLayerOrder = activeApproval?.layer_order || 1;
+  const assignment = scheduleDetails ? getPrimaryAssignment(scheduleDetails.agent_assignments || scheduleDetails.assignments) : null;
+  const nonSkippedLayers = Array.isArray(scheduleApprovals) ? scheduleApprovals.filter(a => a.approval_status !== 'SKIPPED').length : 0;
+  const activeApproval = Array.isArray(scheduleApprovals) ? scheduleApprovals.find(a => a.id === approvalId) : null;
+  const currentLayerOrder = activeApproval?.approval_layer || activeApproval?.layer_order || 1;
 
   return (
     <div className={styles.page}>
@@ -170,7 +242,11 @@ export const ScheduleApprovalQueue: React.FC = () => {
       <div className={styles.kpiGrid} style={{ marginBottom: '24px' }}>
         <div className={styles.kpiCard}>
           <div className={styles.kpiLabel}>Pending Approvals</div>
-          <div className={styles.kpiValue}>{schedules.filter(s => s.schedule_status === 'PENDING_APPROVAL').length}</div>
+          <div className={styles.kpiValue}>
+            {typeof metrics?.PENDING === 'number' 
+              ? metrics.PENDING 
+              : schedules.filter(s => s.schedule_status === 'PENDING_APPROVAL').length}
+          </div>
         </div>
         <div className={styles.kpiCard}>
           <div className={styles.kpiLabel}>Approved Today</div>
@@ -333,17 +409,21 @@ export const ScheduleApprovalQueue: React.FC = () => {
                 </div>
               )}
 
-              {activeTab !== 'COMPLETED' && activeApproval && (
+              {activeTab !== 'COMPLETED' && (
                 <div className={styles.section} style={{ marginTop: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Record Decision</h3>
-                    <span className={styles.pill} style={{ background: '#f3f4f6', color: '#374151' }}>
-                      Stage {currentLayerOrder} of {nonSkippedLayers}
-                    </span>
+                    {nonSkippedLayers > 0 && (
+                      <span className={styles.pill} style={{ background: '#f3f4f6', color: '#374151' }}>
+                        Stage {currentLayerOrder} of {nonSkippedLayers}
+                      </span>
+                    )}
                   </div>
-                  <div className={styles.subText} style={{ marginBottom: '16px', marginTop: '4px' }}>
-                    Current layer: <strong>{activeApproval.department_code?.replace('_', ' ')}</strong>
-                  </div>
+                  {activeApproval?.department_code && (
+                    <div className={styles.subText} style={{ marginBottom: '16px', marginTop: '4px' }}>
+                      Current layer: <strong>{activeApproval.department_code.replace('_', ' ')}</strong>
+                    </div>
+                  )}
                   <div className={styles.decisionButtons}>
                     <button
                       className={`${styles.decisionBtn} ${decision === 'APPROVED' ? styles.selectedApprove : ''}`}
@@ -388,7 +468,7 @@ export const ScheduleApprovalQueue: React.FC = () => {
                         <Button
                           variant={decision === 'APPROVED' ? 'primary' : 'danger'}
                           onClick={() => setShowConfirm(true)}
-                          disabled={decision !== 'APPROVED' && reason.length < 10}
+                          disabled={!decision || (decision !== 'APPROVED' && reason.trim().length < 10)}
                         >
                           Submit Decision
                         </Button>
@@ -398,54 +478,109 @@ export const ScheduleApprovalQueue: React.FC = () => {
                 </div>
               )}
 
-              {scheduleApprovals.length > 0 && (
-                <div className={styles.section} style={{ marginTop: '24px' }}>
-                  <h3 className={styles.sectionTitle}>Approval Chain</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+              {Array.isArray(scheduleApprovals) && scheduleApprovals.length > 0 && (
+                <div className={styles.section} style={{ marginTop: '28px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                    <ShieldCheck size={18} style={{ color: '#818cf8' }} />
+                    <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Approval Chain & History</h3>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {scheduleApprovals.map((appr: any) => {
-                      const isSkipped = appr.approval_status === 'SKIPPED';
+                      const badge = getStatusBadge(appr.approval_status);
+                      const isSkipped = appr.approval_status === 'SKIPPED' || appr.approval_status === 'SUPERSEDED';
+                      const deptTitle = appr.department_name || (appr.department_code ? appr.department_code.replace(/_/g, ' ') : 'General');
+                      const stageLabel = `Stage ${appr.approval_layer || appr.layer_order || 1}: ${deptTitle}`;
+                      const approverDisplay = appr.decided_by_name 
+                        ? `${appr.decided_by_name} (${appr.decided_by_email || ''})`
+                        : appr.approver_name 
+                        ? `${appr.approver_name} (${appr.approver_email || ''})`
+                        : (appr.decided_by || appr.approver_user_id || 'Department Approver');
+
                       return (
                         <div 
                           key={appr.id} 
                           style={{ 
-                            padding: '12px 16px', 
-                            borderLeft: `4px solid ${isSkipped ? '#d1d5db' : appr.approval_status === 'APPROVED' ? '#10b981' : '#3b82f6'}`,
-                            background: isSkipped ? '#f9fafb' : '#ffffff',
-                            borderTop: '1px solid #f3f4f6',
-                            borderRight: '1px solid #f3f4f6',
-                            borderBottom: '1px solid #f3f4f6',
-                            borderRadius: '0 6px 6px 0',
-                            opacity: isSkipped ? 0.7 : 1
+                            padding: '16px 18px', 
+                            background: isSkipped 
+                              ? 'rgba(15, 23, 42, 0.45)' 
+                              : 'linear-gradient(135deg, rgba(26, 36, 61, 0.7) 0%, rgba(17, 24, 43, 0.7) 100%)',
+                            border: `1px solid ${isSkipped ? 'rgba(255, 255, 255, 0.06)' : appr.approval_status === 'APPROVED' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(99, 102, 241, 0.25)'}`,
+                            borderLeft: `4px solid ${isSkipped ? '#64748b' : appr.approval_status === 'APPROVED' ? '#10b981' : '#6366f1'}`,
+                            borderRadius: '10px',
+                            backdropFilter: 'blur(10px)',
+                            boxShadow: isSkipped ? 'none' : '0 4px 15px rgba(0, 0, 0, 0.25)',
+                            opacity: isSkipped ? 0.75 : 1,
+                            transition: 'all 0.18s ease'
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                            <strong style={{ color: isSkipped ? '#6b7280' : '#111827' }}>
-                              Stage {appr.layer_order}: {appr.department_code?.replace('_', ' ')}
-                            </strong>
-                            <span className={styles.subText}>{appr.approval_status}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ 
+                                color: isSkipped ? '#94a3b8' : '#f8fafc', 
+                                fontSize: '0.95rem', 
+                                fontWeight: 600,
+                                letterSpacing: '0.01em'
+                              }}>
+                                {stageLabel}
+                              </span>
+                            </div>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '0.725rem',
+                              fontWeight: 600,
+                              letterSpacing: '0.04em',
+                              background: badge.bg,
+                              border: `1px solid ${badge.border}`,
+                              color: badge.color
+                            }}>
+                              {badge.icon}
+                              {badge.label}
+                            </span>
                           </div>
                           
-                          {isSkipped && (
-                            <div className={styles.subText} style={{ fontStyle: 'italic' }}>
-                              Skipped — {appr.skip_reason}
+                          {isSkipped && appr.skip_reason && (
+                            <div style={{ fontSize: '0.825rem', color: '#94a3b8', fontStyle: 'italic', marginBottom: '6px' }}>
+                              {appr.skip_reason}
                             </div>
                           )}
                           
-                          {appr.decided_by && (
-                            <div className={styles.subText}>
-                              Decided by: <strong>{appr.decided_by}</strong>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', fontSize: '0.825rem', color: '#cbd5e1', marginTop: '6px' }}>
+                            {(appr.decided_by_name || appr.decided_by) ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <UserCheck size={14} style={{ color: '#818cf8' }} />
+                                <span>Decided by: <strong style={{ color: '#f8fafc' }}>{approverDisplay}</strong></span>
+                              </div>
+                            ) : (appr.approver_name || appr.approver_user_id) ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Clock size={14} style={{ color: '#60a5fa' }} />
+                                <span>Assigned to: <strong style={{ color: '#f8fafc' }}>{approverDisplay}</strong></span>
+                              </div>
+                            ) : null}
+
+                            {(appr.decided_at || appr.created_at) && (
+                              <div style={{ fontSize: '0.775rem', color: '#64748b', marginLeft: 'auto' }}>
+                                {new Date(appr.decided_at || appr.created_at).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
                           
                           {appr.decision_reason && (
-                            <div className={styles.subText} style={{ marginTop: '4px' }}>
-                              Note: {appr.decision_reason}
-                            </div>
-                          )}
-                          
-                          {appr.decided_at && (
-                            <div className={styles.subText} style={{ fontSize: '0.75rem', marginTop: '8px', color: '#9ca3af' }}>
-                              {new Date(appr.decided_at).toLocaleString()}
+                            <div style={{ 
+                              marginTop: '10px', 
+                              padding: '8px 12px', 
+                              background: 'rgba(0, 0, 0, 0.25)', 
+                              borderLeft: '3px solid #6366f1', 
+                              borderRadius: '0 6px 6px 0',
+                              fontSize: '0.825rem', 
+                              color: '#e2e8f0',
+                              lineHeight: 1.4
+                            }}>
+                              <span style={{ color: '#94a3b8', fontWeight: 500, marginRight: '4px' }}>Decision Note:</span>
+                              "{appr.decision_reason}"
                             </div>
                           )}
                         </div>
@@ -465,9 +600,9 @@ export const ScheduleApprovalQueue: React.FC = () => {
 
       {showConfirm && (
         <ConfirmActionModal
-          title={`${decision ? decision.charAt(0) + decision.slice(1).toLowerCase().replace('_', ' ') : ''} Schedule`}
-          message={`Are you sure you want to ${decision ? decision.toLowerCase().replace('_', ' ') : ''} this schedule? This action will notify the schedule owner.`}
-          confirmLabel={decision ? decision.charAt(0) + decision.slice(1).toLowerCase().replace('_', ' ') : ''}
+          title={`${decision ? (decision === 'APPROVED' ? 'Approve' : decision === 'REJECTED' ? 'Reject' : decision === 'ESCALATED' ? 'Escalate' : 'Request Changes for') : ''} Schedule`}
+          message={`Are you sure you want to ${decision ? (decision === 'APPROVED' ? 'approve' : decision === 'REJECTED' ? 'reject' : decision === 'ESCALATED' ? 'escalate' : 'request changes for') : ''} this schedule? This action will advance the workflow approval process.`}
+          confirmLabel={decision ? (decision === 'APPROVED' ? 'Approve' : decision === 'REJECTED' ? 'Reject' : decision === 'ESCALATED' ? 'Escalate' : 'Request Changes') : 'Confirm'}
           confirmVariant={decision === 'APPROVED' ? 'primary' : 'danger'}
           onConfirm={handleDecisionSubmit}
           onCancel={() => setShowConfirm(false)}

@@ -276,6 +276,7 @@ export const AppRouter: React.FC = () => {
         <Route path="/enforcement/simulate" element={<ProtectedRoute><AppShell><EnforcementSimulationPage /></AppShell></ProtectedRoute>} />
         <Route path="/risk" element={<ProtectedRoute><AppShell><RiskWorkspacePage /></AppShell></ProtectedRoute>} />
         <Route path="/approvals" element={<ProtectedRoute><AppShell><ApprovalHubPage /></AppShell></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
         <Route path="/admin/roles" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute><AppShell><AdminPanelPage /></AppShell></ProtectedRoute>} />

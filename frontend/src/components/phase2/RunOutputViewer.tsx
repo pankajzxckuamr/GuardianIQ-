@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { WorkflowRunOutputResponse } from '../../types/phase2';
 import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { RegistryDataTable } from '../common/RegistryDataTable';
-import { RiskBadge } from '../common/RiskBadge';
 import styles from '../../pages/phase2Shared.module.css';
 
 interface Props {
@@ -66,7 +65,7 @@ export const RunOutputViewer: React.FC<Props> = ({ outputs, canViewRaw, error })
         { key: 'entity_code', label: 'Entity Code', render: (r: any) => r.entity_code },
         { key: 'message', label: 'Message', render: (r: any) => r.message }
       ];
-      return <RegistryDataTable columns={columns} data={findings} emptyMessage="No findings found in output." />;
+      return <RegistryDataTable columns={columns} data={findings} emptyMessage="No findings found in output." isLoading={false} totalCount={findings.length} page={1} pageSize={findings.length || 10} onPageChange={() => {}} />;
     }
 
     if (activeOutput.output_type === 'RECOMMENDATIONS') {
@@ -76,7 +75,7 @@ export const RunOutputViewer: React.FC<Props> = ({ outputs, canViewRaw, error })
         { key: 'priority', label: 'Priority', render: (r: any) => r.priority },
         { key: 'recommended_action', label: 'Action', render: (r: any) => r.recommended_action }
       ];
-      return <RegistryDataTable columns={columns} data={recommendations} emptyMessage="No recommendations found in output." />;
+      return <RegistryDataTable columns={columns} data={recommendations} emptyMessage="No recommendations found in output." isLoading={false} totalCount={recommendations.length} page={1} pageSize={recommendations.length || 10} onPageChange={() => {}} />;
     }
 
     if (activeOutput.output_type === 'EVIDENCE' || activeTab === 'RAW') {

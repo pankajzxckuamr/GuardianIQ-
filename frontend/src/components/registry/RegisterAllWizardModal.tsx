@@ -590,7 +590,7 @@ export const RegisterAllWizardModal: React.FC<RegisterAllWizardModalProps> = ({
                 <input
                   type="text"
                   className={styles.saveInput}
-                  placeholder="e.g. Clinical NLP Pipeline"
+                  placeholder="Enter onboarding session name..."
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
                   style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #334155", background: "#1e293b", color: "white", marginBottom: "16px" }}

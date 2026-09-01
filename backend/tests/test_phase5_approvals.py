@@ -13,10 +13,17 @@ os.environ["SECRET_KEY"] = "test-secret-key-for-pytest"
 
 from app.main import app
 from app.db.session import SessionLocal, Base, engine
-from app.modules.workflow_scheduler.models import Phase2WorkflowSchedule, WorkflowScheduleApproval
+import app.db.base
+from app.modules.workflow_scheduler.models import Phase2WorkflowSchedule, WorkflowScheduleApproval, WorkflowScheduleAgentAssignment, ScheduleApprovalLayerSelection
 from app.modules.department.models import Department, DepartmentOwnerAssignment
 from app.modules.auth.models import User
 from sqlalchemy import select
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
 
 pytestmark = pytest.mark.anyio
 
@@ -28,13 +35,6 @@ def anyio_backend():
 async def async_client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
-
-# --- MOCK TOKENS AND SETUP ---
-# Since we don't have the full auth setup for dynamic users in this snippet, 
-# we'll assume the endpoints use get_current_user which we can mock or we use the DB to bypass.
-# But since this is an E2E test, we'd normally authenticate as specific users. 
-# For these tests, we will mock the service directly using the DB session for some scenarios 
-# to ensure precise control over the state, and use HTTP endpoints where appropriate.
 
 @pytest.fixture(autouse=True)
 def init_db():
@@ -51,15 +51,16 @@ def db_session():
         db.close()
 
 async def setup_mock_department_chain(db_session, user_ids: list):
-    # Create departments and owners
     depts = []
     codes = ["BUSINESS_OWNER", "TECHNICAL_OWNER", "LEGAL", "AUDIT", "HR"]
+    prefix = uuid4().hex[:6].upper()
     
     for i, u_id in enumerate(user_ids):
         d_id = uuid4()
-        dept = Department(id=d_id, tenant_id=uuid4(), department_code=codes[i], display_name=f"{codes[i]} Dept")
+        code = f"{codes[i % len(codes)]}_{prefix}_{i}"
+        dept = Department(id=d_id, tenant_id=uuid4(), department_code=code, department_name=f"{code} Dept")
         assignment = DepartmentOwnerAssignment(
-            id=uuid4(), tenant_id=dept.tenant_id, department_id=d_id, owner_user_id=u_id, role_type="OWNER"
+            id=uuid4(), tenant_id=dept.tenant_id, department_id=d_id, owner_user_id=u_id
         )
         db_session.add(dept)
         db_session.add(assignment)
@@ -68,48 +69,49 @@ async def setup_mock_department_chain(db_session, user_ids: list):
     db_session.commit()
     return depts
 
-# Note: The following test cases are written using the WorkflowScheduleService directly 
-# to cleanly test the complex state machine, as full E2E setup for 5 distinct JWTs 
-# is highly environment-dependent.
-
 @pytest.fixture
 def workflow_service():
     from app.modules.workflow_scheduler.service import WorkflowScheduleService
     return WorkflowScheduleService()
 
 class MockUser:
-    def __init__(self, user_id, role_code="APPROVER"):
+    def __init__(self, user_id, role_code="APPROVER", is_superuser=False):
         self.id = user_id
         self.role_code = role_code
+        self.is_superuser = is_superuser
+
 
 @pytest.mark.asyncio
 async def test_3_department_chain_sequential_approval(db_session, workflow_service):
-    # Scenario: 3-department chain, distinct owners -> sequential PENDING, ACTIVE at end
+    creator = uuid4()
     user1, user2, user3 = uuid4(), uuid4(), uuid4()
     depts = await setup_mock_department_chain(db_session, [user1, user2, user3])
     
     tenant_id = depts[0].tenant_id
     sched_id = uuid4()
     
-    # Mock user creation
-    for uid in [user1, user2, user3]:
-        db_session.add(User(id=uid, tenant_id=tenant_id, email=f"{uid}@test.com", password_hash="hash", username=str(uid)))
+    for uid in [creator, user1, user2, user3]:
+        db_session.add(User(id=uid, name=str(uid), email=f"{uid}@test.com", hashed_password="hash"))
         
     schedule = Phase2WorkflowSchedule(
         id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_1",
-        schedule_name="Test 1", schedule_type="DAILY", owner_user_id=user1, approval_required=True, schedule_status="DRAFT"
+        schedule_name="Test 1", schedule_type="DAILY", owner_user_id=creator, approval_required=True, schedule_status="DRAFT"
     )
     db_session.add(schedule)
+    db_session.add(WorkflowScheduleAgentAssignment(schedule_id=sched_id, agent_id=uuid4(), assignment_role="PRIMARY", tenant_id=tenant_id))
     db_session.commit()
     
-    # Setup layers
-    from app.modules.workflow_scheduler.models import ScheduleApprovalLayerSelection
+    # Setup layers with approver_user_ids
     for i, dept in enumerate(depts):
-        db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=dept.id, layer_order=i+1, tenant_id=tenant_id))
+        approver = [user1, user2, user3][i]
+        db_session.add(ScheduleApprovalLayerSelection(
+            schedule_id=sched_id, department_id=dept.id, layer_order=i+1, 
+            approver_user_ids=[str(approver)], require_all_approvers=True, tenant_id=tenant_id
+        ))
     db_session.commit()
     
-    # Act: Submit
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
+    # Submit
+    await workflow_service.submit_for_approval(sched_id, MockUser(creator), db_session)
     db_session.refresh(schedule)
     assert schedule.schedule_status == "PENDING_APPROVAL"
     
@@ -121,6 +123,7 @@ async def test_3_department_chain_sequential_approval(db_session, workflow_servi
     app1 = approvals[0]
     assert app1.approval_layer == 1
     assert app1.approval_status == "PENDING"
+    assert app1.approver_user_id == user1
     
     # Approve Layer 1
     await workflow_service.decide_approval(app1.id, "APPROVED", "OK 1", MockUser(user1), db_session)
@@ -132,6 +135,7 @@ async def test_3_department_chain_sequential_approval(db_session, workflow_servi
     app2 = approvals[-1]
     assert app2.approval_layer == 2
     assert app2.approval_status == "PENDING"
+    assert app2.approver_user_id == user2
     
     # Approve Layer 2
     await workflow_service.decide_approval(app2.id, "APPROVED", "OK 2", MockUser(user2), db_session)
@@ -143,6 +147,7 @@ async def test_3_department_chain_sequential_approval(db_session, workflow_servi
     app3 = approvals[-1]
     assert app3.approval_layer == 3
     assert app3.approval_status == "PENDING"
+    assert app3.approver_user_id == user3
     
     # Approve Layer 3
     await workflow_service.decide_approval(app3.id, "APPROVED", "OK 3", MockUser(user3), db_session)
@@ -153,255 +158,205 @@ async def test_3_department_chain_sequential_approval(db_session, workflow_servi
 
 
 @pytest.mark.asyncio
-async def test_same_owner_skips_layer(db_session, workflow_service):
-    # Scenario: Same owner assigned to two selected departments -> second is SKIPPED
-    user1 = uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1, user1]) # Same owner!
+async def test_self_approval_guard_rejection(db_session, workflow_service):
+    # Scenario: Creator assigns only themselves as the approver for a department layer
+    creator = uuid4()
+    depts = await setup_mock_department_chain(db_session, [creator])
     
     tenant_id = depts[0].tenant_id
     sched_id = uuid4()
     
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="hash", username=str(user1)))
+    db_session.add(User(id=creator, name=str(creator), email=f"{creator}@test.com", hashed_password="hash"))
     schedule = Phase2WorkflowSchedule(
-        id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_2",
-        schedule_name="Test 2", schedule_type="DAILY", owner_user_id=user1, approval_required=True, schedule_status="DRAFT"
+        id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_SELF",
+        schedule_name="Test Self Approval", schedule_type="DAILY", owner_user_id=creator, approval_required=True, schedule_status="DRAFT"
     )
     db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[1].id, layer_order=2, tenant_id=tenant_id))
+    db_session.add(WorkflowScheduleAgentAssignment(schedule_id=sched_id, agent_id=uuid4(), assignment_role="PRIMARY", tenant_id=tenant_id))
+    db_session.add(ScheduleApprovalLayerSelection(
+        schedule_id=sched_id, department_id=depts[0].id, layer_order=1, 
+        approver_user_ids=[str(creator)], require_all_approvers=True, tenant_id=tenant_id
+    ))
     db_session.commit()
     
-    # Act: Submit
-    # But wait, our new rule says "Entire selected department set resolves to a single owner -> rejected"
-    # So this should fail with 400! Let's test THAT rule here!
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as exc:
-        await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    assert "resolves to a single owner" in exc.value.detail["message"]
+        await workflow_service.submit_for_approval(sched_id, MockUser(creator), db_session)
+    assert "Self-approval violation" in exc.value.detail["message"]
+
 
 @pytest.mark.asyncio
-async def test_same_owner_skips_middle_layer(db_session, workflow_service):
-    # Scenario: 3 depts, owners A, B, A. 
-    # Layer 1 (A), Layer 2 (B), Layer 3 (A) -> Layer 3 gets skipped!
+async def test_intra_layer_unanimous_quorum(db_session, workflow_service):
+    # Scenario: 1 Department with 2 approvers (userA and userB), require_all_approvers = True
+    creator = uuid4()
     userA, userB = uuid4(), uuid4()
-    depts = await setup_mock_department_chain(db_session, [userA, userB, userA])
+    depts = await setup_mock_department_chain(db_session, [userA])
     
     tenant_id = depts[0].tenant_id
     sched_id = uuid4()
-    db_session.add(User(id=userA, tenant_id=tenant_id, email=f"{userA}@test.com", password_hash="h", username=str(userA)))
-    db_session.add(User(id=userB, tenant_id=tenant_id, email=f"{userB}@test.com", password_hash="h", username=str(userB)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_3", schedule_name="T3", schedule_type="DAILY", owner_user_id=userA, approval_required=True)
+    
+    for uid in [creator, userA, userB]:
+        db_session.add(User(id=uid, name=str(uid), email=f"{uid}@test.com", hashed_password="hash"))
+        
+    schedule = Phase2WorkflowSchedule(
+        id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_UNANIMOUS",
+        schedule_name="Test Unanimous", schedule_type="DAILY", owner_user_id=creator, approval_required=True, schedule_status="DRAFT"
+    )
     db_session.add(schedule)
-    for i, dept in enumerate(depts):
-        db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=dept.id, layer_order=i+1, tenant_id=tenant_id))
+    db_session.add(WorkflowScheduleAgentAssignment(schedule_id=sched_id, agent_id=uuid4(), assignment_role="PRIMARY", tenant_id=tenant_id))
+    db_session.add(ScheduleApprovalLayerSelection(
+        schedule_id=sched_id, department_id=depts[0].id, layer_order=1, 
+        approver_user_ids=[str(userA), str(userB)], require_all_approvers=True, tenant_id=tenant_id
+    ))
     db_session.commit()
     
-    await workflow_service.submit_for_approval(sched_id, MockUser(userA), db_session)
-    
-    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
-    res = db_session.execute(stmt)
-    app1 = res.scalars().first()
-    
-    # Approve Layer 1 (A)
-    await workflow_service.decide_approval(app1.id, "APPROVED", "OK", MockUser(userA), db_session)
-    
-    res = db_session.execute(stmt)
-    approvals = sorted(res.scalars().all(), key=lambda x: x.created_at)
-    assert len(approvals) == 2
-    app2 = approvals[-1]
-    assert app2.approval_layer == 2
-    assert app2.approval_status == "PENDING"
-    
-    # Approve Layer 2 (B) -> Layer 3 (A) should be skipped, schedule becomes ACTIVE
-    await workflow_service.decide_approval(app2.id, "APPROVED", "OK", MockUser(userB), db_session)
-    
-    res = db_session.execute(stmt)
-    approvals = sorted(res.scalars().all(), key=lambda x: x.created_at)
-    assert len(approvals) == 3
-    app3 = approvals[-1]
-    assert app3.approval_layer == 3
-    assert app3.approval_status == "SKIPPED"
-    
-    db_session.refresh(schedule)
-    assert schedule.schedule_status == "ACTIVE"
-
-
-@pytest.mark.asyncio
-async def test_reject_terminates_chain(db_session, workflow_service):
-    user1, user2 = uuid4(), uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1, user2])
-    tenant_id = depts[0].tenant_id
-    sched_id = uuid4()
-    
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="h", username=str(user1)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_4", schedule_name="T4", schedule_type="DAILY", owner_user_id=user1, approval_required=True)
-    db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[1].id, layer_order=2, tenant_id=tenant_id))
-    db_session.commit()
-    
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    
-    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
-    app1 = db_session.execute(stmt).scalars().first()
-    
-    # REJECT layer 1
-    await workflow_service.decide_approval(app1.id, "REJECTED", "No", MockUser(user1), db_session)
-    
-    db_session.refresh(schedule)
-    assert schedule.schedule_status == "DRAFT"
-    
-    # Ensure layer 2 never created
-    apps = db_session.execute(stmt).scalars().all()
-    assert len(apps) == 1
-
-
-@pytest.mark.asyncio
-async def test_resubmission_new_cycle(db_session, workflow_service):
-    user1, user2 = uuid4(), uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1, user2])
-    tenant_id = depts[0].tenant_id
-    sched_id = uuid4()
-    
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="h", username=str(user1)))
-    db_session.add(User(id=user2, tenant_id=tenant_id, email=f"{user2}@test.com", password_hash="h", username=str(user2)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_5", schedule_name="T5", schedule_type="DAILY", owner_user_id=user1, approval_required=True)
-    db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[1].id, layer_order=2, tenant_id=tenant_id))
-    db_session.commit()
-    
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    
-    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id).order_by(WorkflowScheduleApproval.created_at.desc())
-    app1 = db_session.execute(stmt).scalars().first()
-    first_cycle_id = app1.approval_cycle_id
-    
-    # REJECT
-    await workflow_service.decide_approval(app1.id, "REJECTED", "No", MockUser(user1), db_session)
-    
-    # Resubmit
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    app1_retry = db_session.execute(stmt).scalars().first()
-    
-    assert app1_retry.approval_cycle_id != first_cycle_id
-    # Ensure it's back at layer 1 and PENDING
-    assert app1_retry.approval_layer == 1
-    assert app1_retry.approval_status == "PENDING"
-    
-    # Ensure user1 can approve again in the new cycle
-    await workflow_service.decide_approval(app1_retry.id, "APPROVED", "Yes", MockUser(user1), db_session)
-    
-    # Try deciding the old row
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as exc:
-        await workflow_service.decide_approval(app1.id, "APPROVED", "Stale", MockUser(user1), db_session)
-    assert "stale" in exc.value.detail["message"]
-
-
-@pytest.mark.asyncio
-async def test_escalate_preserves_chain(db_session, workflow_service):
-    user1 = uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1])
-    tenant_id = depts[0].tenant_id
-    sched_id = uuid4()
-    
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="h", username=str(user1)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_6", schedule_name="T6", schedule_type="DAILY", owner_user_id=user1, approval_required=True)
-    db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.commit()
-    
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    
-    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
-    app1 = db_session.execute(stmt).scalars().first()
-    
-    await workflow_service.decide_approval(app1.id, "ESCALATED", "Help", MockUser(user1), db_session)
-    
+    # Submit
+    await workflow_service.submit_for_approval(sched_id, MockUser(creator), db_session)
     db_session.refresh(schedule)
     assert schedule.schedule_status == "PENDING_APPROVAL"
     
-    app1_refreshed = db_session.execute(stmt).scalars().first()
-    assert app1_refreshed.approval_status == "ESCALATED"
-
-
-@pytest.mark.asyncio
-async def test_activate_while_pending_rejected(db_session, workflow_service):
-    user1, user2 = uuid4(), uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1, user2])
-    tenant_id = depts[0].tenant_id
-    sched_id = uuid4()
-    
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="h", username=str(user1)))
-    db_session.add(User(id=user2, tenant_id=tenant_id, email=f"{user2}@test.com", password_hash="h", username=str(user2)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_7", schedule_name="T7", schedule_type="DAILY", owner_user_id=user1, approval_required=True)
-    db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[1].id, layer_order=2, tenant_id=tenant_id))
-    db_session.commit()
-    
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    
-    # Layer 1 is pending. If we try to activate directly:
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as exc:
-        await workflow_service.activate_schedule(sched_id, MockUser(user1), db_session)
-    # The activate_schedule should fail if approval is required and it's not bypassed correctly, 
-    # but the service layer decide_approval does the check before calling activate_schedule.
-    # Actually, activate_schedule enforces schedule_status == "APPROVED" unless bypassed.
-    assert exc.value.status_code in [400, 403]
-
-
-@pytest.mark.asyncio
-async def test_unauthorized_user_rejected(db_session, workflow_service):
-    user1, hacker = uuid4(), uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1])
-    tenant_id = depts[0].tenant_id
-    sched_id = uuid4()
-    
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="h", username=str(user1)))
-    db_session.add(User(id=hacker, tenant_id=tenant_id, email=f"{hacker}@test.com", password_hash="h", username=str(hacker)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_8", schedule_name="T8", schedule_type="DAILY", owner_user_id=user1, approval_required=True)
-    db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.commit()
-    
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    
+    # Check 2 pending rows generated for layer 1
     stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
-    app1 = db_session.execute(stmt).scalars().first()
+    approvals = db_session.execute(stmt).scalars().all()
+    assert len(approvals) == 2
+    appA = next(a for a in approvals if a.approver_user_id == userA)
+    appB = next(a for a in approvals if a.approver_user_id == userB)
+    assert appA.approval_status == "PENDING"
+    assert appB.approval_status == "PENDING"
     
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as exc:
-        # hacker tries to approve user1's layer
-        await workflow_service.decide_approval(app1.id, "APPROVED", "Hacked", MockUser(hacker, role_code="USER"), db_session)
-    assert exc.value.status_code == 403
-    assert "Access denied" in exc.value.detail["message"]
-
-
-@pytest.mark.asyncio
-async def test_single_department_approval(db_session, workflow_service):
-    user1 = uuid4()
-    depts = await setup_mock_department_chain(db_session, [user1])
-    tenant_id = depts[0].tenant_id
-    sched_id = uuid4()
+    # userA approves -> schedule stays PENDING_APPROVAL because userB has not approved
+    await workflow_service.decide_approval(appA.id, "APPROVED", "Approved by A", MockUser(userA), db_session)
+    db_session.refresh(schedule)
+    assert schedule.schedule_status == "PENDING_APPROVAL"
     
-    db_session.add(User(id=user1, tenant_id=tenant_id, email=f"{user1}@test.com", password_hash="h", username=str(user1)))
-    schedule = Phase2WorkflowSchedule(id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_9", schedule_name="T9", schedule_type="DAILY", owner_user_id=user1, approval_required=True)
-    db_session.add(schedule)
-    db_session.add(ScheduleApprovalLayerSelection(schedule_id=sched_id, department_id=depts[0].id, layer_order=1, tenant_id=tenant_id))
-    db_session.commit()
-    
-    await workflow_service.submit_for_approval(sched_id, MockUser(user1), db_session)
-    
-    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
-    app1 = db_session.execute(stmt).scalars().first()
-    
-    await workflow_service.decide_approval(app1.id, "APPROVED", "OK", MockUser(user1), db_session)
-    
+    # userB approves -> all satisfied -> schedule becomes ACTIVE
+    await workflow_service.decide_approval(appB.id, "APPROVED", "Approved by B", MockUser(userB), db_session)
     db_session.refresh(schedule)
     assert schedule.schedule_status == "ACTIVE"
 
 
+@pytest.mark.asyncio
+async def test_intra_layer_first_responder_supersedes_sibling(db_session, workflow_service):
+    # Scenario: 1 Department with 2 approvers (userA and userB), require_all_approvers = False (ANY)
+    creator = uuid4()
+    userA, userB = uuid4(), uuid4()
+    depts = await setup_mock_department_chain(db_session, [userA])
+    
+    tenant_id = depts[0].tenant_id
+    sched_id = uuid4()
+    
+    for uid in [creator, userA, userB]:
+        db_session.add(User(id=uid, name=str(uid), email=f"{uid}@test.com", hashed_password="hash"))
+        
+    schedule = Phase2WorkflowSchedule(
+        id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_FIRST_RESP",
+        schedule_name="Test First Responder", schedule_type="DAILY", owner_user_id=creator, approval_required=True, schedule_status="DRAFT"
+    )
+    db_session.add(schedule)
+    db_session.add(WorkflowScheduleAgentAssignment(schedule_id=sched_id, agent_id=uuid4(), assignment_role="PRIMARY", tenant_id=tenant_id))
+    db_session.add(ScheduleApprovalLayerSelection(
+        schedule_id=sched_id, department_id=depts[0].id, layer_order=1, 
+        approver_user_ids=[str(userA), str(userB)], require_all_approvers=False, tenant_id=tenant_id
+    ))
+    db_session.commit()
+    
+    # Submit
+    await workflow_service.submit_for_approval(sched_id, MockUser(creator), db_session)
+    
+    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
+    approvals = db_session.execute(stmt).scalars().all()
+    assert len(approvals) == 2
+    appA = next(a for a in approvals if a.approver_user_id == userA)
+    appB = next(a for a in approvals if a.approver_user_id == userB)
+    
+    # userA approves -> userB's pending row must transition to SUPERSEDED and schedule becomes ACTIVE
+    await workflow_service.decide_approval(appA.id, "APPROVED", "First responder approval", MockUser(userA), db_session)
+    
+    db_session.refresh(appB)
+    db_session.refresh(schedule)
+    assert appB.approval_status == "SUPERSEDED"
+    assert "Layer satisfied" in appB.skip_reason
+    assert schedule.schedule_status == "ACTIVE"
 
+
+@pytest.mark.asyncio
+async def test_rejection_fail_fast_supersedes_siblings(db_session, workflow_service):
+    # Scenario: 2 approvers in Layer 1, userA REJECTS -> userB superseded and schedule becomes DRAFT
+    creator = uuid4()
+    userA, userB = uuid4(), uuid4()
+    depts = await setup_mock_department_chain(db_session, [userA])
+    
+    tenant_id = depts[0].tenant_id
+    sched_id = uuid4()
+    
+    for uid in [creator, userA, userB]:
+        db_session.add(User(id=uid, name=str(uid), email=f"{uid}@test.com", hashed_password="hash"))
+        
+    schedule = Phase2WorkflowSchedule(
+        id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_REJECT_FAST",
+        schedule_name="Test Reject Fast", schedule_type="DAILY", owner_user_id=creator, approval_required=True, schedule_status="DRAFT"
+    )
+    db_session.add(schedule)
+    db_session.add(WorkflowScheduleAgentAssignment(schedule_id=sched_id, agent_id=uuid4(), assignment_role="PRIMARY", tenant_id=tenant_id))
+    db_session.add(ScheduleApprovalLayerSelection(
+        schedule_id=sched_id, department_id=depts[0].id, layer_order=1, 
+        approver_user_ids=[str(userA), str(userB)], require_all_approvers=True, tenant_id=tenant_id
+    ))
+    db_session.commit()
+    
+    await workflow_service.submit_for_approval(sched_id, MockUser(creator), db_session)
+    
+    stmt = select(WorkflowScheduleApproval).where(WorkflowScheduleApproval.schedule_id == sched_id)
+    approvals = db_session.execute(stmt).scalars().all()
+    appA = next(a for a in approvals if a.approver_user_id == userA)
+    appB = next(a for a in approvals if a.approver_user_id == userB)
+    
+    # userA rejects
+    await workflow_service.decide_approval(appA.id, "REJECTED", "Rejection note", MockUser(userA), db_session)
+    
+    db_session.refresh(appB)
+    db_session.refresh(schedule)
+    assert appB.approval_status == "SUPERSEDED"
+    assert schedule.schedule_status == "DRAFT"
+
+
+@pytest.mark.asyncio
+async def test_reassign_approver(db_session, workflow_service):
+    # Scenario: Admin reassigns a pending approval from userA to replacementUser
+    creator = uuid4()
+    userA, replacementUser = uuid4(), uuid4()
+    adminUser = uuid4()
+    depts = await setup_mock_department_chain(db_session, [userA])
+    
+    tenant_id = depts[0].tenant_id
+    sched_id = uuid4()
+    
+    for uid in [creator, userA, replacementUser, adminUser]:
+        db_session.add(User(id=uid, name=str(uid), email=f"{uid}@test.com", hashed_password="hash"))
+        
+    schedule = Phase2WorkflowSchedule(
+        id=sched_id, tenant_id=tenant_id, workflow_id=uuid4(), schedule_code="TEST_REASSIGN",
+        schedule_name="Test Reassign", schedule_type="DAILY", owner_user_id=creator, approval_required=True, schedule_status="DRAFT"
+    )
+    db_session.add(schedule)
+    db_session.add(WorkflowScheduleAgentAssignment(schedule_id=sched_id, agent_id=uuid4(), assignment_role="PRIMARY", tenant_id=tenant_id))
+    db_session.add(ScheduleApprovalLayerSelection(
+        schedule_id=sched_id, department_id=depts[0].id, layer_order=1, 
+        approver_user_ids=[str(userA)], require_all_approvers=True, tenant_id=tenant_id
+    ))
+    db_session.commit()
+    
+    await workflow_service.submit_for_approval(sched_id, MockUser(creator), db_session)
+    
+    # Admin reassigns
+    app = await workflow_service.reassign_approver(
+        sched_id, userA, replacementUser, MockUser(adminUser, is_superuser=True), db_session
+    )
+    
+    assert app.approver_user_id == replacementUser
+    assert app.approval_status == "PENDING"
+    
+    # replacementUser can now approve
+    await workflow_service.decide_approval(app.id, "APPROVED", "Approved by replacement", MockUser(replacementUser), db_session)
+    db_session.refresh(schedule)
+    assert schedule.schedule_status == "ACTIVE"

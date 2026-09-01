@@ -7,7 +7,7 @@ import * as registryService from "../../services/registry/registryService";
 import WizardShell from "../common/WizardShell";
 import styles from "./AddRelationshipModal.module.css";
 import { FieldInfo } from "../common/FieldInfo";
-import { Calendar, Clock, Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
+import { Calendar, Clock, Sparkles, ArrowRight } from "lucide-react";
 
 interface AddRelationshipModalProps {
   isOpen: boolean;

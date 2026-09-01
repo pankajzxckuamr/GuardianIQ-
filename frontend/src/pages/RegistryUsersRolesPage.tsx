@@ -50,7 +50,7 @@ export const RegistryUsersRolesPage: React.FC = () => {
     filters: userFilters, 
     setFilter: setUserFilter, 
     paginationProps: userPaginationProps 
-  } = useRegistryFilters("full_name");
+  } = useRegistryFilters("created_at", 10, "desc");
 
   const [userSearchTerm, setUserSearchTerm] = useState(userFilters.search);
 
@@ -66,7 +66,7 @@ export const RegistryUsersRolesPage: React.FC = () => {
     filters: roleFilters, 
     setFilter: setRoleFilter, 
     paginationProps: rolePaginationProps 
-  } = useRegistryFilters("role_name");
+  } = useRegistryFilters("created_at", 10, "desc");
 
   const [roleSearchTerm, setRoleSearchTerm] = useState(roleFilters.search);
 

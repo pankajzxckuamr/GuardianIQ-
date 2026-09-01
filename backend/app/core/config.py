@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     SCHEDULER_MAX_SCHEDULES_PER_CYCLE: int = 25
     SCHEDULER_WORKER_ID: str = "worker-node-1"
     LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "JSON"
+    # CORS configuration (comma-separated origins or *)
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173"
 
     class Config:
         env_file = ".env"

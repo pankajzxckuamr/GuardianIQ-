@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Wrench, Shield, CheckCircle2, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { Wrench } from "lucide-react";
 import serverClient from "../../services/shared/apiClient";
 import styles from "./ToolAccessTab.module.css";
 
@@ -20,7 +20,6 @@ interface ToolBinding {
 export const ToolAccessTab: React.FC<ToolAccessTabProps> = ({ agentId }) => {
   const [tools, setTools] = useState<ToolBinding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTools();
@@ -28,7 +27,6 @@ export const ToolAccessTab: React.FC<ToolAccessTabProps> = ({ agentId }) => {
 
   const loadTools = async () => {
     setLoading(true);
-    setError(null);
     try {
       const res = await serverClient.get<any>(
         `/api/registry/relationships?source_type=AGENT&source_id=${agentId}&relationship_type=USES_TOOL`

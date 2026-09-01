@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { runApi } from '../api/phase2Client';
 import { WorkflowRunResponse } from '../types/phase2';
 import { PageHeader } from '../components/common/PageHeader';
 import { RegistryDataTable } from '../components/common/RegistryDataTable';
@@ -8,7 +7,6 @@ import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
 import { ScreenGuide } from '../components/common/ScreenGuide';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../hooks/useToast';
 import { useWorkflowRuns, useCancelRun } from '../hooks/usePhase2Runs';
 import { AlertTriangle, RefreshCw, Eye, XCircle } from 'lucide-react';
 import styles from './phase2Shared.module.css';
@@ -46,7 +44,6 @@ const QUICK_FILTERS = [
 
 export const RunHistoryPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -54,7 +51,7 @@ export const RunHistoryPage: React.FC = () => {
   const canCancel = currentUser?.is_superuser || currentUser?.permissions?.includes('CANCEL_WORKFLOW_RUN');
 
   const page = parseInt(searchParams.get('page') || '1', 10);
-  const perPage = parseInt(searchParams.get('per_page') || '20', 10);
+  const perPage = parseInt(searchParams.get('per_page') || '10', 10);
   const triggerType = searchParams.get('trigger_type') || '';
   const searchQ = searchParams.get('search') || '';
   const quickFilter = searchParams.get('quick') || '';

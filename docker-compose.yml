@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Database Service (PostgreSQL 15)
+  # ============================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: guardianiq_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guardianiq
+      POSTGRES_USER: guardianiq_user
+      POSTGRES_PASSWORD: guardianiq_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/seed/GuardianIQ_Database_Backup.sql:/docker-entrypoint-initdb.d/01_backup.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guardianiq_user -d guardianiq"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardianiq_net
+
+  # ============================================================================
+  # Cache & Celery Message Broker (Redis)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: guardianiq_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardianiq_net
+
+  # ============================================================================
+  # Backend API Service (FastAPI)
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: guardianiq_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://guardianiq_user:guardianiq_password@db:5432/guardianiq
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: change_this_in_production_jwt_secret_key
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      SCHEDULER_ENABLED: "true"
+      PHASE2_SCHEDULER_ENABLED: "true"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost:80"
+      LOG_LEVEL: INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - guardianiq_net
+
+  # ============================================================================
+  # Background Worker / Scheduler Service
+  # ============================================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: guardianiq_worker
+    restart: unless-stopped
+    command: ["celery", "-A", "app.celery_app.celery_app", "worker", "--loglevel=INFO", "-c", "2"]
+    environment:
+      DATABASE_URL: postgresql://guardianiq_user:guardianiq_password@db:5432/guardianiq
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: change_this_in_production_jwt_secret_key
+      SCHEDULER_ENABLED: "true"
+      AUTO_MIGRATE: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - guardianiq_net
+
+  # ============================================================================
+  # Frontend Service (React SPA via Nginx)
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    container_name: guardianiq_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - guardianiq_net
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  guardianiq_net:
+    driver: bridge

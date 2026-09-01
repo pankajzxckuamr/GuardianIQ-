@@ -150,27 +150,50 @@ class WorkflowScheduleValidationService:
         if sched_type_str == "CRON":
             if not cron_expression:
                 errors.append(ValidationError("cron_expression", "cron_expression is required when schedule_type is CRON"))
-            elif not croniter.is_valid(cron_expression):
+            elif croniter and not croniter.is_valid(cron_expression):
                 errors.append(ValidationError("cron_expression", f"Invalid cron expression: {cron_expression}"))
 
-        # 4. Timezone validity via pytz
+        # 4. Timezone validity via pytz or zoneinfo
+        tz_obj = None
         if timezone:
-            try:
-                pytz.timezone(timezone)
-            except Exception:
-                errors.append(ValidationError("timezone", f"Invalid timezone: {timezone}"))
+            if pytz:
+                try:
+                    tz_obj = pytz.timezone(timezone)
+                except Exception:
+                    errors.append(ValidationError("timezone", f"Invalid timezone: {timezone}"))
+            else:
+                try:
+                    from zoneinfo import ZoneInfo
+                    tz_obj = ZoneInfo(timezone)
+                except Exception:
+                    errors.append(ValidationError("timezone", f"Invalid timezone: {timezone}"))
 
         # 4.5 start_at in future
         if start_at:
-            tz = pytz.timezone(timezone or "UTC")
-            now = datetime.now(tz)
+            if not tz_obj:
+                if pytz:
+                    tz_obj = pytz.UTC
+                else:
+                    from datetime import timezone as dt_tz
+                    tz_obj = dt_tz.utc
+            
+            now = datetime.now(tz_obj)
             start_dt = start_at
-            if start_dt.tzinfo is None:
-                start_dt = tz.localize(start_dt)
-            else:
-                start_dt = start_dt.astimezone(tz)
-            if start_dt < now:
-                errors.append(ValidationError("start_at", "start_at must be in the future"))
+            if isinstance(start_dt, str):
+                try:
+                    start_dt = datetime.fromisoformat(start_dt.replace('Z', '+00:00'))
+                except Exception:
+                    pass
+            if isinstance(start_dt, datetime):
+                if start_dt.tzinfo is None:
+                    if hasattr(tz_obj, 'localize'):
+                        start_dt = tz_obj.localize(start_dt)
+                    else:
+                        start_dt = start_dt.replace(tzinfo=tz_obj)
+                else:
+                    start_dt = start_dt.astimezone(tz_obj)
+                if start_dt < now:
+                    errors.append(ValidationError("start_at", "start_at must be in the future"))
 
         # 5. end_at > start_at
         if start_at and end_at:
@@ -185,11 +208,20 @@ class WorkflowScheduleValidationService:
             set_val(payload, "approval_required", True)
             approval_required = True
 
-        # 7. Require approval_group_id when approval_required=True
+        # 7. Require approval_group_id or approval_departments/layers when approval_required=True
         if approval_required:
-            if not approval_group_id:
-                errors.append(ValidationError("approval_group_id", "approval_group_id is required when approval_required is True"))
-            else:
+            approval_layers = get_val(payload, "approval_layers") or []
+            approval_departments = get_val(payload, "approval_departments") or []
+            has_layers_in_db = False
+            if not approval_group_id and not approval_departments and not approval_layers and schedule_id:
+                from app.modules.workflow_scheduler.models import ScheduleApprovalLayerSelection
+                layer_stmt = select(sa.func.count()).select_from(ScheduleApprovalLayerSelection).where(ScheduleApprovalLayerSelection.schedule_id == schedule_id)
+                layer_count = (await execute_statement(db, layer_stmt)).scalar() or 0
+                has_layers_in_db = layer_count > 0
+
+            if not approval_group_id and not approval_departments and not approval_layers and not has_layers_in_db:
+                errors.append(ValidationError("approval_group_id", "An approval group or at least one approval department layer is required when approval_required is True"))
+            elif approval_group_id:
                 try:
                     ag_id = UUID(str(approval_group_id)) if not isinstance(approval_group_id, UUID) else approval_group_id
                     group = await db_get(db, ApprovalGroup, ag_id)

@@ -21,7 +21,7 @@ from app.db.session import SessionLocal
 from app.modules.events.models import EventOutbox, EventDeadLetter, EventProcessingLog
 
 POLL_INTERVAL = int(os.getenv("OUTBOX_POLL_INTERVAL_SECONDS", 5))
-BATCH_SIZE = int(os.getenv("OUTBOX_BATCH_SIZE", 25))
+BATCH_SIZE = int(os.getenv("OUTBOX_BATCH_SIZE", 500))
 MAX_RETRIES = int(os.getenv("OUTBOX_MAX_RETRIES", 5))
 HEALTH_PORT = int(os.getenv("OUTBOX_DISPATCHER_HEALTH_PORT", 8082))
 ENABLED = os.getenv("OUTBOX_DISPATCHER_ENABLED", "true").lower() == "true"
@@ -48,12 +48,13 @@ class OutboxDispatcher:
         }
         print(json.dumps(log_entry), file=sys.stdout, flush=True)
 
-    def get_due_outbox_records(self, db: Session) -> List[EventOutbox]:
+    def get_due_outbox_records(self, db: Session, limit: Optional[int] = None) -> List[EventOutbox]:
         """
         Safely claim pending/failed outbox rows ready for dispatch across worker replicas.
         Uses FOR UPDATE SKIP LOCKED.
         """
         now = datetime.now(timezone.utc)
+        batch_limit = limit or BATCH_SIZE
         query = (
             db.query(EventOutbox)
             .filter(
@@ -63,7 +64,7 @@ class OutboxDispatcher:
             )
             .order_by(EventOutbox.created_at.asc())
             .with_for_update(skip_locked=True)
-            .limit(BATCH_SIZE)
+            .limit(batch_limit)
         )
         return query.all()
 
@@ -120,12 +121,12 @@ class OutboxDispatcher:
                 record.next_retry_at = now + timedelta(seconds=backoff_seconds)
                 self.log("DISPATCH_RETRY_SCHEDULED", record_id=str(record.id), next_retry_in=backoff_seconds, error=error_str)
 
-    def poll_and_dispatch(self) -> int:
+    def poll_and_dispatch(self, limit: Optional[int] = None) -> int:
         """Executes a single polling cycle over event_outbox within a DB session."""
         db = SessionLocal()
         count = 0
         try:
-            records = self.get_due_outbox_records(db)
+            records = self.get_due_outbox_records(db, limit=limit)
             count = len(records)
             if count > 0:
                 self.log("CYCLE_START", outbox_records_claimed=count)

@@ -21,7 +21,7 @@ def after_insert_listener(mapper, connection, target: GovernableMixin):
         insert(RegistryAuditEvent).values(
             event_type=f"{object_type}_CREATED",
             entity_type=object_type.lower(),
-            entity_id=target.id,
+            entity_id=str(target.id) if target.id else None,
             actor_user_id=actor_id,
             action="CREATED",
             event_metadata={
@@ -39,7 +39,7 @@ def after_update_listener(mapper, connection, target: GovernableMixin):
         insert(RegistryAuditEvent).values(
             event_type=f"{object_type}_UPDATED",
             entity_type=object_type.lower(),
-            entity_id=target.id,
+            entity_id=str(target.id) if target.id else None,
             actor_user_id=actor_id,
             action="UPDATED",
             event_metadata={

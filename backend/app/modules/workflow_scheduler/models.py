@@ -54,8 +54,9 @@ class Phase2WorkflowSchedule(Base, WorkflowBaseMixin):
         cascade="all, delete-orphan"
     )
     runs = relationship("WorkflowRun", back_populates="schedule")
-    approvals = relationship("WorkflowScheduleApproval", back_populates="schedule")
-    history = relationship("WorkflowScheduleHistory", back_populates="schedule")
+    approvals = relationship("WorkflowScheduleApproval", back_populates="schedule", cascade="all, delete-orphan")
+    history = relationship("WorkflowScheduleHistory", back_populates="schedule", cascade="all, delete-orphan")
+    layer_selections = relationship("ScheduleApprovalLayerSelection", back_populates="schedule", cascade="all, delete-orphan")
 
 
 class WorkflowScheduleAgentAssignment(Base, WorkflowBaseMixin):
@@ -86,8 +87,10 @@ class ScheduleApprovalLayerSelection(Base, WorkflowBaseMixin):
     schedule_id = Column(UUID(as_uuid=True), ForeignKey("workflow_schedules.id", ondelete="CASCADE"), nullable=False)
     department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
     layer_order = Column(Integer, nullable=False)
+    approver_user_ids = Column(JSONB, server_default="[]", nullable=True, default=list)
+    require_all_approvers = Column(Boolean, server_default="TRUE", nullable=True, default=True)
 
-    schedule = relationship("Phase2WorkflowSchedule")
+    schedule = relationship("Phase2WorkflowSchedule", back_populates="layer_selections")
     department = relationship("Department")
 
 

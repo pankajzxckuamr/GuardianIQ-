@@ -26,7 +26,7 @@ def make_envelope(success: bool, data: any, error: str | None, request_id: str) 
 async def list_notifications(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     status: str | None = None,
     notification_type: str | None = None,
     severity: str | None = None,

@@ -13,7 +13,11 @@ export interface RegistryFilters {
   [key: string]: any;
 }
 
-export function useRegistryFilters(defaultSortBy = "", defaultPageSize = 10) {
+export function useRegistryFilters(
+  defaultSortBy = "created_at",
+  defaultPageSize = 10,
+  defaultSortDir: "asc" | "desc" = "desc"
+) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo((): RegistryFilters => {
@@ -25,7 +29,7 @@ export function useRegistryFilters(defaultSortBy = "", defaultPageSize = 10) {
     const pageSize = pageSizeVal ? parseInt(pageSizeVal, 10) || defaultPageSize : defaultPageSize;
     const sortBy = searchParams.get("sortBy") || defaultSortBy;
     const sortDirVal = searchParams.get("sortDir");
-    const sortDir = sortDirVal === "desc" ? "desc" : "asc";
+    const sortDir = (sortDirVal as "asc" | "desc") || defaultSortDir;
 
     // Grab any other query params dynamically
     const extraParams: Record<string, string> = {};
@@ -44,7 +48,7 @@ export function useRegistryFilters(defaultSortBy = "", defaultPageSize = 10) {
       sortDir,
       ...extraParams
     };
-  }, [searchParams, defaultSortBy, defaultPageSize]);
+  }, [searchParams, defaultSortBy, defaultPageSize, defaultSortDir]);
 
   const setFilter = useCallback((key: string, value: any) => {
     setSearchParams((prev) => {

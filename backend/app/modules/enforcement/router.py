@@ -80,7 +80,7 @@ def simulate_enforcement(
     )
 
     engine = RuntimeEnforcementEngine(db)
-    response = engine.enforce(governed_req, tenant_id)
+    response = engine.enforce(governed_req, tenant_id, timeout_ms=2000)
 
     # Compute remediation hints for non-ALLOW outcomes
     trace_steps = response.trace.get("steps", []) if isinstance(response.trace, dict) else []

@@ -4,11 +4,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/common/PageHeader";
 import { Card } from "../components/common/Card";
 import { Button } from "../components/common/Button";
-import { Badge } from "../components/common/Badge";
 import { AuditTimelinePanel } from "../components/phase2/AuditTimelinePanel";
 import { EventDrawer, GovernanceEventData } from "../components/common/EventDrawer";
 import { fetchSubjectTimeline } from "../services/audit/auditService";
-import { ArrowLeft, RefreshCw, Layers, ShieldCheck, AlertTriangle } from "lucide-react";
+import { ArrowLeft, RefreshCw, ShieldCheck, AlertTriangle } from "lucide-react";
 
 export const SubjectTimelinePage: React.FC = () => {
   const { entityType, entityId } = useParams<{ entityType: string; entityId: string }>();

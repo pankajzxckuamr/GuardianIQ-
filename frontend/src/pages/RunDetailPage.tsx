@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { PageHeader } from '../components/common/PageHeader';
 import { RiskBadge } from '../components/common/RiskBadge';
 import { Button } from '../components/common/Button';
 import { RunTimeline } from '../components/phase2/RunTimeline';
@@ -139,7 +140,7 @@ export const RunDetailPage: React.FC = () => {
           <div className={styles.detailCard}>
             <h3 className={styles.subHeading} style={{ padding: '20px 24px 0', margin: 0 }}>Run Outputs</h3>
             <div style={{ padding: '24px' }}>
-              <RunOutputViewer outputs={outputs} canViewRaw={canViewOutput} error={outputError} />
+              <RunOutputViewer outputs={outputs} canViewRaw={!!canViewOutput} error={outputError} />
             </div>
           </div>
         </div>

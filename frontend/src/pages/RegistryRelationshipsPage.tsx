@@ -6,7 +6,7 @@ import { RelationshipViewer } from "../components/registry/RelationshipViewer";
 import { RegistryDataTable } from "../components/common/RegistryDataTable";
 import { Badge } from "../components/common/Badge";
 import * as registryService from "../services/registry/registryService";
-import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2, CheckCircle, PlayCircle, PauseCircle, Trash2, AlertTriangle, ShieldAlert, ShieldCheck, Zap, Activity, Layers, Users, Eye, LayoutGrid } from "lucide-react";
+import { Brain, Cpu, Plug, GitBranch, Database, Building2, Network, List, Share2, CheckCircle, PlayCircle, PauseCircle, Trash2, AlertTriangle, ShieldAlert, ShieldCheck, Zap, Activity, Layers, Users, LayoutGrid } from "lucide-react";
 import { useRegistryFilters } from "../hooks/useRegistryFilters";
 import { useToast } from "../hooks/useToast";
 import { useAuth } from "../hooks/useAuth";
@@ -25,7 +25,7 @@ export const RegistryRelationshipsPage: React.FC = () => {
   const { currentUser } = useAuth();
   
   // Filters & State mapping
-  const { filters, setFilter, resetFilters, paginationProps } = useRegistryFilters("created_at", 20);
+  const { filters, setFilter, resetFilters, paginationProps } = useRegistryFilters("created_at");
   const [searchTerm, setSearchTerm] = useState(filters.search || "");
   const [relationships, setRelationships] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(false);

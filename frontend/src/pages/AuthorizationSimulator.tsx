@@ -32,8 +32,29 @@ export const AuthorizationSimulator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
+  // Fetch real registered agents for subject selection
+  const [agents, setAgents] = useState<any[]>([]);
+  const [isCustomSubject, setIsCustomSubject] = useState(false);
+
   useEffect(() => {
     document.title = 'Authorization Simulator — GuardianIQ';
+    const fetchAgents = async () => {
+      try {
+        const token = storage.get<string>('guardianiq_access_token');
+        const res = await fetch('/api/v1/registry/agents?per_page=100', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json();
+        const items = Array.isArray(json.data) ? json.data : (json.data?.items || []);
+        setAgents(items);
+        if (subjectType === 'AGENT' && items.length > 0 && !subjectId) {
+          setSubjectId(items[0].id);
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    };
+    fetchAgents();
   }, []);
 
   const getPayload = () => {
@@ -133,14 +154,54 @@ export const AuthorizationSimulator: React.FC = () => {
             <div className={styles.fieldStack}>
               <div>
                 <label className={styles.smallLabel}>Type</label>
-                <select className={styles.formControl} value={subjectType} onChange={e => setSubjectType(e.target.value)}>
+                <select className={styles.formControl} value={subjectType} onChange={e => {
+                  setSubjectType(e.target.value);
+                  setIsCustomSubject(false);
+                  if (e.target.value === 'AGENT' && agents.length > 0) {
+                    setSubjectId(agents[0].id);
+                  } else {
+                    setSubjectId('');
+                  }
+                }}>
                   <option value="USER">User</option>
                   <option value="AGENT">AI Agent</option>
                 </select>
               </div>
               <div>
-                <label className={styles.smallLabel}>ID / Search</label>
-                <input className={styles.formControl} type="text" value={subjectId} onChange={e => setSubjectId(e.target.value)} placeholder={`Enter ${subjectType} ID`} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className={styles.smallLabel}>Target Subject</label>
+                  {subjectType === 'AGENT' && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomSubject(!isCustomSubject)}
+                      style={{ background: 'transparent', border: 'none', color: '#818cf8', fontSize: '0.7rem', cursor: 'pointer' }}
+                    >
+                      {isCustomSubject ? 'Select from Registry' : 'Enter Custom UUID'}
+                    </button>
+                  )}
+                </div>
+                {subjectType === 'AGENT' && !isCustomSubject ? (
+                  <select
+                    className={styles.formControl}
+                    value={subjectId}
+                    onChange={e => setSubjectId(e.target.value)}
+                  >
+                    <option value="" disabled>Select an AI Agent...</option>
+                    {agents.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.agent_name} ({a.risk_level || 'MEDIUM'})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={styles.formControl}
+                    type="text"
+                    value={subjectId}
+                    onChange={e => setSubjectId(e.target.value)}
+                    placeholder={`Enter ${subjectType === 'USER' ? 'User ID or Email' : 'Agent UUID'}...`}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -159,8 +220,8 @@ export const AuthorizationSimulator: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className={styles.smallLabel}>ID / Search</label>
-                <input className={styles.formControl} type="text" value={objectId} onChange={e => setObjectId(e.target.value)} placeholder={`Enter ${objectType} ID`} />
+                <label className={styles.smallLabel}>Object Target ID</label>
+                <input className={styles.formControl} type="text" value={objectId} onChange={e => setObjectId(e.target.value)} placeholder={`Enter ${objectType} UUID or identifier...`} />
               </div>
             </div>
           </div>

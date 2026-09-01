@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Shield, Sliders, AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { KillSwitchControl } from "./KillSwitchControl";
 import serverClient from "../../services/shared/apiClient";
 import styles from "./AutonomyLimitsTab.module.css";

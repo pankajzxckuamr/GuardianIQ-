@@ -10,7 +10,6 @@ interface KillSwitchControlProps {
 }
 
 export const KillSwitchControl: React.FC<KillSwitchControlProps> = ({
-  agentId,
   isEngaged,
   onToggle,
   disabled = false,

@@ -127,31 +127,32 @@ class ValidationEngine:
         visited = set()
         to_visit = [(target_type, target_id)]
 
+        from app.modules.relationship.constants import canonicalize_entity_type
         while to_visit:
             curr_type, curr_id = to_visit.pop(0)
-            if (curr_type, curr_id) in visited:
+            canon_type = canonicalize_entity_type(curr_type)
+            if (canon_type, curr_id) in visited:
                 continue
-            visited.add((curr_type, curr_id))
+            visited.add((canon_type, curr_id))
 
-            if curr_type == source_type and str(curr_id) == str(source_id):
+            if canon_type == source_type and str(curr_id) == str(source_id):
                 return True
 
             sql = """
-                SELECT target_type, target_id FROM generic_relationships 
+                SELECT target_type, target_id, source_type FROM generic_relationships 
                 WHERE tenant_id = :tenant_id 
-                  AND source_type = :source_type 
                   AND source_id = :source_id 
-                  AND relationship_type = 'OWNED_BY' 
-                  AND status = 'ACTIVE'
+                  AND UPPER(relationship_type) = 'OWNED_BY' 
+                  AND status IN ('ACTIVE', 'PROPOSED', 'PENDING_APPROVAL')
             """
             try:
                 res = self.db.execute(text(sql), {
                     "tenant_id": self.tenant_id,
-                    "source_type": curr_type,
                     "source_id": curr_id
                 }).all()
                 for row in res:
-                    to_visit.append((row[0], row[1]))
+                    if canonicalize_entity_type(row[2]) == canon_type:
+                        to_visit.append((canonicalize_entity_type(row[0]), row[1]))
             except Exception:
                 pass
         return False
@@ -315,7 +316,7 @@ class ValidationEngine:
         normalized_target = target_type.lower() if target_type else ""
         rel_type_upper = (relationship_type or "").upper()
         if normalized_source in {"agent", "ai_agent", "agents"} and normalized_target in {"tool", "tools"}:
-            if rel_type_upper not in {"USES_TOOL", "USES"}:
+            if rel_type_upper != "USES_TOOL":
                 results.append(ValidationResult(
                     rule_id="REL-VAL-017",
                     status="FAIL",

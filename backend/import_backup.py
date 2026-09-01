@@ -3,7 +3,11 @@ import sys
 from sqlalchemy import text
 from app.db.session import SessionLocal
 
-SQL_FILE = r"D:\GuardianIQ--1\database\seed\GuardianIQ_Database_Backup.sql"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SQL_FILE = os.getenv(
+    "BACKUP_SQL_PATH",
+    os.path.join(BASE_DIR, "database", "seed", "GuardianIQ_Database_Backup.sql")
+)
 
 def run_import():
     if not os.path.exists(SQL_FILE):

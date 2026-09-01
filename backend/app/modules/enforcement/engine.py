@@ -22,6 +22,10 @@ from app.modules.agent_boundary.model_guard import ModelProviderGuard
 from app.modules.agent_boundary.models import RuntimeAuthorization, RuntimeEnforcementLog
 
 
+from app.modules.agent.models import Agent
+from app.modules.registry.models import Tool
+
+
 class RuntimeEnforcementEngine:
     """
     Enterprise Unified Runtime Enforcement Engine.
@@ -45,7 +49,7 @@ class RuntimeEnforcementEngine:
         request: GovernedRuntimeRequest,
         tenant_id: UUID,
         as_of: Optional[datetime] = None,
-        timeout_ms: int = 500,
+        timeout_ms: int = 2000,
     ) -> GovernedRuntimeResponse:
         start_time = time.perf_counter()
         now = as_of or datetime.now(timezone.utc)
@@ -64,14 +68,43 @@ class RuntimeEnforcementEngine:
             except Exception:
                 pass
 
+        # ---------------------------------------------------------------------
+        # LAYER 1: Context Normalization & DB Enrichment
+        # ---------------------------------------------------------------------
+        if agent_uuid and request.agent:
+            db_agent = self.db.query(Agent).filter(Agent.id == agent_uuid, Agent.tenant_id == tenant_id).first()
+            if db_agent:
+                if not request.agent.agent_name:
+                    request.agent.agent_name = db_agent.agent_name
+                if not request.agent.risk_level:
+                    request.agent.risk_level = db_agent.risk_level
+                if not request.agent.agent_type:
+                    request.agent.agent_type = db_agent.agent_type
+
+        if request.tool and request.tool.tool_id:
+            try:
+                tool_uuid = UUID(request.tool.tool_id)
+                db_tool = self.db.query(Tool).filter(Tool.id == tool_uuid, Tool.tenant_id == tenant_id).first()
+                if db_tool:
+                    if not request.tool.tool_name:
+                        request.tool.tool_name = db_tool.tool_name
+                    if not request.tool.access_mode:
+                        request.tool.access_mode = db_tool.access_mode
+            except Exception:
+                pass
+
         try:
             # ---------------------------------------------------------------------
             # LAYER 2A: Agent Runtime Boundary Evaluation
             # ---------------------------------------------------------------------
             if agent_uuid:
+                acc_mode = None
+                if request.tool and request.tool.access_mode:
+                    acc_mode = getattr(request.tool.access_mode, "value", str(request.tool.access_mode))
+
                 boundary_ctx = {
-                    "autonomy_level": request.agent.autonomy_level if request.agent else None,
-                    "access_mode": request.tool.access_mode.value if (request.tool and request.tool.access_mode) else None,
+                    "autonomy_level": getattr(request.agent.autonomy_level, "value", str(request.agent.autonomy_level)) if (request.agent and request.agent.autonomy_level) else None,
+                    "access_mode": acc_mode,
                     "spawn_sub_agent": request.facts.get("spawn_sub_agent", False),
                     "transaction_amount": request.facts.get("transaction_amount"),
                     "environment": request.facts.get("environment"),

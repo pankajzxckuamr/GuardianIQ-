@@ -29,7 +29,7 @@ const formatDate = (dateStr: string) => {
 
 export const RegistryDepartmentsPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const { filters, setFilter, paginationProps } = useRegistryFilters("department_name");
+  const { filters, setFilter, paginationProps } = useRegistryFilters("created_at", 10, "desc");
   const [searchParams, setSearchParams] = useSearchParams();
   const viewId = searchParams.get("view");
 

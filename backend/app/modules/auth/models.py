@@ -7,7 +7,8 @@ from sqlalchemy import (
     Table,
     TIMESTAMP,
     text,
-    event
+    event,
+    func
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -46,8 +47,8 @@ class User(Base):
     approval_limit_level = Column(String(50), nullable=True)
     status = Column(String(30), nullable=False, default='ACTIVE')
     
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
-    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     roles = relationship(
         "Role",

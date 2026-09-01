@@ -27,7 +27,7 @@ const cleanOwnerName = (name: string | undefined | null) => {
 
 export const RegistryToolsPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const { filters, setFilter, paginationProps } = useRegistryFilters("tool_name");
+  const { filters, setFilter, paginationProps } = useRegistryFilters("created_at", 10, "desc");
   const [searchParams, setSearchParams] = useSearchParams();
   const viewId = searchParams.get("view");
 

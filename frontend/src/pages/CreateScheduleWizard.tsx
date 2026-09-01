@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import WizardShell from '../components/common/WizardShell';
-import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { scheduleApi } from '../api/phase2Client';
 import { ApprovalRequirementBanner } from '../components/phase2/ApprovalRequirementBanner';
@@ -35,7 +34,6 @@ const steps = [
 ];
 
 export const CreateScheduleWizard: React.FC = () => {
-  const { currentUser } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -64,6 +62,7 @@ export const CreateScheduleWizard: React.FC = () => {
     owner_user_id: '',
     reviewer_user_id: '',
     approval_departments: [],
+    approval_layers: {},
     risk_level: 'LOW',
     sla_hours: '',
     notification_recipients_json: [],
@@ -75,7 +74,7 @@ export const CreateScheduleWizard: React.FC = () => {
   const [tools, setTools] = useState<any[]>([]);
   const [dataSources, setDataSources] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [approvalGroups, setApprovalGroups] = useState<any[]>([]);
+  const [deptUsersMap, setDeptUsersMap] = useState<Record<string, any[]>>({});
 
   const selectedWorkflow = workflows.find(w => w.id === formData.workflow_id);
   const selectedAgent = agents.find(a => a.id === formData.agent_id);
@@ -86,11 +85,13 @@ export const CreateScheduleWizard: React.FC = () => {
     return formData.allowed_tools_json.some((entry: string) => entry === code || entry === t.id)
       && ['WRITE', 'EXECUTE', 'ADMIN'].includes(mode);
   });
-  const isApprovalRequired = formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL' || hasWriteTool;
+  const hasApprovalDepts = Boolean(formData.approval_departments && formData.approval_departments.length > 0);
+  const isApprovalRequired = formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL' || hasWriteTool || hasApprovalDepts || Boolean(formData.approval_group_id);
 
   const approvalReasons: string[] = [];
   if (hasWriteTool) approvalReasons.push('Write-capable tool selected requires Governance Board approval');
   if (formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL') approvalReasons.push(`Risk level is ${formData.risk_level}`);
+  if (hasApprovalDepts) approvalReasons.push(`Approval department layers selected (${formData.approval_departments.map((c: string) => DEPARTMENTS.find(d => d.code === c)?.label || c).join(', ')})`);
 
   const [cronError, setCronError] = useState('');
   const [backendErrors, setBackendErrors] = useState<any>({});
@@ -116,6 +117,16 @@ export const CreateScheduleWizard: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
+  // Load department users for all 5 approval departments
+  useEffect(() => {
+    DEPARTMENTS.forEach(dept => {
+      scheduleApi.getDepartmentUsers(dept.code).then((res: any) => {
+        const list = res?.data || res || [];
+        setDeptUsersMap(prev => ({ ...prev, [dept.code]: Array.isArray(list) ? list : [] }));
+      }).catch(() => {});
+    });
+  }, []);
+
   useEffect(() => {
     fetchWithAuth('/api/registry/workflows?per_page=100').then(setWorkflows).catch(() => {});
     fetchWithAuth('/api/registry/agents?per_page=100').then(setAgents).catch(() => {});
@@ -123,18 +134,28 @@ export const CreateScheduleWizard: React.FC = () => {
     fetchWithAuth('/api/registry/tools?per_page=100').then(setTools).catch(() => {});
     fetchWithAuth('/api/registry/data-sources?per_page=100').then(setDataSources).catch(() => {});
     fetchWithAuth('/api/registry/users/lookup').then(setUsers).catch(() => {});
-    fetchWithAuth('/api/v1/approval-groups').then(setApprovalGroups).catch(() => {});
 
     if (id) {
       scheduleApi.getById(id)
         .then((res: any) => {
-          const sched = res.data || res;
-          if (sched.schedule_status !== 'DRAFT') {
+          const sched = res.data?.schedule || res.schedule || res.data || res;
+          if (!sched || sched.schedule_status !== 'DRAFT') {
             showToast('Only DRAFT schedules can be edited.', 'error');
             navigate(`/workflow-scheduler/${id}`);
             return;
           }
-          const aa = sched.agent_assignments?.[0] || {};
+          const aa = sched.agent_assignments?.[0] || sched.assignments?.[0] || {};
+          const layersObj: Record<string, any> = {};
+          if (Array.isArray(sched.approval_layers)) {
+            sched.approval_layers.forEach((l: any) => {
+              if (l.department_code) {
+                layersObj[l.department_code] = {
+                  approver_user_ids: l.approver_user_ids || [],
+                  require_all_approvers: l.require_all_approvers !== false
+                };
+              }
+            });
+          }
           setFormData({
             workflow_id: sched.workflow_id || '',
             schedule_name: sched.schedule_name || '',
@@ -142,25 +163,28 @@ export const CreateScheduleWizard: React.FC = () => {
             agent_id: aa.agent_id || '',
             model_id: aa.model_id || '',
             execution_mode: aa.execution_mode || 'READ_ONLY',
-            confidence_threshold: aa.confidence_threshold || 80,
-            allowed_tools_json: aa.allowed_tools_json || [],
-            allowed_data_sources_json: aa.allowed_data_sources_json || [],
-            blocked_operations_json: aa.blocked_operations_json || [],
+            confidence_threshold: aa.confidence_threshold !== undefined && aa.confidence_threshold !== null ? aa.confidence_threshold : 80,
+            allowed_tools_json: aa.allowed_tools || aa.allowed_tools_json || [],
+            allowed_data_sources_json: aa.allowed_data_sources || aa.allowed_data_sources_json || [],
+            blocked_operations_json: aa.blocked_operations || aa.blocked_operations_json || [],
             max_records: sched.metadata_json?.max_records || 100,
             max_runtime_seconds: sched.max_runtime_seconds || 3600,
             schedule_type: sched.schedule_type || 'MANUAL',
             cron_expression: sched.cron_expression || '',
-            timezone: sched.timezone || 'UTC',
-            start_at: sched.start_at || '',
-            end_at: sched.end_at || '',
+            timezone: sched.timezone || 'Asia/Kolkata',
+            start_at: sched.start_at ? sched.start_at.substring(0, 16) : '',
+            end_at: sched.end_at ? sched.end_at.substring(0, 16) : '',
             concurrency_policy: sched.concurrency_policy || 'SKIP_IF_RUNNING',
-            retry_policy_json: sched.retry_policy_json || { max_retries: 0, retry_delay_seconds: 60 },
+            retry_policy_json: sched.retry_policy || sched.retry_policy_json || { max_retries: 0, retry_delay_seconds: 60 },
             owner_user_id: sched.owner_user_id || '',
+            owner_department_id: sched.owner_department_id || '',
+            approval_group_id: sched.approval_group_id || '',
             reviewer_user_id: sched.metadata_json?.reviewer_user_id || '',
             approval_departments: sched.approval_departments || [],
+            approval_layers: layersObj,
             risk_level: sched.risk_level || 'LOW',
             sla_hours: sched.metadata_json?.sla_hours || '',
-            notification_recipients_json: sched.metadata_json?.notification_recipients_json || [],
+            notification_recipients_json: sched.metadata_json?.notification_recipients || sched.metadata_json?.notification_recipients_json || [],
           });
         })
         .catch(() => showToast('Failed to load schedule for editing', 'error'));
@@ -293,10 +317,33 @@ export const CreateScheduleWizard: React.FC = () => {
         newErrors.owner_user_id = 'Owner User is required.';
         isValid = false;
       }
-      if (isApprovalRequired && !formData.approval_group_id) {
-        newErrors.approval_group_id = 'Approval Group is required due to risk level or write-capable tools.';
+      if (isApprovalRequired && !formData.approval_group_id && (!formData.approval_departments || formData.approval_departments.length === 0)) {
+        newErrors.approval_departments = 'At least one approval department is required when approval is needed.';
         isValid = false;
       }
+
+      // Check user selection and self-approval for each department
+      if (formData.approval_departments && formData.approval_departments.length > 0) {
+        for (const code of formData.approval_departments) {
+          const deptLabel = DEPARTMENTS.find(d => d.code === code)?.label || code;
+          const layerData = formData.approval_layers?.[code] || {};
+          const assignedUsers = layerData.approver_user_ids || deptUsersMap[code]?.map((u: any) => u.id) || [];
+          
+          if (assignedUsers.length === 0) {
+            newErrors.approval_departments = `Please select at least one approver user for ${deptLabel}.`;
+            isValid = false;
+            break;
+          }
+
+          // Self-approval guard
+          if (formData.owner_user_id && assignedUsers.length === 1 && String(assignedUsers[0]) === String(formData.owner_user_id)) {
+            newErrors.approval_departments = `Self-approval violation: You cannot be the sole approver for ${deptLabel}.`;
+            isValid = false;
+            break;
+          }
+        }
+      }
+
       if ((formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL') && (!formData.sla_hours || formData.sla_hours <= 0)) {
         newErrors.sla_hours = 'SLA Hours is required and must be greater than 0 for HIGH/CRITICAL risk levels.';
         isValid = false;
@@ -316,7 +363,8 @@ export const CreateScheduleWizard: React.FC = () => {
         try {
           const res: any = await scheduleApi.validateUniqueness({
             schedule_name: formData.schedule_name,
-            schedule_code: formData.schedule_code || undefined
+            schedule_code: formData.schedule_code || undefined,
+            schedule_id: id || undefined
           });
           if (!res.valid) {
             setBackendErrors(res.errors);
@@ -346,6 +394,18 @@ export const CreateScheduleWizard: React.FC = () => {
       requires_human_approval_for_high_risk: formData.risk_level === 'HIGH' || formData.risk_level === 'CRITICAL'
     };
 
+    const approval_layers = (formData.approval_departments || []).map((code: string) => {
+      const layerData = formData.approval_layers?.[code] || {};
+      const defaultUsers = deptUsersMap[code]?.map((u: any) => u.id) || [];
+      return {
+        department_code: code,
+        approver_user_ids: layerData.approver_user_ids !== undefined && layerData.approver_user_ids !== null && layerData.approver_user_ids.length > 0 
+          ? layerData.approver_user_ids 
+          : defaultUsers,
+        require_all_approvers: layerData.require_all_approvers !== false
+      };
+    });
+
     const payload: any = {
       workflow_id: formData.workflow_id || null,
       schedule_code: formData.schedule_code || null,
@@ -357,6 +417,8 @@ export const CreateScheduleWizard: React.FC = () => {
       retry_policy: formData.retry_policy_json || { max_retries: 0, retry_delay_seconds: 60 },
       owner_user_id: formData.owner_user_id || null,
       approval_required: isApprovalRequired,
+      approval_departments: formData.approval_departments || [],
+      approval_layers: approval_layers,
       schedule_status: status,
       metadata_json: {
         notification_recipients: formData.notification_recipients_json || []
@@ -643,34 +705,162 @@ export const CreateScheduleWizard: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className={styles.fieldLabel}>Approval Departments {isApprovalRequired && <span className={styles.req}>*</span>}</label>
-              <div className={styles.checkboxGroup} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-                {DEPARTMENTS.map(dept => {
+              <label className={styles.fieldLabel}>Approval Departments &amp; Approver Sign-offs {isApprovalRequired && <span className={styles.req}>*</span>}</label>
+              <p className={styles.subText} style={{ marginBottom: '12px' }}>
+                Select required department governance layers, choose specific authorized approvers, and configure consensus quorum rules.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                {DEPARTMENTS.map((dept, index) => {
                   const isSelected = formData.approval_departments.includes(dept.code);
+                  const deptUsers = deptUsersMap[dept.code] || [];
+                  const layerConfig = formData.approval_layers?.[dept.code] || {
+                    approver_user_ids: deptUsers.map((u: any) => u.id),
+                    require_all_approvers: true
+                  };
+                  const selectedUserIds: string[] = layerConfig.approver_user_ids !== undefined && layerConfig.approver_user_ids !== null
+                    ? layerConfig.approver_user_ids 
+                    : deptUsers.map((u: any) => u.id);
+                  const requireAll: boolean = layerConfig.require_all_approvers !== false;
+
                   return (
-                    <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected}
-                        onChange={(e) => {
-                          let newSelection;
-                          if (e.target.checked) {
-                            newSelection = [...formData.approval_departments, dept.code];
-                          } else {
-                            newSelection = formData.approval_departments.filter((c: string) => c !== dept.code);
-                          }
-                          newSelection.sort((a, b) => 
-                            DEPARTMENTS.findIndex(d => d.code === a) - DEPARTMENTS.findIndex(d => d.code === b)
-                          );
-                          handleChange('approval_departments', newSelection);
-                        }}
-                      />
-                      {dept.label}
-                    </label>
+                    <div 
+                      key={dept.code} 
+                      style={{ 
+                        border: isSelected ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '8px',
+                        padding: '12px 16px',
+                        background: isSelected ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '0.95rem' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={(e) => {
+                            let newSelection;
+                            if (e.target.checked) {
+                              newSelection = [...formData.approval_departments, dept.code];
+                              const defaultUids = deptUsers.map((u: any) => u.id);
+                              handleChange('approval_layers', {
+                                ...(formData.approval_layers || {}),
+                                [dept.code]: { approver_user_ids: defaultUids, require_all_approvers: true }
+                              });
+                            } else {
+                              newSelection = formData.approval_departments.filter((c: string) => c !== dept.code);
+                            }
+                            newSelection.sort((a: string, b: string) => 
+                              DEPARTMENTS.findIndex(d => d.code === a) - DEPARTMENTS.findIndex(d => d.code === b)
+                            );
+                            handleChange('approval_departments', newSelection);
+                          }}
+                        />
+                        <span>{dept.label} <span style={{ fontSize: '0.8rem', color: '#9ca3af', fontWeight: 400 }}>(Layer {index + 1})</span></span>
+                      </label>
+
+                      {isSelected && (
+                        <div style={{ marginTop: '12px', paddingLeft: '28px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: '8px', color: '#e5e7eb' }}>
+                            Designated Approvers ({dept.label}):
+                          </div>
+                          {deptUsers.length === 0 ? (
+                            <div style={{ fontSize: '0.8rem', color: '#f87171' }}>No users assigned to this department yet.</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                              {deptUsers.map((u: any) => {
+                                const isUserChecked = selectedUserIds.includes(u.id);
+                                return (
+                                  <label 
+                                    key={u.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      border: isUserChecked ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.15)',
+                                      background: isUserChecked ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                                      cursor: 'pointer',
+                                      fontSize: '0.82rem'
+                                    }}
+                                  >
+                                    <input 
+                                      type="checkbox"
+                                      checked={isUserChecked}
+                                      onChange={(e) => {
+                                        let nextUids;
+                                        if (e.target.checked) {
+                                          nextUids = [...selectedUserIds, u.id];
+                                        } else {
+                                          nextUids = selectedUserIds.filter(id => id !== u.id);
+                                        }
+                                        handleChange('approval_layers', {
+                                          ...(formData.approval_layers || {}),
+                                          [dept.code]: {
+                                            ...(formData.approval_layers?.[dept.code] || {}),
+                                            approver_user_ids: nextUids,
+                                            require_all_approvers: requireAll
+                                          }
+                                        });
+                                      }}
+                                    />
+                                    <span>{u.name} <span style={{ opacity: 0.7 }}>({u.email})</span></span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {selectedUserIds.length >= 2 && (
+                            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '6px', fontSize: '0.82rem', marginTop: '6px' }}>
+                              <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>Consensus Rule:</span>
+                              <div style={{ display: 'flex', gap: '16px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                  <input 
+                                    type="radio" 
+                                    name={`quorum_${dept.code}`}
+                                    checked={requireAll}
+                                    onChange={() => {
+                                      handleChange('approval_layers', {
+                                        ...(formData.approval_layers || {}),
+                                        [dept.code]: {
+                                          ...(formData.approval_layers?.[dept.code] || {}),
+                                          approver_user_ids: selectedUserIds,
+                                          require_all_approvers: true
+                                        }
+                                      });
+                                    }}
+                                  />
+                                  Require All Approvers (Unanimous)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                  <input 
+                                    type="radio" 
+                                    name={`quorum_${dept.code}`}
+                                    checked={!requireAll}
+                                    onChange={() => {
+                                      handleChange('approval_layers', {
+                                        ...(formData.approval_layers || {}),
+                                        [dept.code]: {
+                                          ...(formData.approval_layers?.[dept.code] || {}),
+                                          approver_user_ids: selectedUserIds,
+                                          require_all_approvers: false
+                                        }
+                                      });
+                                    }}
+                                  />
+                                  Any Single Approver (First Responder)
+                                </label>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
-              {backendErrors.approval_departments && <span className={styles.errorText}>{backendErrors.approval_departments}</span>}
+              {backendErrors.approval_departments && <span className={styles.errorText} style={{ display: 'block', marginTop: '6px' }}>{backendErrors.approval_departments}</span>}
             </div>
             <div>
               <label className={styles.fieldLabel}>Risk Level</label>

@@ -266,11 +266,14 @@ export const ExecutionDashboardPage: React.FC = () => {
   const { showToast } = useToast();
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState<number>(1);
+  const pageSize = 10;
 
   // Monitor Modal state
   const [selectedExecution, setSelectedExecution] = useState<WorkflowExecution | null>(null);
   const [details, setDetails] = useState<ExecutionDetails | null>(null);
   const [workflowSteps, setWorkflowSteps] = useState<any[]>([]);
+  const [isStepsLoading, setIsStepsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -304,34 +307,89 @@ export const ExecutionDashboardPage: React.FC = () => {
     if (!selectedExecution) {
       setDetails(null);
       setWorkflowSteps([]);
+      setIsStepsLoading(false);
       return;
     }
 
+    let isInitial = true;
     const fetchDetails = async () => {
+      if (isInitial) setIsStepsLoading(true);
       try {
         const detailsData = await orchestrationService.getExecutionDetails(selectedExecution.id);
         setDetails(detailsData);
 
         // Fetch workflow details to build visual steps
         const wfRes = await registryService.getWorkflow(selectedExecution.workflow_id);
-        if (wfRes.data?.steps_json) {
-          let steps = wfRes.data.steps_json;
-          if (typeof steps === 'string') {
-            try {
-              steps = JSON.parse(steps);
-            } catch {
-              steps = [];
-            }
+        let rawSteps = wfRes.data?.steps_json;
+        if (typeof rawSteps === 'string') {
+          try {
+            rawSteps = JSON.parse(rawSteps);
+          } catch {
+            rawSteps = [];
           }
-          setWorkflowSteps(Array.isArray(steps) ? steps : []);
         }
+
+        let parsedSteps: any[] = [];
+        if (Array.isArray(rawSteps) && rawSteps.length > 0) {
+          parsedSteps = rawSteps
+            .filter((s: any) => {
+              const name = (typeof s === 'string' ? s : s.step_name || s.name || '').toUpperCase();
+              return name !== 'START' && name !== 'END';
+            })
+            .map((s: any, idx: number) => {
+              if (typeof s === 'string') {
+                return { id: `step_${idx}`, step_name: s, type: 'STEP' };
+              }
+              const stepName = s.step_name || s.name || `Step ${idx + 1}`;
+              const lower = stepName.toLowerCase();
+              const inferredType = s.type || (
+                lower.includes('approval') || lower.includes('sign-off') ? 'APPROVAL' :
+                lower.includes('evaluat') || lower.includes('audit') || lower.includes('check') || lower.includes('scan') ? 'EVALUATION' :
+                lower.includes('api') || lower.includes('tool') || lower.includes('freeze') || lower.includes('stripe') ? 'TOOL' :
+                'STEP'
+              );
+              return {
+                id: s.id || `step_${idx}`,
+                step_name: stepName,
+                type: inferredType,
+                description: s.description || '',
+              };
+            });
+        }
+
+        // Fallback: extract steps from execution logs if workflow steps_json was empty
+        if (parsedSteps.length === 0 && detailsData?.logs && detailsData.logs.length > 0) {
+          const stepLogs = detailsData.logs.filter((l: any) => l.event_type.includes('STEP'));
+          if (stepLogs.length > 0) {
+            const seen = new Set<string>();
+            stepLogs.forEach((l: any, idx: number) => {
+              const name = l.details || l.event_type;
+              if (!seen.has(name)) {
+                seen.add(name);
+                parsedSteps.push({
+                  id: `log_step_${idx}`,
+                  step_name: name,
+                  type: name.toLowerCase().includes('approval') ? 'APPROVAL' : 'STEP',
+                  description: ''
+                });
+              }
+            });
+          }
+        }
+
+        setWorkflowSteps(parsedSteps);
       } catch (err) {
         console.error('Failed to load execution details:', err);
+      } finally {
+        if (isInitial) {
+          setIsStepsLoading(false);
+          isInitial = false;
+        }
       }
     };
 
     fetchDetails();
-    const interval = setInterval(fetchDetails, 2000);
+    const interval = setInterval(fetchDetails, 2500);
     return () => clearInterval(interval);
   }, [selectedExecution]);
 
@@ -620,50 +678,118 @@ export const ExecutionDashboardPage: React.FC = () => {
         <div className="text-center p-12 text-gray-500 border border-gray-700 rounded-lg">
           No workflow executions found. Trigger a workflow to see it here.
         </div>
-      ) : (
-        <div className={styles.executionList}>
-          {executions.map((execution) => (
-            <div key={execution.id} className={styles.executionCard}>
-              <div className="flex items-center gap-4">
-                {getStatusIcon(execution.status)}
-                <div className={styles.cardInfo}>
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-white">Execution</span>
-                    {execution.is_dry_run && (
-                      <span className="px-2 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
-                        DRY RUN
-                      </span>
-                    )}
-                    <span className={`${styles.statusBadge} ${styles[`status-${execution.status}`]}`}>
-                      {execution.status}
-                    </span>
+      ) : (() => {
+        const totalCount = executions.length;
+        const totalPages = Math.ceil(totalCount / pageSize) || 1;
+        const startRecord = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+        const endRecord = Math.min(page * pageSize, totalCount);
+        const paginatedExecutions = executions.slice((page - 1) * pageSize, page * pageSize);
+
+        return (
+          <>
+            <div className={styles.executionList}>
+              {paginatedExecutions.map((execution) => (
+                <div key={execution.id} className={styles.executionCard}>
+                  <div className="flex items-center gap-4">
+                    {getStatusIcon(execution.status)}
+                    <div className={styles.cardInfo}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-white">Execution</span>
+                        {execution.is_dry_run && (
+                          <span className="px-2 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">
+                            DRY RUN
+                          </span>
+                        )}
+                        <span className={`${styles.statusBadge} ${styles[`status-${execution.status}`]}`}>
+                          {execution.status}
+                        </span>
+                      </div>
+                      <div className={styles.workflowId}>
+                        Workflow: <span style={{ color: '#fff', fontWeight: '600' }}>{execution.workflow_name || 'Unnamed Workflow'}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '-2px' }}>
+                        Workflow ID: {execution.workflow_id}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        Started: {new Date(execution.started_at).toLocaleString()}
+                      </div>
+                    </div>
                   </div>
-                  <div className={styles.workflowId}>
-                    Workflow: <span style={{ color: '#fff', fontWeight: '600' }}>{execution.workflow_name || 'Unnamed Workflow'}</span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '-2px' }}>
-                    Workflow ID: {execution.workflow_id}
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    Started: {new Date(execution.started_at).toLocaleString()}
+                  
+                  <div className={styles.actions} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                    <div style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600, background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      {execution.completed_steps || 0} / {execution.total_steps || 0} Steps
+                    </div>
+                    <button className={styles.viewButton} onClick={() => handleOpenDetails(execution)}>
+                      <Eye size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
+                      View Details
+                    </button>
                   </div>
                 </div>
-              </div>
-              
-              
-              <div className={styles.actions} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                <div style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 600, background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  {execution.completed_steps || 0} / {execution.total_steps || 0} Steps
-                </div>
-                <button className={styles.viewButton} onClick={() => handleOpenDetails(execution)}>
-                  <Eye size={14} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} />
-                  View Details
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+
+            {/* Executions Pagination Controls */}
+            {totalCount > 0 && (
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 16px",
+                background: "rgba(15, 23, 42, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: "8px",
+                fontSize: "0.85rem",
+                color: "#94a3b8",
+                marginTop: "16px"
+              }}>
+                <div>
+                  Showing <strong style={{ color: "#fff" }}>{startRecord}-{endRecord}</strong> of <strong style={{ color: "#fff" }}>{totalCount}</strong> executions
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span>Page <strong style={{ color: "#fff" }}>{page}</strong> of <strong style={{ color: "#fff" }}>{totalPages}</strong></span>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      type="button"
+                      disabled={page <= 1}
+                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        background: page <= 1 ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.08)",
+                        color: page <= 1 ? "#475569" : "#fff",
+                        cursor: page <= 1 ? "not-allowed" : "pointer",
+                        fontSize: "0.8rem",
+                        fontWeight: 600
+                      }}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        background: page >= totalPages ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.08)",
+                        color: page >= totalPages ? "#475569" : "#fff",
+                        cursor: page >= totalPages ? "not-allowed" : "pointer",
+                        fontSize: "0.8rem",
+                        fontWeight: 600
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Visual Execution Monitoring Modal */}
       {selectedExecution && (
@@ -691,7 +817,12 @@ export const ExecutionDashboardPage: React.FC = () => {
               </div>
 
               <div className={styles.canvasWrapper}>
-                {workflowSteps.length > 0 ? (
+                {isStepsLoading ? (
+                  <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px' }}>
+                    <Loader2 className="animate-spin" size={20} style={{ marginRight: '8px' }} />
+                    Loading visual workflow steps...
+                  </div>
+                ) : workflowSteps.length > 0 ? (
                   <ReactFlowProvider>
                     <ReactFlow
                       nodes={flowNodes}
@@ -710,9 +841,9 @@ export const ExecutionDashboardPage: React.FC = () => {
                     </ReactFlow>
                   </ReactFlowProvider>
                 ) : (
-                  <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px' }}>
-                    <Loader2 className="animate-spin" size={20} style={{ marginRight: '8px' }} />
-                    Loading visual workflow steps...
+                  <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px', flexDirection: 'column', gap: '8px' }}>
+                    <BrainCircuit size={28} style={{ color: '#475569' }} />
+                    <span>No visual workflow steps configured for this workflow.</span>
                   </div>
                 )}
               </div>

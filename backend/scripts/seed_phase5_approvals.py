@@ -13,10 +13,10 @@ def seed_phase5_approvals():
     try:
         print("[INFO] Seeding Phase 5 Approval Departments...")
         
-        # 1. Fetch a tenant
-        tenant = db.execute(text("SELECT id FROM tenants LIMIT 1")).fetchone()
+        # 1. Fetch a tenant (user id)
+        tenant = db.execute(text("SELECT id FROM users LIMIT 1")).fetchone()
         if not tenant:
-            print("[ERROR] No tenant found. Please ensure basic data has been seeded.")
+            print("[ERROR] No users found. Please ensure basic data has been seeded.")
             return
         tenant_id = tenant.id
         

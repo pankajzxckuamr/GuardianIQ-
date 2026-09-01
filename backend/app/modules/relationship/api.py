@@ -65,7 +65,7 @@ def get_validation_rules(request: Request, current_user = Depends(get_current_us
 async def list_relationships(
     request: Request,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100, alias="per_page"),
+    page_size: int = Query(10, ge=1, le=100, alias="per_page"),
     source_type: Optional[str] = None,
     source_id: Optional[str] = None,
     target_type: Optional[str] = None,
@@ -1124,7 +1124,7 @@ async def submit_relationship(
     if not allowed:
         raise HTTPException(status_code=403, detail=err_reason)
         
-    success = await service.approve_relationship(id)
+    success = await service.submit_relationship(id)
     if not success:
         return ResponseHelper.error(message="Relationship not found or invalid state transition", status_code=404, request_id=request_id)
         

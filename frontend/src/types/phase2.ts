@@ -82,6 +82,7 @@ export interface WorkflowRunResponse {
   context_json?: any;
   workflow_name?: string;
   triggered_by_name?: string;
+  error_message?: string;
 }
 
 export interface WorkflowRunStepResponse {
@@ -93,7 +94,10 @@ export interface WorkflowRunStepResponse {
   step_status: string;
   started_at?: string;
   completed_at?: string;
+  duration_ms?: number;
   error_message?: string;
+  error_detail?: any;
+  input_json?: any;
   output_json?: any;
 }
 
@@ -103,6 +107,8 @@ export interface WorkflowRunOutputResponse {
   output_type: string;
   output_content: string;
   risk_level: string;
+  severity?: string;
+  risk_score?: number;
   requires_review: boolean;
   is_approved?: boolean;
 }
@@ -132,6 +138,14 @@ export interface ApprovalResponse {
   submitted_by?: string;
   approver_user_id?: string;
   approver_name?: string;
+  approver_email?: string;
+  decided_by?: string;
+  decided_by_name?: string;
+  decided_by_email?: string;
+  department_name?: string;
+  department_code?: string;
+  approval_layer?: number;
+  skip_reason?: string;
   created_at: string;
 }
 
